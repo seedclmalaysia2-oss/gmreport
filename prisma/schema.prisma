@@ -1,0 +1,64 @@
+// Postgres on Supabase.
+//   DATABASE_URL = pooled connection (port 6543, ?pgbouncer=true) — used by the running app
+//   DIRECT_URL   = direct connection (port 5432)                  — used by `prisma migrate / db push`
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// One row per YYYY-MM. Section JSON blobs validated by Zod in src/lib/schema.ts.
+model MonthReport {
+  id            String   @id                      // "2026-03"
+  year          Int
+  month         Int                                // 1..12
+  presenter     String   @default("Simon (Malaysia GM)")
+  presentDate   DateTime?
+  fxRate        Float    @default(30.73)           // MYR -> JPY
+  // Section payloads (TEXT JSON) — see lib/schema.ts for shapes.
+  salesAchievement     String?
+  salesTrend           String?
+  marketOutlook        String?
+  dailySales           String?
+  salesByQuantity      String?
+  topProducts          String?
+  salesByECP           String?
+  salesByRegion        String?
+  productRegistration  String?
+  inventory            String?
+  expireWriteOff       String?
+  financial            String?
+  otherMarket          String?
+  // Map of { sectionKey: [{ name, size, at }] } — last set of files that fed each slide.
+  sourceFiles          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rawFiles RawFile[]
+
+  @@unique([year, month])
+}
+
+model RawFile {
+  id            String   @id @default(cuid())
+  monthReportId String
+  monthReport   MonthReport @relation(fields: [monthReportId], references: [id], onDelete: Cascade)
+  kind          String                              // "pos_master" | "pos_mcuv" | "pos_daily" | "pos_outlets" | "pos_inventory" | "pos_expiry" | "working_xlsx"
+  originalName  String
+  storedPath    String
+  byteSize      Int
+  createdAt     DateTime @default(now())
+}
+
+// Named settings — outlet-type overrides, SKU map overrides, etc.
+model Mapping {
+  id    String @id                                   // e.g. "sku:XYZ", "outlet:CASH SALES - ALAN"
+  type  String                                       // "sku" | "outlet" | "state"
+  value String                                       // JSON
+  updatedAt DateTime @updatedAt
+}

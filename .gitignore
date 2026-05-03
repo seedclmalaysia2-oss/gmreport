@@ -1,0 +1,19 @@
+node_modules
+.next
+out
+
+# Env files — secrets, don't commit them.
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+*.tsbuildinfo
+next-env.d.ts
+prisma/*.db
+prisma/*.db-journal
+prisma/*.sqlite-backup
+uploads/
+.DS_Store
+.dev.log
