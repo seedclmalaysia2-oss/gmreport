@@ -19,7 +19,7 @@ import { SectionOtherMarket } from "./sections/other-market";
 import { SectionSalesTrend } from "./sections/sales-trend";
 import { monthNameFull } from "@/lib/utils";
 import Link from "next/link";
-import { ArrowLeft, Download, FileUp, Info, Loader2, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, Download, FileUp, Info, Layers, Loader2, RefreshCw, X } from "lucide-react";
 import { SlidePreview } from "./slide-preview";
 
 export function ReportEditor({ initial, isNew = false, siblings = [] }: { initial: MonthReport; isNew?: boolean; siblings?: MonthReport[] }) {
@@ -106,12 +106,68 @@ export function ReportEditor({ initial, isNew = false, siblings = [] }: { initia
   [report]);
 
   const missingCount = SECTION_KEYS.filter(k => !progress[k]).length;
+  // Mobile: sidebar collapses into a slide-over drawer; desktop: stays sticky.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Close the drawer when the active section changes (so tapping a slide returns to content).
+  const closeDrawer = () => setDrawerOpen(false);
+  const activeMeta = SECTION_META[active];
 
   return (
-    <div className="grid grid-cols-[240px_1fr] gap-6">
-      {/* Sidebar */}
-      <aside className="space-y-4 sticky top-24 self-start">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)]">
+    <div className="md:grid md:grid-cols-[240px_1fr] md:gap-6">
+      {/* Mobile-only top bar: section title + chevron to open the drawer */}
+      <div className="md:hidden mb-3 flex items-center gap-2 rounded-xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] p-2">
+        <Link href="/" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-ink-600)] hover:bg-[var(--color-ice-100)]" title="Back to months">
+          <ArrowLeft size={16} />
+        </Link>
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="flex-1 inline-flex items-center justify-between gap-2 rounded-lg bg-[var(--color-ice-50)] px-3 h-9 text-sm font-semibold text-[var(--color-ink-900)]"
+        >
+          <span className="inline-flex items-center gap-2 truncate">
+            <Layers size={14} className="text-[var(--color-ink-700)]" />
+            <span className="opacity-70">{activeMeta.no}.</span>
+            <span className="truncate">{activeMeta.title}</span>
+          </span>
+          <ChevronRight size={14} className="shrink-0 text-[var(--color-ink-600)]" />
+        </button>
+      </div>
+
+      {/* Drawer scrim — phones only, taps close */}
+      {drawerOpen && (
+        <div
+          aria-hidden
+          onClick={closeDrawer}
+          className="md:hidden fixed inset-0 z-40 bg-black/40 animate-fadein"
+        />
+      )}
+
+      {/* Sidebar:
+          - phones (default): off-canvas drawer; toggled by `drawerOpen`
+          - desktop (md+): static sticky column */}
+      <aside
+        className={[
+          "space-y-4 self-start",
+          // Mobile drawer
+          "md:relative md:translate-x-0 md:w-auto md:bg-transparent md:p-0 md:shadow-none md:border-0 md:overflow-visible",
+          drawerOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          "fixed left-0 top-0 z-50 h-full w-[88vw] max-w-[320px] overflow-y-auto",
+          "bg-[var(--surface-1)] border-r border-[var(--color-ice-200)] shadow-xl",
+          "p-3 transition-transform duration-200",
+          // Desktop sticky behaviour
+          "md:sticky md:top-24",
+        ].join(" ")}
+      >
+        {/* Drawer close button (mobile only) */}
+        <button
+          type="button"
+          onClick={closeDrawer}
+          className="md:hidden absolute top-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-ink-600)] hover:bg-[var(--color-ice-100)]"
+          aria-label="Close sections drawer"
+        >
+          <X size={18} />
+        </button>
+        <Link href="/" className="hidden md:inline-flex items-center gap-1 text-sm text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)]">
           <ArrowLeft size={14} /> Back to months
         </Link>
 
@@ -180,9 +236,10 @@ export function ReportEditor({ initial, isNew = false, siblings = [] }: { initia
             return (
               <button
                 key={k}
-                onClick={() => setActive(k)}
+                onClick={() => { setActive(k); closeDrawer(); }}
                 className={[
-                  "w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm",
+                  // Bigger tap target on mobile (44px), tighter on desktop.
+                  "w-full flex items-center gap-2 rounded-lg px-2 py-2 md:py-1.5 text-left text-sm",
                   active === k ? "bg-[var(--color-ink-800)] text-white" : "hover:bg-[var(--color-ice-100)] text-[var(--color-ink-900)]",
                 ].join(" ")}
               >

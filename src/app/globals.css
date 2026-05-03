@@ -99,3 +99,32 @@ html.dark input, html.dark select, html.dark textarea {
 
 /* Wide tables in the editor get horizontal scroll inside their card. */
 .scroll-x { overflow-x: auto; }
+
+/* ----- Mobile niceties ----- */
+
+/* Stop iOS Safari / Android Chrome auto-zooming the form when an <input>
+   is focused. ANY input with font-size < 16px triggers it; bumping just
+   inputs/selects/textareas without touching layout is the cleanest fix. */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+/* Tap-friendly minimums — buttons + nav items get a 44×44 footprint on touch
+   devices (matches Android Material + iOS HIG). Inputs are visual, not tap
+   targets, so they're left out. */
+@media (hover: none) and (pointer: coarse) {
+  button, [role="button"], a.nav-link {
+    min-height: 44px;
+  }
+}
+
+/* Honour the device safe-area on phones with notches/curves. */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* iOS bouncy momentum scroll inside any wide table wrapper. */
+.overflow-x-auto, .scroll-x { -webkit-overflow-scrolling: touch; }
