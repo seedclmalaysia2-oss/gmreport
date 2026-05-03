@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
+import { MobileTabBar } from "@/components/mobile-tabbar";
+import { ZoomControls } from "@/components/zoom-controls";
 import { paletteBootstrapScript } from "@/lib/themes";
 
 export const metadata: Metadata = {
@@ -41,10 +43,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen" suppressHydrationWarning>
         <SiteHeader />
-        {/* Mobile-first: tighter horizontal padding on small screens, expand on tablets+. */}
-        <main className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-8 pb-[env(safe-area-inset-bottom)]">
+        {/* Mobile-first: tighter horizontal padding on small screens, expand on tablets+.
+            Extra bottom padding on phones leaves room for the fixed MobileTabBar so the
+            last cards aren't hidden behind it. md:pb-8 restores normal padding on tablets+. */}
+        <main className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
           {children}
         </main>
+        {/* Phone-only bottom navigation — thumb-reach friendly. */}
+        <MobileTabBar />
+        {/* Phone-only floating zoom widget (+/-). Sits above the tab bar. */}
+        <ZoomControls />
       </body>
     </html>
   );
