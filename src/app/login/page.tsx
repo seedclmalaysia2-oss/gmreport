@@ -1,9 +1,8 @@
 "use client";
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 function LoginForm() {
-  const router = useRouter();
   const sp = useSearchParams();
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -12,17 +11,24 @@ function LoginForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
+    // `credentials: "same-origin"` is the fetch default but state it explicitly
+    // so we know cookies are sent on the next navigation.
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ password }),
     });
-    setBusy(false);
     if (res.ok) {
-      router.replace(sp.get("next") || "/");
-    } else {
-      setErr("Wrong password");
+      // Use a HARD navigation (not `router.replace`) so the browser re-issues
+      // a full GET with the freshly-set `gm_dash_auth` cookie attached, giving
+      // the middleware a clean shot at validating it. `router.replace` does an
+      // RSC fetch that occasionally races the cookie write on slow networks.
+      window.location.assign(sp.get("next") || "/");
+      return;
     }
+    setBusy(false);
+    setErr("Wrong password");
   }
 
   return (
