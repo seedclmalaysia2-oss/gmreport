@@ -111,10 +111,10 @@ const marchECP = {
 
 const marchRegion = {
   rows: [
-    { region: "Southern Region (Melaka & Johor)" as const, salesThis: 68723, salesPrev: 71923, growthPct: -0.0445 },
-    { region: "Central Region (KL, Selangor, Putrajaya & NS9)" as const, salesThis: 155582, salesPrev: 125924, growthPct: 0.2355 },
+    { region: "Southern Region (Johor, Melaka & Negeri Sembilan)" as const, salesThis: 68723, salesPrev: 71923, growthPct: -0.0445 },
+    { region: "Central Region (KL, Selangor & Putrajaya)" as const, salesThis: 155582, salesPrev: 125924, growthPct: 0.2355 },
     { region: "Northern Region (Kedah, Penang, Perak & Perlis)" as const, salesThis: 35214, salesPrev: 36567, growthPct: -0.0370 },
-    { region: "East Coast Region (Pahang, Terengganu & Kelantan)" as const, salesThis: 14419, salesPrev: 6585, growthPct: 1.1896 },
+    { region: "East Coast Region (Pahang, Kelantan & Terengganu)" as const, salesThis: 14419, salesPrev: 6585, growthPct: 1.1896 },
     { region: "East Malaysia (Sabah & Sarawak) & Brunei" as const, salesThis: 25919, salesPrev: 26140, growthPct: -0.0084 },
   ],
   commentary: "Central region led the growth this month, boosted by KL and Selangor festive spending. East Coast saw strong recovery off a low February base. Other regions largely flat.",
