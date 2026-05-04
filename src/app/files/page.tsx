@@ -168,7 +168,7 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
               <th className="text-left px-3 sm:px-5 py-2 hidden md:table-cell">Slides fed</th>
               <th className="text-right px-3 sm:px-5 py-2 w-[80px]">Size</th>
               <th className="text-right px-3 sm:px-5 py-2 w-[140px] hidden sm:table-cell">Uploaded</th>
-              <th className="text-right px-3 sm:px-5 py-2 w-[160px]">Actions</th>
+              <th className="text-right px-3 sm:px-5 py-2 w-[260px]">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -192,7 +192,22 @@ function FileRow({ file }: { file: RawFileEntry }) {
         <div className="flex items-start gap-2">
           <FileText size={14} className="text-[var(--color-ink-600)] mt-0.5 shrink-0" />
           <div className="min-w-0">
-            <div className="break-all font-medium text-[var(--color-ink-900)]">{file.originalName}</div>
+            {/* Filename is a download link when we have the bytes — clicks
+                stream the file from /api/files/{id} with attachment header. */}
+            {file.hasBytes ? (
+              <a
+                href={`/api/files/${file.id}?disposition=attachment`}
+                download={file.originalName}
+                className="break-all font-medium text-[var(--color-ink-900)] hover:underline"
+                title={`Download ${file.originalName}`}
+              >
+                {file.originalName}
+              </a>
+            ) : (
+              <span className="break-all font-medium text-[var(--color-ink-900)]" title="File content not stored — re-upload to enable download">
+                {file.originalName}
+              </span>
+            )}
             <div className="sm:hidden text-[11px] text-[var(--color-ink-600)] mt-0.5 space-y-0.5">
               <div>{kindLabel}</div>
               <div>{fmtTimestamp(file.createdAt)}</div>
@@ -227,6 +242,7 @@ function FileRow({ file }: { file: RawFileEntry }) {
           year={file.year}
           month={file.month}
           fileName={file.originalName}
+          hasBytes={file.hasBytes}
         />
       </td>
     </tr>

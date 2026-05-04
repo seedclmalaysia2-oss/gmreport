@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RotateCw, Trash2 } from "lucide-react";
+import { Download, Eye, Loader2, RotateCw, Trash2 } from "lucide-react";
 
 /**
  * Per-row action buttons for the Files page upload-history table.
@@ -23,11 +23,14 @@ export function FileRowActions({
   year,
   month,
   fileName,
+  hasBytes,
 }: {
   fileId: string;
   year: number;
   month: number;
   fileName: string;
+  /** False for legacy rows imported before we started storing bytea content. */
+  hasBytes: boolean;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +91,12 @@ export function FileRowActions({
     }
   }
 
+  // Inline view = open in a new tab (PDF renders, XLSX downloads — browsers
+  // don't render xlsx natively but the request still streams).
+  // Attachment download = forced "Save As".
+  const viewHref = `/api/files/${fileId}?disposition=inline`;
+  const downloadHref = `/api/files/${fileId}?disposition=attachment`;
+
   return (
     <div className="flex items-center justify-end gap-1 whitespace-nowrap">
       {/* Hidden picker the Update button drives. */}
@@ -98,6 +107,33 @@ export function FileRowActions({
         className="hidden"
         onChange={onFilePicked}
       />
+
+      {hasBytes && (
+        <>
+          <a
+            href={viewHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open file in a new tab"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold
+                       text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)] transition"
+          >
+            <Eye size={12} /> View
+          </a>
+          <a
+            href={downloadHref}
+            // <a download> requests the browser save-as dialog. We still set
+            // the header server-side so this works even when the attribute
+            // is ignored (older browsers, cross-origin, etc.).
+            download={fileName}
+            title="Download a copy"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold
+                       text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)] transition"
+          >
+            <Download size={12} /> Save
+          </a>
+        </>
+      )}
 
       <button
         type="button"

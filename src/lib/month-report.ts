@@ -113,28 +113,61 @@ export type RawFileEntry = {
   byteSize: number;
   sectionKeys: string[];
   createdAt: string; // ISO
+  hasBytes: boolean;  // false for legacy rows imported before bytea storage
 };
 
 /**
  * Returns every uploaded file recorded in the RawFile table, joined with its
  * MonthReport so the UI can group by year/month. Sorted by createdAt desc so
  * the most recent uploads land at the top.
+ *
+ * We DON'T select `bytes` here — that'd ship every file's binary content to
+ * the page on render. We only return `hasBytes` (a derived boolean) so the
+ * UI can decide whether to show a Download / View button. The actual bytes
+ * stream out of the dedicated GET /api/files/{id} endpoint on demand.
  */
 export async function listRawFiles(): Promise<RawFileEntry[]> {
-  const rows = await prisma.rawFile.findMany({
-    include: { monthReport: { select: { year: true, month: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  // Prisma can't express "is column NULL?" in select, so we ask Postgres
+  // directly via $queryRaw. This keeps the payload tiny — a boolean per row
+  // instead of a megabyte of base64.
+  const rows = await prisma.$queryRaw<Array<{
+    id: string;
+    monthReportId: string;
+    kind: string;
+    originalName: string;
+    byteSize: number;
+    sectionKeys: string | null;
+    createdAt: Date;
+    hasBytes: boolean;
+    year: number;
+    month: number;
+  }>>`
+    SELECT
+      r."id",
+      r."monthReportId",
+      r."kind",
+      r."originalName",
+      r."byteSize",
+      r."sectionKeys",
+      r."createdAt",
+      (r."bytes" IS NOT NULL) AS "hasBytes",
+      m."year",
+      m."month"
+    FROM "RawFile" r
+    JOIN "MonthReport" m ON m."id" = r."monthReportId"
+    ORDER BY r."createdAt" DESC
+  `;
   return rows.map(r => ({
     id: r.id,
     monthReportId: r.monthReportId,
-    year: r.monthReport.year,
-    month: r.monthReport.month,
+    year: r.year,
+    month: r.month,
     kind: r.kind,
     originalName: r.originalName,
     byteSize: r.byteSize,
     sectionKeys: r.sectionKeys ? safeParseStringArray(r.sectionKeys) : [],
     createdAt: r.createdAt.toISOString(),
+    hasBytes: r.hasBytes,
   }));
 }
 

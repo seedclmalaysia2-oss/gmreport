@@ -70,23 +70,31 @@ export async function POST(req: Request): Promise<Response> {
   let collectionXlsxBuf: ArrayBuffer | null = null;
   let dailySalesXlsxBuf: ArrayBuffer | null = null;
   const warnings: string[] = [];
-  // Track each uploaded file against a FileKind so we can surface the list + map
-  // it back to the slide(s) it drove.
-  const filesByKind: Partial<Record<FileKind, { name: string; size: number }[]>> = {};
-  const pushFile = (kind: FileKind, f: File) => {
-    (filesByKind[kind] ??= []).push({ name: f.name, size: f.size });
+  // Track each uploaded file against a FileKind so we can surface the list,
+  // map it back to the slide(s) it drove, AND keep the raw bytes so we can
+  // persist them to the RawFile table for download/view later. We hold the
+  // ArrayBuffer here (not Buffer/Uint8Array) so a single object reference
+  // is shared across the parse path and the persist path — Buffer.from(..)
+  // is cheap and only happens once at insert time.
+  type FileEntry = { name: string; size: number; buf: ArrayBuffer };
+  const filesByKind: Partial<Record<FileKind, FileEntry[]>> = {};
+  const pushFile = (kind: FileKind, f: File, buf: ArrayBuffer) => {
+    (filesByKind[kind] ??= []).push({ name: f.name, size: f.size, buf });
   };
 
   for (const f of files) {
     const name = f.name;
     const lower = name.toLowerCase();
     if (lower.endsWith(".pdf")) {
-      const bytes = new Uint8Array(await f.arrayBuffer());
+      // arrayBuffer() can only be consumed once, so capture it before
+      // handing a Uint8Array view to the parser.
+      const buf = await f.arrayBuffer();
+      const bytes = new Uint8Array(buf);
       const parsed = await parsePosPdf(bytes, name);
-      if (parsed.kind === "master") { master = parsed; pushFile("pos_master", f); }
-      else if (parsed.kind === "mcuv") { mcuv.push(parsed); pushFile("pos_mcuv", f); }
-      else if (parsed.kind === "writeoff") { writeOff = parsed; pushFile("pos_writeoff", f); }
-      else { warnings.push(`Unrecognised PDF: ${name}`); pushFile("unknown", f); }
+      if (parsed.kind === "master") { master = parsed; pushFile("pos_master", f, buf); }
+      else if (parsed.kind === "mcuv") { mcuv.push(parsed); pushFile("pos_mcuv", f, buf); }
+      else if (parsed.kind === "writeoff") { writeOff = parsed; pushFile("pos_writeoff", f, buf); }
+      else { warnings.push(`Unrecognised PDF: ${name}`); pushFile("unknown", f, buf); }
     } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
       const buf = await f.arrayBuffer();
       // Order matters — several patterns overlap (Region also contains "sales",
@@ -95,15 +103,15 @@ export async function POST(req: Request): Promise<Response> {
         // The XLSX twin of the master "Stock Sales Analysis Summary By Group"
         // PDF. Drives Sales Achievement, Sales Quantity, Top Products.
         master = parseMasterXlsx(buf);
-        pushFile("pos_master", f);
+        pushFile("pos_master", f, buf);
       }
-      else if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f); }
-      else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f); }
-      else if (/sales.*analysis.*region|sales.*by.*region/i.test(name)) { regionXlsxBuf = buf; pushFile("pos_region", f); }
-      else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f); }
-      else if (/daily\s*sales/i.test(name)) { dailySalesXlsxBuf = buf; pushFile("pos_daily", f); }
-      else if (/colle?c?tion\s*listing/i.test(name)) { collectionXlsxBuf = buf; pushFile("pos_collection", f); }
-      else { outletsXlsxBuf = buf; pushFile("pos_outlets", f); }
+      else if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f, buf); }
+      else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
+      else if (/sales.*analysis.*region|sales.*by.*region/i.test(name)) { regionXlsxBuf = buf; pushFile("pos_region", f, buf); }
+      else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f, buf); }
+      else if (/daily\s*sales/i.test(name)) { dailySalesXlsxBuf = buf; pushFile("pos_daily", f, buf); }
+      else if (/colle?c?tion\s*listing/i.test(name)) { collectionXlsxBuf = buf; pushFile("pos_collection", f, buf); }
+      else { outletsXlsxBuf = buf; pushFile("pos_outlets", f, buf); }
     }
   }
 
@@ -266,7 +274,7 @@ export async function POST(req: Request): Promise<Response> {
   // uploaded file — including the ones we couldn't classify ("unknown") so
   // the user can still see they reached the server. This is what the Files
   // page renders going forward.
-  const rawFileRows = (Object.entries(filesByKind) as [FileKind, { name: string; size: number }[]][])
+  const rawFileRows = (Object.entries(filesByKind) as [FileKind, FileEntry[]][])
     .flatMap(([kind, entries]) => {
       const sectionKeysForKind = (KIND_TO_SECTIONS[kind] ?? []).filter(sk => sectionsTouched.has(sk));
       return entries.map(e => ({
@@ -275,6 +283,10 @@ export async function POST(req: Request): Promise<Response> {
         originalName: e.name,
         byteSize: e.size,
         sectionKeys: sectionKeysForKind.length ? JSON.stringify(sectionKeysForKind) : null,
+        // Buffer.from(ArrayBuffer) creates a zero-copy view, then Prisma
+        // serializes it as Postgres bytea. POS files in this app are well
+        // under 1 MB each, so storing inline is fine for our volume.
+        bytes: Buffer.from(e.buf),
       }));
     });
   if (rawFileRows.length) {
