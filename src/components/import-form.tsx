@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MONTH_NAMES, monthId } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FileText, UploadCloud } from "lucide-react";
@@ -45,6 +45,19 @@ export function ImportForm() {
     if (sp?.get("year"))  setYear(Number(sp.get("year")));
     if (sp?.get("month")) setMonth(Number(sp.get("month")));
   }, [sp]);
+
+  // When the user retargets a different month/year, clear the staged file
+  // queue so they can't accidentally send March files into February. We
+  // skip the very first run (initial mount) so URL-derived defaults don't
+  // wipe a fresh queue. We also clear any previous result/error so the
+  // success or failure of a prior import doesn't linger over a new context.
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    setFiles([]);
+    setResult(null);
+    setErr("");
+  }, [year, month]);
 
   const sectionLabel = section && SECTION_META[section] ? `${SECTION_META[section].no}. ${SECTION_META[section].title}` : null;
 
