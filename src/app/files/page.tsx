@@ -5,6 +5,7 @@ import { SECTION_KEYS, SECTION_META, type MonthReport, type SectionKey } from "@
 import { monthNameFull } from "@/lib/utils";
 import { ArrowRight, FileText, FileUp, Info } from "lucide-react";
 import { ImportForm } from "@/components/import-form";
+import { FileRowActions } from "@/components/file-row-actions";
 
 // Combined Upload + History page. After a successful import the client form
 // calls router.refresh(), which triggers a fresh server render of this page
@@ -167,6 +168,7 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
               <th className="text-left px-3 sm:px-5 py-2 hidden md:table-cell">Slides fed</th>
               <th className="text-right px-3 sm:px-5 py-2 w-[80px]">Size</th>
               <th className="text-right px-3 sm:px-5 py-2 w-[140px] hidden sm:table-cell">Uploaded</th>
+              <th className="text-right px-3 sm:px-5 py-2 w-[160px]">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -219,6 +221,14 @@ function FileRow({ file }: { file: RawFileEntry }) {
       </td>
       <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums">{fmtBytes(file.byteSize)}</td>
       <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums whitespace-nowrap hidden sm:table-cell">{fmtTimestamp(file.createdAt)}</td>
+      <td className="px-3 sm:px-5 py-2.5">
+        <FileRowActions
+          fileId={file.id}
+          year={file.year}
+          month={file.month}
+          fileName={file.originalName}
+        />
+      </td>
     </tr>
   );
 }
