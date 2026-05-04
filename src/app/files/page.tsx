@@ -2,7 +2,7 @@ import Link from "next/link";
 import { listMonthReports } from "@/lib/month-report";
 import { SECTION_KEYS, SECTION_META, type MonthReport, type SectionKey } from "@/lib/schema";
 import { monthNameFull } from "@/lib/utils";
-import { ArrowRight, FileText } from "lucide-react";
+import { ArrowRight, FileText, FileUp, Info } from "lucide-react";
 
 function fmtBytes(size: number | null | undefined): string {
   if (!size) return "";
@@ -25,15 +25,33 @@ export default async function FilesPage() {
   const ordered = months.slice().sort((a, b) => b.year - a.year || b.month - a.month);
 
   return (
-    <main className="mx-auto max-w-[1100px] px-6 py-8 space-y-6">
+    <main className="mx-auto max-w-[1100px] px-3 sm:px-6 py-4 sm:py-8 space-y-6">
       <header>
         <p className="text-xs text-[var(--color-ink-600)] uppercase tracking-[0.2em]">Upload history</p>
-        <h1 className="font-[var(--font-display)] text-3xl font-semibold mt-1">Source files by month & slide</h1>
+        <h1 className="font-[var(--font-display)] text-2xl sm:text-3xl font-semibold mt-1">Source files by month &amp; slide</h1>
         <p className="text-sm text-[var(--color-ink-600)] mt-1">
           Every POS file you imported, grouped by the month it was uploaded for and the slide it populated.
           Timestamps are when the file was processed by the importer.
         </p>
       </header>
+
+      {/* Helpful banner — explains why a freshly-seeded month shows zero files
+          even though the editor has data in it. We hide it once at least one
+          month *has* sourceFiles, so it doesn't crowd the page once real
+          imports start landing. */}
+      {ordered.length > 0 && ordered.every(m => Object.keys(m.sourceFiles ?? {}).length === 0) && (
+        <div className="rounded-xl border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] p-4 flex gap-3 text-sm">
+          <Info size={18} className="text-[var(--color-ink-700)] mt-0.5 shrink-0" />
+          <div className="text-[var(--color-ink-800)]">
+            <p className="font-semibold">No POS files have been imported yet.</p>
+            <p className="text-[var(--color-ink-600)] mt-1">
+              The months below come from the demo seed. Head over to{" "}
+              <Link href="/import" className="underline font-semibold text-[var(--color-ink-800)]">Import POS</Link>{" "}
+              to upload PDF / Excel files — once processed, they&rsquo;ll appear here grouped by slide.
+            </p>
+          </div>
+        </div>
+      )}
 
       {ordered.length === 0 && (
         <div className="rounded-xl border border-[var(--color-ice-200)] bg-white p-8 text-center text-sm text-[var(--color-ink-600)]">
@@ -58,26 +76,36 @@ function MonthBlock({ month }: { month: MonthReport }) {
 
   return (
     <section className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden">
-      <header className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
-        <div>
-          <h2 className="font-[var(--font-display)] text-xl font-semibold">{monthNameFull(month.month)} {month.year}</h2>
+      <header className="flex items-center justify-between gap-3 px-3 sm:px-5 py-3 border-b border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
+        <div className="min-w-0">
+          <h2 className="font-[var(--font-display)] text-lg sm:text-xl font-semibold truncate">{monthNameFull(month.month)} {month.year}</h2>
           <p className="text-xs text-[var(--color-ink-600)] mt-0.5">
             {totalFiles === 0 ? "No files recorded" : `${totalFiles} file${totalFiles === 1 ? "" : "s"} across ${entries.length} slide${entries.length === 1 ? "" : "s"}`}
           </p>
         </div>
         <Link
           href={`/report/${month.id}`}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-ink-800)] hover:underline"
+          className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-ink-800)] hover:underline"
         >
           Open report <ArrowRight size={12} />
         </Link>
       </header>
 
       {entries.length === 0 ? (
-        <div className="px-5 py-4 text-sm text-[var(--color-ink-600)]">
-          No files uploaded for this month yet.
+        <div className="px-3 sm:px-5 py-4 sm:py-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--color-ink-600)]">
+            No files uploaded for this month yet.
+          </p>
+          <Link
+            href={`/import?year=${month.year}&month=${month.month}`}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-2 text-xs font-semibold hover:bg-[var(--color-ink-700)]"
+          >
+            <FileUp size={14} />
+            Import for {monthNameFull(month.month)} {month.year}
+          </Link>
         </div>
       ) : (
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-[11px] uppercase tracking-wider text-[var(--color-ink-600)] bg-white">
             <tr>
@@ -103,6 +131,7 @@ function MonthBlock({ month }: { month: MonthReport }) {
             )}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );
