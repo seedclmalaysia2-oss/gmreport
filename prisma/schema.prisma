@@ -44,15 +44,24 @@ model MonthReport {
   @@unique([year, month])
 }
 
+// Per-file upload log. One row written per file every time the user POSTs to
+// /api/import — gives the Files page an audit-trail view of everything that
+// has touched a month, regardless of whether the parser recognised it.
 model RawFile {
   id            String   @id @default(cuid())
   monthReportId String
   monthReport   MonthReport @relation(fields: [monthReportId], references: [id], onDelete: Cascade)
-  kind          String                              // "pos_master" | "pos_mcuv" | "pos_daily" | "pos_outlets" | "pos_inventory" | "pos_expiry" | "working_xlsx"
+  kind          String                              // "pos_master" | "pos_mcuv" | "pos_writeoff" | "pos_outlets" | "pos_ecp_list" | "pos_region" | "pos_salesman" | "pos_inventory" | "pos_collection" | "pos_daily" | "unknown"
   originalName  String
-  storedPath    String
+  storedPath    String?                              // reserved for future blob storage; null while we only persist metadata
   byteSize      Int
+  // JSON array of SectionKey strings — which slides this file fed (matches the
+  // KIND_TO_SECTIONS map at upload time). Lets the Files UI group by slide
+  // without re-deriving from `kind` on the client.
+  sectionKeys   String?
   createdAt     DateTime @default(now())
+
+  @@index([monthReportId, createdAt])
 }
 
 // Named settings — outlet-type overrides, SKU map overrides, etc.

@@ -6,6 +6,7 @@ import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesBy
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { expireByMonth } from "@/lib/aggregation/from-writeoff";
 import { getMonthReport, upsertMonthReport } from "@/lib/month-report";
+import { prisma } from "@/lib/db";
 import type { MonthReport, SectionKey, SourceFile, SourceFiles } from "@/lib/schema";
 
 export const runtime = "nodejs";
@@ -253,6 +254,31 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const saved = await upsertMonthReport({ year, month, ...sections, sourceFiles });
+
+  // ----- Persist a per-file audit log to the RawFile table -----
+  // We write metadata (name, size, kind, which slides it fed) for every
+  // uploaded file — including the ones we couldn't classify ("unknown") so
+  // the user can still see they reached the server. This is what the Files
+  // page renders going forward.
+  const rawFileRows = (Object.entries(filesByKind) as [FileKind, { name: string; size: number }[]][])
+    .flatMap(([kind, entries]) => {
+      const sectionKeysForKind = (KIND_TO_SECTIONS[kind] ?? []).filter(sk => sectionsTouched.has(sk));
+      return entries.map(e => ({
+        monthReportId: saved.id,
+        kind,
+        originalName: e.name,
+        byteSize: e.size,
+        sectionKeys: sectionKeysForKind.length ? JSON.stringify(sectionKeysForKind) : null,
+      }));
+    });
+  if (rawFileRows.length) {
+    // createMany is fire-and-forget; if it fails (e.g. transient pooler hiccup)
+    // we don't want to fail the whole import — the section data is already
+    // saved. Log to server console instead.
+    await prisma.rawFile.createMany({ data: rawFileRows }).catch(err => {
+      console.error("[import] failed to persist RawFile rows:", err);
+    });
+  }
 
   const result: ImportResult = {
     year, month,

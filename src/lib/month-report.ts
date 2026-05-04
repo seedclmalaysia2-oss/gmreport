@@ -100,3 +100,47 @@ export async function upsertMonthReport(input: Partial<MonthReport> & { year: nu
 export async function deleteMonthReport(id: string) {
   await prisma.monthReport.delete({ where: { id } });
 }
+
+// ----- Raw upload log (Files page) -----
+
+export type RawFileEntry = {
+  id: string;
+  monthReportId: string;
+  year: number;
+  month: number;
+  kind: string;
+  originalName: string;
+  byteSize: number;
+  sectionKeys: string[];
+  createdAt: string; // ISO
+};
+
+/**
+ * Returns every uploaded file recorded in the RawFile table, joined with its
+ * MonthReport so the UI can group by year/month. Sorted by createdAt desc so
+ * the most recent uploads land at the top.
+ */
+export async function listRawFiles(): Promise<RawFileEntry[]> {
+  const rows = await prisma.rawFile.findMany({
+    include: { monthReport: { select: { year: true, month: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(r => ({
+    id: r.id,
+    monthReportId: r.monthReportId,
+    year: r.monthReport.year,
+    month: r.monthReport.month,
+    kind: r.kind,
+    originalName: r.originalName,
+    byteSize: r.byteSize,
+    sectionKeys: r.sectionKeys ? safeParseStringArray(r.sectionKeys) : [],
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+function safeParseStringArray(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch { return []; }
+}
