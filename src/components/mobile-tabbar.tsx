@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileDown, FileUp, Files, Home } from "lucide-react";
+import { FileDown, Files, Home } from "lucide-react";
 
 /**
  * Bottom tab bar — phones only.
@@ -19,9 +19,10 @@ import { FileDown, FileUp, Files, Home } from "lucide-react";
 
 type Tab = { href: string; label: string; Icon: typeof Home };
 
+// Three tabs after we merged Import + Files into one. We use a 3-col grid on
+// the bar below so the icons spread evenly across the bottom of the screen.
 const TABS: Tab[] = [
   { href: "/",       label: "Months",  Icon: Home },
-  { href: "/import", label: "Import",  Icon: FileUp },
   { href: "/files",  label: "Files",   Icon: Files },
   { href: "/export", label: "Export",  Icon: FileDown },
 ];
@@ -43,7 +44,7 @@ export function MobileTabBar() {
                  bg-[var(--surface-1)]/95 backdrop-blur
                  pb-[env(safe-area-inset-bottom)]"
     >
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-3">
         {TABS.map(({ href, label, Icon }) => {
           const active = isActive(pathname, href);
           return (

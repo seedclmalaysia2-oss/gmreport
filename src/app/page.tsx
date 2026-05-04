@@ -27,8 +27,8 @@ export default async function Home() {
             Drop your POS PDFs, review the auto-built summaries, then export the HQ deck in one click — Classic layout to match the current HQ format, or a Modern redesign when you want to stand out.
           </p>
           <div className="mt-5 flex gap-3">
-            <Link href="/import" className="inline-flex items-center gap-2 rounded-lg bg-white text-[var(--color-ink-900)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-ice-100)]">
-              <FileUp size={15} /> Import POS data
+            <Link href="/files" className="inline-flex items-center gap-2 rounded-lg bg-white text-[var(--color-ink-900)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-ice-100)]">
+              <FileUp size={15} /> Upload POS files
             </Link>
             <Link href="/export" className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold hover:bg-white/10">
               <FileDown size={15} /> Export PPTX
@@ -60,7 +60,7 @@ export default async function Home() {
 
       {months.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[var(--color-ice-200)] bg-white p-10 text-center text-[var(--color-ink-600)]">
-          No months yet. Use <strong>New month</strong> to start, or go straight to <Link href="/import" className="underline">Import</Link> — we'll auto-create the month from the POS files.
+          No months yet. Use <strong>New month</strong> to start, or go straight to <Link href="/files" className="underline">Import</Link> — we'll auto-create the month from the POS files.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

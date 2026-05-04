@@ -185,7 +185,7 @@ export function ReportEditor({ initial, isNew = false, siblings = [] }: { initia
                 <p className="text-[var(--color-ink-600)] mt-1">
                   Prior-month targets, 2025 actuals, product-registration rows, and inventory shape were carried forward.
                 </p>
-                <Link href="/import" className="mt-2 inline-flex items-center gap-1 text-[var(--color-ink-800)] font-semibold hover:underline">
+                <Link href="/files" className="mt-2 inline-flex items-center gap-1 text-[var(--color-ink-800)] font-semibold hover:underline">
                   <FileUp size={12} /> Upload POS raw files
                 </Link>
               </div>

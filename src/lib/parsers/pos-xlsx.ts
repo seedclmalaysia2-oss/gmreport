@@ -2,6 +2,117 @@
 // into a flat list of outlet rows used by the ECP + Region aggregations.
 
 import * as XLSX from "xlsx";
+import { lookupProduct } from "@/lib/catalog/sku-map";
+import type { PosMasterRow, PosMasterParseResult } from "./pos-pdf";
+
+// ----------------------------------------------------------------------------
+// "Stock Sales Analysis - Summary By Group" Excel — the master sales dump.
+//
+// Same data the PDF version exposes, just in spreadsheet form. The sheet
+// "Page 1" contains repeating page-break sections, each with a title row, a
+// date row ("Date : 01/03/2026 To 31/03/2026"), and a header row. Layout:
+//
+//   B          C            D         E         F          G         H  I            J
+//   Group      Description  Quantity  Discount  Net Sales  Net Cost  -  Gross Profit GP %
+//
+// The final data row is "Grand Total" with totals in cols D / F.
+// ----------------------------------------------------------------------------
+export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
+  const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+  // The file we've seen always has one sheet named "Page 1"; fall back to
+  // whichever sheet is first if the POS export ever changes.
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows2d = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null, raw: true });
+
+  // ----- Pull the date range out of the report header row -----
+  let periodStart: string | null = null;
+  let periodEnd: string | null = null;
+  for (const row of rows2d) {
+    for (const cell of row) {
+      if (typeof cell !== "string") continue;
+      const m = cell.match(/Date\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*To\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+      if (m) {
+        const iso = (d: string, mo: string, y: string) => `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+        periodStart = iso(m[1], m[2], m[3]);
+        periodEnd   = iso(m[4], m[5], m[6]);
+        break;
+      }
+    }
+    if (periodStart) break;
+  }
+
+  // ----- Walk the rows; skip page-break preambles, accumulate data rows -----
+  const rows: PosMasterRow[] = [];
+  const unmapped: PosMasterRow[] = [];
+  let grandQty = 0;
+  let grandNet = 0;
+
+  // Helper: numeric coerce that tolerates strings with commas (e.g. "1,610").
+  const toNum = (v: unknown): number => {
+    if (v == null || v === "") return 0;
+    if (typeof v === "number") return v;
+    const cleaned = String(v).replace(/,/g, "").trim();
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  for (const row of rows2d) {
+    // Sheet shape uses col B as code; col A is always blank.
+    const code = row[1];
+    if (typeof code !== "string") continue;
+    const trimmed = code.trim();
+    if (!trimmed) continue;
+
+    // Header / page-title rows we should skip entirely.
+    if (/^Group$/i.test(trimmed)) continue;
+    if (/^Stock\s+Sales\s+Analysis/i.test(trimmed)) continue;
+    if (/^Date\s*:/i.test(trimmed)) continue;
+
+    // Grand Total — last numeric row.
+    if (/^Grand\s+Total$/i.test(trimmed)) {
+      grandQty = toNum(row[3]);
+      grandNet = toNum(row[5]);
+      continue;
+    }
+
+    // Otherwise treat as a data row. Reject rows that don't look like a
+    // group code (uppercase / digits / a few separators).
+    if (!/^[A-Z0-9][A-Z0-9+\-]*$/.test(trimmed)) continue;
+
+    const description = String(row[2] ?? "").trim();
+    const qty       = Math.round(toNum(row[3]));
+    const discount  = toNum(row[4]);
+    const netSales  = toNum(row[5]);
+    const netCost   = toNum(row[6]);
+    const grossProfit = toNum(row[8]);
+    const gpPct     = toNum(row[9]);
+
+    const { product, suffix } = lookupProduct(trimmed);
+    const baseCode = suffix ? trimmed.slice(0, -suffix.length) : trimmed;
+    const rowOut: PosMasterRow = {
+      code: trimmed, baseCode, suffix,
+      description, qty, discount, netSales, netCost, grossProfit, gpPct,
+      product,
+    };
+    rows.push(rowOut);
+    if (!product) unmapped.push(rowOut);
+  }
+
+  // Fallback when the Grand Total row was missing.
+  if (!grandQty) {
+    grandQty = rows.reduce((s, r) => s + r.qty, 0);
+    grandNet = rows.reduce((s, r) => s + r.netSales, 0);
+  }
+
+  return {
+    kind: "master",
+    periodStart,
+    periodEnd,
+    rows,
+    grandTotal: { qty: grandQty, netSales: grandNet },
+    unmapped,
+  };
+}
 
 export interface OutletRow {
   customerName: string;

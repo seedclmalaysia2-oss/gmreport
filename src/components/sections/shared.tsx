@@ -45,11 +45,12 @@ export function SectionShell({
   const hint = FILE_HINT[sectionKey];
   const ctx = useSectionShellContext();
 
-  // "Go to Import" now carries the source URL so the import page can route
-  // you back to this exact slide when the upload finishes.
+  // "Go to Import" now carries the source URL so the Files page (which hosts
+  // the uploader) can route you back to this exact slide when the upload
+  // finishes. /import still works as a redirect for old bookmarks.
   const importHref = ctx
-    ? `/import?year=${ctx.year}&month=${ctx.month}&from=${encodeURIComponent(`/report/${ctx.reportId}?section=${sectionKey}`)}&section=${sectionKey}`
-    : "/import";
+    ? `/files?year=${ctx.year}&month=${ctx.month}&from=${encodeURIComponent(`/report/${ctx.reportId}?section=${sectionKey}`)}&section=${sectionKey}#upload`
+    : "/files#upload";
 
   const sources: SourceFile[] = ctx?.sourceFiles?.[sectionKey] ?? [];
 

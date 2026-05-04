@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parsePosPdf, type PosMasterParseResult, type PosMcuvParseResult, type PosWriteOffParseResult } from "@/lib/parsers/pos-pdf";
-import { parseEcpListXlsx, parseOutletXlsx, parseSalesByRegionXlsx, parseSalesmanSalesXlsx } from "@/lib/parsers/pos-xlsx";
+import { parseEcpListXlsx, parseMasterXlsx, parseOutletXlsx, parseSalesByRegionXlsx, parseSalesmanSalesXlsx } from "@/lib/parsers/pos-xlsx";
 import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx } from "@/lib/parsers/pos-extra-xlsx";
 import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesByRegion, salesByRegionFromStates, topProducts, unmappedSkus } from "@/lib/aggregation";
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
@@ -89,9 +89,15 @@ export async function POST(req: Request): Promise<Response> {
       else { warnings.push(`Unrecognised PDF: ${name}`); pushFile("unknown", f); }
     } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
       const buf = await f.arrayBuffer();
-      // Order matters — the "Sales Analysis By Region" file also contains the
-      // word "sales", so match it before falling through to the outlets bucket.
-      if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f); }
+      // Order matters — several patterns overlap (Region also contains "sales",
+      // master also says "Stock Sales Analysis"). Most-specific first.
+      if (/stock\s*sales\s*analysis|summary\s*by\s*group/i.test(name)) {
+        // The XLSX twin of the master "Stock Sales Analysis Summary By Group"
+        // PDF. Drives Sales Achievement, Sales Quantity, Top Products.
+        master = parseMasterXlsx(buf);
+        pushFile("pos_master", f);
+      }
+      else if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f); }
       else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f); }
       else if (/sales.*analysis.*region|sales.*by.*region/i.test(name)) { regionXlsxBuf = buf; pushFile("pos_region", f); }
       else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f); }

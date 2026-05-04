@@ -1,11 +1,16 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { listMonthReports, listRawFiles, type RawFileEntry } from "@/lib/month-report";
 import { SECTION_KEYS, SECTION_META, type MonthReport, type SectionKey } from "@/lib/schema";
 import { monthNameFull } from "@/lib/utils";
 import { ArrowRight, FileText, FileUp, Info } from "lucide-react";
+import { ImportForm } from "@/components/import-form";
 
-// We deliberately avoid Next.js' route-segment cache so a fresh upload shows
-// up immediately when the user navigates back to /files.
+// Combined Upload + History page. After a successful import the client form
+// calls router.refresh(), which triggers a fresh server render of this page
+// — which then re-runs listRawFiles() and shows the new file in the table
+// below. Without force-dynamic the RSC would be cached and the new file
+// wouldn't show up until the next hard reload.
 export const dynamic = "force-dynamic";
 
 const KIND_LABELS: Record<string, string> = {
@@ -45,7 +50,6 @@ type GroupedFiles = {
   files: RawFileEntry[];
 };
 
-/** Group RawFile rows by month, preserving createdAt-desc order within each group. */
 function groupByMonth(files: RawFileEntry[]): GroupedFiles[] {
   const map = new Map<string, GroupedFiles>();
   for (const f of files) {
@@ -57,68 +61,76 @@ function groupByMonth(files: RawFileEntry[]): GroupedFiles[] {
 }
 
 export default async function FilesPage() {
-  // Fetch in parallel — RawFile is the canonical source of truth; the months
-  // list is needed so we can show months that exist but have no uploads yet.
   const [rawFiles, months] = await Promise.all([listRawFiles(), listMonthReports()]);
   const groups = groupByMonth(rawFiles);
-
   const orderedMonths = months.slice().sort((a, b) => b.year - a.year || b.month - a.month);
   const monthsWithoutUploads = orderedMonths.filter(m => !groups.some(g => g.monthReportId === m.id));
-
   const totalUploads = rawFiles.length;
 
   return (
     <main className="mx-auto max-w-[1100px] px-3 sm:px-6 py-4 sm:py-8 space-y-6">
       <header>
-        <p className="text-xs text-[var(--color-ink-600)] uppercase tracking-[0.2em]">Upload history</p>
-        <h1 className="font-[var(--font-display)] text-2xl sm:text-3xl font-semibold mt-1">All uploaded files</h1>
+        <p className="text-xs text-[var(--color-ink-600)] uppercase tracking-[0.2em]">Files</p>
+        <h1 className="font-[var(--font-display)] text-2xl sm:text-3xl font-semibold mt-1">Upload &amp; history</h1>
         <p className="text-sm text-[var(--color-ink-600)] mt-1">
-          Every POS file that the importer has received, persisted to the Supabase database.
-          Sorted newest first within each month.
+          One place to drop POS files and see everything that&rsquo;s already on record.
+          Files you import here are saved to Supabase and grouped by month below.
         </p>
-        {totalUploads > 0 && (
-          <p className="text-xs text-[var(--color-ink-600)] mt-2">
-            <strong className="text-[var(--color-ink-800)]">{totalUploads}</strong> file{totalUploads === 1 ? "" : "s"} on record across <strong className="text-[var(--color-ink-800)]">{groups.length}</strong> month{groups.length === 1 ? "" : "s"}.
-          </p>
-        )}
       </header>
 
-      {/* Onboarding banner — only when the database has zero recorded uploads. */}
-      {totalUploads === 0 && (
-        <div className="rounded-xl border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] p-4 flex gap-3 text-sm">
-          <Info size={18} className="text-[var(--color-ink-700)] mt-0.5 shrink-0" />
-          <div className="text-[var(--color-ink-800)]">
-            <p className="font-semibold">No POS files have been imported yet.</p>
-            <p className="text-[var(--color-ink-600)] mt-1">
-              Head over to{" "}
-              <Link href="/import" className="underline font-semibold text-[var(--color-ink-800)]">Import POS</Link>{" "}
-              to upload PDF / Excel files. Once the import completes, every file you sent will be listed here.
-            </p>
-          </div>
+      {/* ---------- 1. Upload form ---------- */}
+      <section id="upload" className="space-y-3 scroll-mt-20">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-[var(--font-display)] text-lg font-semibold">Upload POS files</h2>
+          <span className="text-xs text-[var(--color-ink-600)]">PDF + XLSX, multiple at once</span>
         </div>
-      )}
+        <Suspense fallback={<div className="rounded-2xl border border-[var(--color-ice-200)] bg-white p-6 text-sm text-[var(--color-ink-600)]">Loading uploader…</div>}>
+          <ImportForm />
+        </Suspense>
+      </section>
 
-      {orderedMonths.length === 0 && (
-        <div className="rounded-xl border border-[var(--color-ice-200)] bg-white p-8 text-center text-sm text-[var(--color-ink-600)]">
-          No months on file yet.{" "}
-          <Link href="/import" className="underline font-semibold text-[var(--color-ink-800)]">Import POS</Link> to get started.
+      {/* ---------- 2. Upload history ---------- */}
+      <section className="space-y-4 pt-2">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-[var(--font-display)] text-lg font-semibold">Upload history</h2>
+          {totalUploads > 0 && (
+            <span className="text-xs text-[var(--color-ink-600)]">
+              <strong className="text-[var(--color-ink-800)]">{totalUploads}</strong> file{totalUploads === 1 ? "" : "s"} across <strong className="text-[var(--color-ink-800)]">{groups.length}</strong> month{groups.length === 1 ? "" : "s"}
+            </span>
+          )}
         </div>
-      )}
 
-      {/* Months *with* uploads */}
-      <div className="space-y-5">
-        {groups.map(g => <MonthBlock key={g.monthReportId} group={g} />)}
-      </div>
-
-      {/* Months on record but no uploads yet — show as quiet rows with import CTAs. */}
-      {monthsWithoutUploads.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="font-[var(--font-display)] text-lg font-semibold mt-4">Months without uploads</h2>
-          <div className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden divide-y divide-[var(--color-ice-100)]">
-            {monthsWithoutUploads.map(m => <EmptyMonthRow key={m.id} month={m} />)}
+        {totalUploads === 0 && (
+          <div className="rounded-xl border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] p-4 flex gap-3 text-sm">
+            <Info size={18} className="text-[var(--color-ink-700)] mt-0.5 shrink-0" />
+            <div className="text-[var(--color-ink-800)]">
+              <p className="font-semibold">No POS files imported yet.</p>
+              <p className="text-[var(--color-ink-600)] mt-1">
+                Drop your files into the uploader above and click <strong>Import</strong>. Once processed, every file you sent will appear here.
+              </p>
+            </div>
           </div>
-        </section>
-      )}
+        )}
+
+        {orderedMonths.length === 0 && totalUploads === 0 && (
+          <div className="rounded-xl border border-[var(--color-ice-200)] bg-white p-8 text-center text-sm text-[var(--color-ink-600)]">
+            No months on file yet — your first import will create one.
+          </div>
+        )}
+
+        <div className="space-y-5">
+          {groups.map(g => <MonthBlock key={g.monthReportId} group={g} />)}
+        </div>
+
+        {monthsWithoutUploads.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-[var(--font-display)] text-sm font-semibold text-[var(--color-ink-700)] mt-4">Months without uploads</h3>
+            <div className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden divide-y divide-[var(--color-ice-100)]">
+              {monthsWithoutUploads.map(m => <EmptyMonthRow key={m.id} month={m} />)}
+            </div>
+          </div>
+        )}
+      </section>
     </main>
   );
 }
@@ -131,18 +143,12 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
     <section className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden">
       <header className="flex items-center justify-between gap-3 px-3 sm:px-5 py-3 border-b border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
         <div className="min-w-0">
-          <h2 className="font-[var(--font-display)] text-lg sm:text-xl font-semibold truncate">{monthNameFull(month)} {year}</h2>
+          <h3 className="font-[var(--font-display)] text-lg sm:text-xl font-semibold truncate">{monthNameFull(month)} {year}</h3>
           <p className="text-xs text-[var(--color-ink-600)] mt-0.5">
             {total} file{total === 1 ? "" : "s"} uploaded
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href={`/import?year=${year}&month=${month}`}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-ink-600)] hover:text-[var(--color-ink-800)] hover:underline"
-          >
-            <FileUp size={12} /> Add more
-          </Link>
           <Link
             href={`/report/${monthReportId}`}
             className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-ink-800)] hover:underline"
@@ -185,20 +191,15 @@ function FileRow({ file }: { file: RawFileEntry }) {
           <FileText size={14} className="text-[var(--color-ink-600)] mt-0.5 shrink-0" />
           <div className="min-w-0">
             <div className="break-all font-medium text-[var(--color-ink-900)]">{file.originalName}</div>
-            {/* On phones we collapse the metadata under the filename. */}
             <div className="sm:hidden text-[11px] text-[var(--color-ink-600)] mt-0.5 space-y-0.5">
               <div>{kindLabel}</div>
               <div>{fmtTimestamp(file.createdAt)}</div>
-              {slides.length > 0 && (
-                <div>Slides: {slides.map(s => s.title).join(", ")}</div>
-              )}
+              {slides.length > 0 && <div>Slides: {slides.map(s => s.title).join(", ")}</div>}
             </div>
           </div>
         </div>
       </td>
-      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell text-[var(--color-ink-700)]">
-        {kindLabel}
-      </td>
+      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell text-[var(--color-ink-700)]">{kindLabel}</td>
       <td className="px-3 sm:px-5 py-2.5 hidden md:table-cell">
         {slides.length === 0 ? (
           <span className="text-[var(--color-ink-600)] italic">—</span>
@@ -217,14 +218,14 @@ function FileRow({ file }: { file: RawFileEntry }) {
         )}
       </td>
       <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums">{fmtBytes(file.byteSize)}</td>
-      <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums whitespace-nowrap hidden sm:table-cell">
-        {fmtTimestamp(file.createdAt)}
-      </td>
+      <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums whitespace-nowrap hidden sm:table-cell">{fmtTimestamp(file.createdAt)}</td>
     </tr>
   );
 }
 
 function EmptyMonthRow({ month }: { month: MonthReport }) {
+  // Selecting this row pre-fills the year/month in the upload form via query
+  // params; ImportForm reads them on mount.
   return (
     <div className="flex items-center justify-between gap-3 px-3 sm:px-5 py-3">
       <div className="min-w-0">
@@ -232,11 +233,11 @@ function EmptyMonthRow({ month }: { month: MonthReport }) {
         <p className="text-xs text-[var(--color-ink-600)]">No files uploaded for this month yet.</p>
       </div>
       <Link
-        href={`/import?year=${month.year}&month=${month.month}`}
+        href={`/files?year=${month.year}&month=${month.month}#upload`}
         className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-2 text-xs font-semibold hover:bg-[var(--color-ink-700)]"
       >
         <FileUp size={14} />
-        Import
+        Upload here
       </Link>
     </div>
   );
