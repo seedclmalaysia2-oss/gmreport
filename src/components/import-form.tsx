@@ -19,8 +19,10 @@ export function ImportForm() {
 
   // Prefer the URL params over today's date so re-opening the page keeps context.
   const now = new Date();
-  const urlYear  = Number(sp?.get("year"))  || now.getFullYear();
-  const urlMonth = Number(sp?.get("month")) || (now.getMonth() + 1);
+  const urlYearStr  = sp?.get("year")  ?? null;
+  const urlMonthStr = sp?.get("month") ?? null;
+  const urlYear  = Number(urlYearStr)  || now.getFullYear();
+  const urlMonth = Number(urlMonthStr) || (now.getMonth() + 1);
   const section  = (sp?.get("section") as SectionKey | null) ?? null;
   const from     = sp?.get("from") ?? null;
 
@@ -40,11 +42,15 @@ export function ImportForm() {
   } | null>(null);
   const [err, setErr] = useState("");
 
-  // Keep inputs in sync if the URL changes while the page is mounted.
+  // Keep inputs in sync ONLY when the URL params themselves change.
+  // Depending on the `sp` object reference would re-fire on every render
+  // (Next.js can hand back a fresh ReadonlyURLSearchParams instance) and
+  // clobber whatever the user just picked in the dropdown — that was the
+  // "month keeps snapping back to MAY" bug.
   useEffect(() => {
-    if (sp?.get("year"))  setYear(Number(sp.get("year")));
-    if (sp?.get("month")) setMonth(Number(sp.get("month")));
-  }, [sp]);
+    if (urlYearStr)  setYear(Number(urlYearStr));
+    if (urlMonthStr) setMonth(Number(urlMonthStr));
+  }, [urlYearStr, urlMonthStr]);
 
   // When the user retargets a different month/year, clear the staged file
   // queue so they can't accidentally send March files into February. We

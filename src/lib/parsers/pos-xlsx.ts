@@ -10,12 +10,18 @@ import type { PosMasterRow, PosMasterParseResult } from "./pos-pdf";
 //
 // Same data the PDF version exposes, just in spreadsheet form. The sheet
 // "Page 1" contains repeating page-break sections, each with a title row, a
-// date row ("Date : 01/03/2026 To 31/03/2026"), and a header row. Layout:
+// date row ("Date : 01/03/2026 To 31/03/2026"), and a header row. Logical
+// layout (column letters are illustrative — the POS export sometimes drops
+// the leading empty col A so the sheet range starts at B1 instead of A1;
+// we auto-detect the offset below):
 //
-//   B          C            D         E         F          G         H  I            J
-//   Group      Description  Quantity  Discount  Net Sales  Net Cost  -  Gross Profit GP %
+//   Group   Description   Quantity   Discount   Net Sales   Net Cost   -   Gross Profit   GP %
 //
-// The final data row is "Grand Total" with totals in cols D / F.
+// After the final "Grand Total" row, the export may include a "Sales adj"
+// row with a (signed) adjustment in the Net Sales column followed by a
+// corrected total row. PERMANENT RULE: when this block is present, the
+// grand total reported to the rest of the pipeline is the *adjusted* net
+// sales, not the raw Grand Total — that's the figure HQ wants on the deck.
 // ----------------------------------------------------------------------------
 export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
   const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
@@ -41,11 +47,35 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     if (periodStart) break;
   }
 
+  // ----- Detect the column layout by finding the "Group" header -----
+  // Mar26 export ranges A1:J* → code is at index 1.
+  // Apr26 export ranges B1:J* → sheet_to_json strips leading empty col, so
+  // code is at index 0. Anchor everything to whichever column "Group" is in.
+  let codeCol = 1;
+  for (const row of rows2d) {
+    const idx = row.findIndex(c => typeof c === "string" && /^\s*Group\s*$/i.test(c));
+    if (idx >= 0) { codeCol = idx; break; }
+  }
+  const descCol = codeCol + 1;
+  const qtyCol  = codeCol + 2;
+  const discCol = codeCol + 3;
+  const netCol  = codeCol + 4;
+  const costCol = codeCol + 5;
+  // codeCol+6 is the blank spacer column in the POS export.
+  const gpCol   = codeCol + 7;
+  const gppCol  = codeCol + 8;
+
   // ----- Walk the rows; skip page-break preambles, accumulate data rows -----
   const rows: PosMasterRow[] = [];
   const unmapped: PosMasterRow[] = [];
   let grandQty = 0;
   let grandNet = 0;
+  // PERMANENT RULE: any "Sales adj" rows that follow Grand Total adjust the
+  // headline net sales. We accumulate every adjustment found (signed sum)
+  // and apply it once after the walk so the deck reflects HQ-reportable
+  // numbers, not the raw POS Grand Total.
+  let salesAdjustment = 0;
+  let seenGrandTotal = false;
 
   // Helper: numeric coerce that tolerates strings with commas (e.g. "1,610").
   const toNum = (v: unknown): number => {
@@ -56,9 +86,21 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     return Number.isFinite(n) ? n : 0;
   };
 
+  const isSalesAdjRow = (row: unknown[]): boolean =>
+    row.some(c => typeof c === "string" && /sales\s*adj/i.test(c));
+
   for (const row of rows2d) {
-    // Sheet shape uses col B as code; col A is always blank.
-    const code = row[1];
+    // After Grand Total we only care about the optional Sales adj block —
+    // intercept those rows here BEFORE the codeCol-based dispatch, since
+    // the Sales adj label sits in descCol, not codeCol.
+    if (seenGrandTotal) {
+      if (isSalesAdjRow(row)) {
+        salesAdjustment += toNum(row[netCol]);
+      }
+      continue;
+    }
+
+    const code = row[codeCol];
     if (typeof code !== "string") continue;
     const trimmed = code.trim();
     if (!trimmed) continue;
@@ -68,10 +110,11 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     if (/^Stock\s+Sales\s+Analysis/i.test(trimmed)) continue;
     if (/^Date\s*:/i.test(trimmed)) continue;
 
-    // Grand Total — last numeric row.
+    // Grand Total — last numeric row of the products table.
     if (/^Grand\s+Total$/i.test(trimmed)) {
-      grandQty = toNum(row[3]);
-      grandNet = toNum(row[5]);
+      grandQty = toNum(row[qtyCol]);
+      grandNet = toNum(row[netCol]);
+      seenGrandTotal = true;
       continue;
     }
 
@@ -79,13 +122,13 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     // group code (uppercase / digits / a few separators).
     if (!/^[A-Z0-9][A-Z0-9+\-]*$/.test(trimmed)) continue;
 
-    const description = String(row[2] ?? "").trim();
-    const qty       = Math.round(toNum(row[3]));
-    const discount  = toNum(row[4]);
-    const netSales  = toNum(row[5]);
-    const netCost   = toNum(row[6]);
-    const grossProfit = toNum(row[8]);
-    const gpPct     = toNum(row[9]);
+    const description = String(row[descCol] ?? "").trim();
+    const qty       = Math.round(toNum(row[qtyCol]));
+    const discount  = toNum(row[discCol]);
+    const netSales  = toNum(row[netCol]);
+    const netCost   = toNum(row[costCol]);
+    const grossProfit = toNum(row[gpCol]);
+    const gpPct     = toNum(row[gppCol]);
 
     const { product, suffix } = lookupProduct(trimmed);
     const baseCode = suffix ? trimmed.slice(0, -suffix.length) : trimmed;
@@ -104,12 +147,17 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     grandNet = rows.reduce((s, r) => s + r.netSales, 0);
   }
 
+  // Apply the Sales adj rule. Adjustment is signed in the source sheet
+  // (e.g. -73.60), so a simple add produces the HQ-reportable figure.
+  // Round to two decimals to avoid trailing FP noise (e.g. 323919.6299...).
+  const adjustedNet = Math.round((grandNet + salesAdjustment) * 100) / 100;
+
   return {
     kind: "master",
     periodStart,
     periodEnd,
     rows,
-    grandTotal: { qty: grandQty, netSales: grandNet },
+    grandTotal: { qty: grandQty, netSales: adjustedNet },
     unmapped,
   };
 }
