@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Eye, Loader2, RotateCw, Trash2 } from "lucide-react";
+import { Download, Eye, Loader2, RotateCw, Trash2, Upload } from "lucide-react";
 
 /**
  * Per-row action buttons for the Files page upload-history table.
@@ -112,7 +112,7 @@ export function FileRowActions({
         onChange={onFilePicked}
       />
 
-      {hasBytes && (
+      {hasBytes ? (
         <>
           {/* View + Save are the primary affordances — filled background so
               they read as "do something with the file", whereas Update +
@@ -142,6 +142,23 @@ export function FileRowActions({
             <Download size={12} /> Save
           </a>
         </>
+      ) : (
+        // Legacy row — uploaded before we started persisting bytea content.
+        // Surface a single clear CTA that triggers the same picker as Update,
+        // so the user can attach the original file again and unlock preview
+        // / download with one click instead of hunting through the menu.
+        <button
+          type="button"
+          onClick={pickFile}
+          disabled={isWorking}
+          title="This file was uploaded before previews were supported — re-attach it to enable View + Save"
+          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold
+                     bg-amber-100 text-amber-800 hover:bg-amber-200
+                     active:scale-95 transition disabled:opacity-50"
+        >
+          {busy === "update" ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+          Re-upload to enable preview
+        </button>
       )}
 
       <button
