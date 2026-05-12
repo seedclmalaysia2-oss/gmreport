@@ -22,7 +22,16 @@ import Link from "next/link";
 import { ArrowLeft, ChevronRight, Download, FileUp, Info, Layers, Loader2, RefreshCw, X } from "lucide-react";
 import { SlidePreview } from "./slide-preview";
 
-export function ReportEditor({ initial, isNew = false, siblings = [] }: { initial: MonthReport; isNew?: boolean; siblings?: MonthReport[] }) {
+export function ReportEditor({
+  initial, isNew = false, siblings = [], fileIdsByName = {},
+}: {
+  initial: MonthReport;
+  isNew?: boolean;
+  siblings?: MonthReport[];
+  /** name → RawFile.id for this month's active uploads. Drives the View
+   *  button next to each source chip in the section-shell header. */
+  fileIdsByName?: Record<string, string>;
+}) {
   const [report, setReport] = useState<MonthReport>(initial);
   const sp = useSearchParams();
   // Honour `?section=` when the user arrives from the import page so they land
@@ -269,6 +278,7 @@ export function ReportEditor({ initial, isNew = false, siblings = [] }: { initia
       <SectionShellContext.Provider value={{
         reportId: report.id, year: report.year, month: report.month,
         sourceFiles: report.sourceFiles ?? {},
+        fileIdsByName,
       }}>
         <section className="min-w-0">
           {active === "salesAchievement" && <SectionSalesAchievement report={report} update={update} />}

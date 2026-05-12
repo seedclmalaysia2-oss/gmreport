@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { SourceFile } from "@/lib/schema";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, FileText, FileUp } from "lucide-react";
+import { AlertTriangle, Eye, FileText, FileUp } from "lucide-react";
 
 // Per-section hint about which raw POS file feeds it. Drives the missing-data banner.
 const FILE_HINT: Partial<Record<SectionKey, string>> = {
@@ -31,6 +31,10 @@ export type SectionShellContextValue = {
   year: number;
   month: number;
   sourceFiles?: Record<string, SourceFile[]>;
+  /** Filename → RawFile.id for active uploads. Lets each source chip
+   *  expose a "View" link that streams the file out of /api/files/{id}
+   *  with disposition=inline. */
+  fileIdsByName?: Record<string, string>;
 };
 export const SectionShellContext = React.createContext<SectionShellContextValue | null>(null);
 
@@ -64,25 +68,56 @@ export function SectionShell({
         {subtitle && <p className="text-[var(--color-ink-600)] mt-1 text-sm">{subtitle}</p>}
       </header>
 
-      {/* Source-file chips — shown when an import has populated this slide. */}
+      {/* Source-file chips — shown when an import has populated this slide.
+          Each chip surfaces a quick "View" eye-icon that opens the original
+          file in a new tab via /api/files/{id}?disposition=inline, so the
+          user can sanity-check the source numbers without leaving the page
+          and without triggering a download. The chip falls back to a plain
+          label (no view button) on legacy rows where we don't have an id. */}
       {sources.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-ink-600)]">
           <span className="uppercase tracking-[0.15em] font-semibold">Source</span>
-          {sources.map((f, i) => (
-            <span
-              key={i}
-              title={f.at ? `Imported ${new Date(f.at).toLocaleString()}` : undefined}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] px-2 py-0.5 text-[var(--color-ink-800)] max-w-[280px]"
-            >
-              <FileText size={11} />
-              <span className="truncate">{f.name}</span>
-              {f.at && (
-                <span className="text-[var(--color-ink-600)] opacity-70">
-                  · {new Date(f.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                </span>
-              )}
-            </span>
-          ))}
+          {sources.map((f, i) => {
+            const fileId = ctx?.fileIdsByName?.[f.name];
+            const viewHref = fileId ? `/api/files/${fileId}?disposition=inline` : null;
+            return (
+              <span
+                key={i}
+                title={f.at ? `Imported ${new Date(f.at).toLocaleString()}` : undefined}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] pl-2 pr-1 py-0.5 text-[var(--color-ink-800)] max-w-[320px]"
+              >
+                <FileText size={11} />
+                <span className="truncate">{f.name}</span>
+                {f.at && (
+                  <span className="text-[var(--color-ink-600)] opacity-70 hidden sm:inline">
+                    · {new Date(f.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </span>
+                )}
+                {viewHref ? (
+                  <a
+                    href={viewHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Quick view — opens ${f.name} in a new tab`}
+                    aria-label={`Quick view ${f.name}`}
+                    className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full
+                               bg-[var(--color-ink-800)] text-white hover:bg-[var(--color-ink-700)]
+                               active:scale-95 transition"
+                  >
+                    <Eye size={11} />
+                  </a>
+                ) : (
+                  <span
+                    title="No stored copy of this file — re-upload from the Files page to enable Quick view"
+                    className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full
+                               bg-[var(--color-ice-200)] text-[var(--color-ink-600)] opacity-50"
+                  >
+                    <Eye size={11} />
+                  </span>
+                )}
+              </span>
+            );
+          })}
           <Link
             href={importHref}
             className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-ice-200)] px-2 py-0.5 hover:bg-[var(--color-ice-100)] text-[var(--color-ink-800)]"

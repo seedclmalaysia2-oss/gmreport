@@ -202,3 +202,23 @@ function safeParseStringArray(raw: string): string[] {
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
   } catch { return []; }
 }
+
+/**
+ * Returns a map of originalName → RawFile.id for every ACTIVE (not soft-
+ * deleted) file uploaded against a given month. Used by the report editor
+ * to wire the section-shell source chips to the View/download endpoint.
+ *
+ * If two rows share a name (e.g. the same file uploaded twice without
+ * deletion in between), the most recent one wins — that's the row the
+ * View button should target.
+ */
+export async function listFileIdsByName(monthReportId: string): Promise<Record<string, string>> {
+  const rows = await prisma.rawFile.findMany({
+    where: { monthReportId, deletedAt: null },
+    select: { id: true, originalName: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const map: Record<string, string> = {};
+  for (const r of rows) map[r.originalName] = r.id; // last write wins → newest id
+  return map;
+}

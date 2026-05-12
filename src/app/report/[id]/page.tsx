@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getMonthReportById, listMonthReports } from "@/lib/month-report";
+import { getMonthReportById, listFileIdsByName, listMonthReports } from "@/lib/month-report";
 import { ReportEditor } from "@/components/report-editor";
 import { emptyMonthReport } from "@/lib/schema";
 import { parseMonthId } from "@/lib/utils";
@@ -20,8 +20,20 @@ export default async function ReportPage({
     if (!year || !month) notFound();
     report = emptyMonthReport(id, year, month);
   }
-  // Load the full-year context so sections like Sales Quantity can pull prior-month
-  // comparisons (FEB vs MAR) without extra client fetches.
-  const allReports = await listMonthReports();
-  return <ReportEditor initial={report} isNew={isNew} siblings={allReports} />;
+  // Parallel fetches:
+  //  - full-year context so sections like Sales Quantity can compare prior months
+  //  - name→RawFile.id map so section chips can render a "View" link without
+  //    making the client guess at the row's id
+  const [allReports, fileIdsByName] = await Promise.all([
+    listMonthReports(),
+    listFileIdsByName(report.id),
+  ]);
+  return (
+    <ReportEditor
+      initial={report}
+      isNew={isNew}
+      siblings={allReports}
+      fileIdsByName={fileIdsByName}
+    />
+  );
 }
