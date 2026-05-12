@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month-report";
 import { monthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
@@ -57,6 +58,15 @@ export async function POST(req: Request) {
     prefill.fxRate = mostRecent?.fxRate ?? 30.73;
   }
   const report = await upsertMonthReport({ ...prefill, ...body });
+
+  // Invalidate every page that renders a list of months so the new card
+  // shows up the next time the user lands there. Without this, Next's
+  // router cache happily serves the stale RSC payload from before the
+  // mutation and the dashboard looks unchanged.
+  revalidatePath("/");
+  revalidatePath("/files");
+  revalidatePath("/export");
+
   return NextResponse.json({ ...report, isNew: !existing });
 }
 
@@ -64,5 +74,11 @@ export async function DELETE(req: Request) {
   const { id } = await req.json().catch(() => ({}));
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
   await prisma.monthReport.delete({ where: { id } }).catch(() => {});
+
+  // Same reasoning as POST — bust any cached month listings.
+  revalidatePath("/");
+  revalidatePath("/files");
+  revalidatePath("/export");
+
   return NextResponse.json({ ok: true });
 }

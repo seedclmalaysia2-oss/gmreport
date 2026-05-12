@@ -98,7 +98,11 @@ export function FileRowActions({
   const downloadHref = `/api/files/${fileId}?disposition=attachment`;
 
   return (
-    <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+    // flex-wrap on mobile (when this row sits under the filename) — straight
+    // line on desktop. justify-start on mobile, justify-end on desktop, since
+    // the desktop column is right-aligned. gap-1.5 leaves enough air between
+    // buttons that a thumb won't mistarget on a touch screen.
+    <div className="flex flex-wrap items-center gap-1.5 justify-start sm:justify-end sm:flex-nowrap sm:whitespace-nowrap">
       {/* Hidden picker the Update button drives. */}
       <input
         ref={fileInputRef}
@@ -110,13 +114,17 @@ export function FileRowActions({
 
       {hasBytes && (
         <>
+          {/* View + Save are the primary affordances — filled background so
+              they read as "do something with the file", whereas Update +
+              Remove read as secondary. */}
           <a
             href={viewHref}
             target="_blank"
             rel="noopener noreferrer"
             title="Open file in a new tab"
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold
-                       text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)] transition"
+            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold
+                       bg-[var(--color-ink-800)] text-white hover:bg-[var(--color-ink-700)]
+                       active:scale-95 transition"
           >
             <Eye size={12} /> View
           </a>
@@ -127,8 +135,9 @@ export function FileRowActions({
             // is ignored (older browsers, cross-origin, etc.).
             download={fileName}
             title="Download a copy"
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold
-                       text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)] transition"
+            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold
+                       bg-[var(--color-ice-100)] text-[var(--color-ink-800)] hover:bg-[var(--color-ice-200)]
+                       active:scale-95 transition"
           >
             <Download size={12} /> Save
           </a>

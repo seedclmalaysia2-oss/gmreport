@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { listMonthReports } from "@/lib/month-report";
+
+// Always re-fetch the months list. Without this, Next's router cache can
+// hand out a stale snapshot when the user navigates back from the editor
+// after creating a fresh month. revalidatePath() in /api/months handles
+// the server-side cache, force-dynamic handles the client router cache.
+export const dynamic = "force-dynamic";
 import { MONTH_NAMES, monthNameFull } from "@/lib/utils";
 import { NewMonthButton } from "@/components/new-month-button";
 import { RepairChainButton } from "@/components/repair-chain-button";

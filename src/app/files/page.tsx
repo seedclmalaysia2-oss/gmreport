@@ -168,7 +168,9 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
               <th className="text-left px-3 sm:px-5 py-2 hidden md:table-cell">Slides fed</th>
               <th className="text-right px-3 sm:px-5 py-2 w-[80px]">Size</th>
               <th className="text-right px-3 sm:px-5 py-2 w-[140px] hidden sm:table-cell">Uploaded</th>
-              <th className="text-right px-3 sm:px-5 py-2 w-[260px]">Actions</th>
+              {/* Actions column is desktop-only — on phones the buttons render
+                  inline under the filename so they get a real tap target. */}
+              <th className="text-right px-3 sm:px-5 py-2 w-[260px] hidden sm:table-cell">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -213,6 +215,16 @@ function FileRow({ file }: { file: RawFileEntry }) {
               <div>{fmtTimestamp(file.createdAt)}</div>
               {slides.length > 0 && <div>Slides: {slides.map(s => s.title).join(", ")}</div>}
             </div>
+            {/* Mobile-only action row — desktop has its own column on the right. */}
+            <div className="sm:hidden mt-2">
+              <FileRowActions
+                fileId={file.id}
+                year={file.year}
+                month={file.month}
+                fileName={file.originalName}
+                hasBytes={file.hasBytes}
+              />
+            </div>
           </div>
         </div>
       </td>
@@ -236,7 +248,7 @@ function FileRow({ file }: { file: RawFileEntry }) {
       </td>
       <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums">{fmtBytes(file.byteSize)}</td>
       <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums whitespace-nowrap hidden sm:table-cell">{fmtTimestamp(file.createdAt)}</td>
-      <td className="px-3 sm:px-5 py-2.5">
+      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell">
         <FileRowActions
           fileId={file.id}
           year={file.year}
