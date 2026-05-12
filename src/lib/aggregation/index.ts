@@ -8,10 +8,23 @@ import type { OutletRow, EcpListEntry, RegionXlsxEntry } from "@/lib/parsers/pos
 import type { SalesByECP, SalesByQuantity, SalesByRegion, TopProducts } from "@/lib/schema";
 
 // --- Top-line grand-total sales figure (feeds SalesAchievement row) ---
+//
+// PERMANENT RULE: The headline net-sales figure ALWAYS comes from the Excel
+// Grand Total cell (and the Sales adj row below it when present), never from
+// re-summing the parsed product rows.
+//
+// Before this rule we computed `master.rows.reduce(...)`, which silently
+// dropped any row whose code didn't match a strict alphanumeric regex —
+// the SERVICE CHARGE line was the most visible casualty, putting the
+// reported figure ~MYR 2,400/month below the actual Excel Grand Total.
+// Using the parser's pre-extracted grandTotal eliminates that whole class
+// of bug: whatever the Excel says, the deck shows.
+//
+// Trial-lens rows have netSales = 0 in every export we've seen, so the
+// old "exclude trial lenses" filter was a no-op for the headline figure
+// and has been dropped.
 export function grandTotalMyr(master: PosMasterParseResult): number {
-  return master.rows
-    .filter(r => r.suffix !== "TR" && r.suffix !== "T") // exclude trial lenses only
-    .reduce((s, r) => s + r.netSales, 0);
+  return master.grandTotal.netSales;
 }
 
 // --- Slide 7: Sales Quantity by Product (2026 vs 2025) ---
@@ -159,10 +172,30 @@ export function salesByRegion(
 }
 
 // --- Utility: surface unmapped SKUs for the UI drawer ---
+//
+// These are SKU codes the parser saw in the master XLSX/PDF but couldn't
+// match to a CanonicalProduct, so they don't get their own row on Slide 5
+// (Sales Quantity) or Slide 6 (Top Products). They DO contribute to the
+// headline grand total — the new `grandTotalMyr` rule reads straight from
+// the Excel Grand Total cell, which includes them by construction.
+//
+// We surface every non-empty unmapped row (qty > 0 or netSales > 0) so the
+// user can spot a SKU that should probably be added to the catalogue
+// (catalog/sku-map.ts) for future imports. The old code filtered out PRM/
+// TR/FC/T suffixes — kept here as a "promotional / trial" suppression but
+// only when BOTH qty and netSales are zero, so any real activity surfaces.
 export function unmappedSkus(master: PosMasterParseResult): { code: string; desc: string; netSales: number; qty: number }[] {
-  const excluded = /PRM$|TR$|FC$|T$/;
+  const promoOrTrial = /PRM$|TR$|FC$|T$/;
   return master.unmapped
-    .filter(r => !excluded.test(r.code) && (r.netSales > 0 || r.qty > 0))
+    .filter(r => {
+      // Drop zero-everything rows (just noise).
+      if (!(r.netSales > 0 || r.qty > 0)) return false;
+      // Drop promotional/trial rows that have ONLY a qty but no net sales —
+      // those are tracked elsewhere and would clutter the warning. Anything
+      // with real MYR activity is always shown.
+      if (promoOrTrial.test(r.code) && r.netSales === 0) return false;
+      return true;
+    })
     .map(r => ({ code: r.code, desc: r.description, netSales: r.netSales, qty: r.qty }));
 }
 

@@ -119,8 +119,12 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     }
 
     // Otherwise treat as a data row. Reject rows that don't look like a
-    // group code (uppercase / digits / a few separators).
-    if (!/^[A-Z0-9][A-Z0-9+\-]*$/.test(trimmed)) continue;
+    // group code. Codes are uppercase / digits / + / - and may contain
+    // INTERNAL spaces (e.g. "SERVICE CHARGE"). The earlier strict regex
+    // dropped multi-word codes silently — most visibly SERVICE CHARGE,
+    // worth ~MYR 2,400/month — which made the import grand total disagree
+    // with the Excel Grand Total by exactly that amount.
+    if (!/^[A-Z0-9][A-Z0-9+\-\s]*[A-Z0-9+\-]$|^[A-Z0-9]$/.test(trimmed)) continue;
 
     const description = String(row[descCol] ?? "").trim();
     const qty       = Math.round(toNum(row[qtyCol]));

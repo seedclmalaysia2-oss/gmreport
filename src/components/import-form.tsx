@@ -218,7 +218,10 @@ export function ImportForm() {
           <p className="text-sm">
             Saved to <a className="underline" href={`/report/${result.saved.id}`}>{result.saved.id}</a>
           </p>
-          <p className="text-sm">POS Net Sales Grand Total (minus trial lenses): <strong>MYR {result.result.grandTotalMyr.toLocaleString()}</strong></p>
+          <p className="text-sm">
+            POS Net Sales Grand Total (matches Excel Grand Total cell, including any Sales adj):{" "}
+            <strong>MYR {result.result.grandTotalMyr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          </p>
 
           {/* File fingerprint: which files were used for which slide. */}
           {result.result.filesByKind && Object.keys(result.result.filesByKind).length > 0 && (
@@ -240,7 +243,10 @@ export function ImportForm() {
 
           {result.result.unmapped.length > 0 && (
             <div>
-              <p className="text-sm font-semibold text-amber-700">Unmapped SKUs (ignored in rollups):</p>
+              <p className="text-sm font-semibold text-amber-700">Unmapped SKUs (counted in Grand Total, not broken out per product):</p>
+              <p className="text-[11px] text-[var(--color-ink-600)] mb-1">
+                Add these codes to <code>catalog/sku-map.ts</code> if you want them to appear on Slide 5 / 6 next month.
+              </p>
               <ul className="text-xs mt-1 space-y-1 max-h-40 overflow-auto">
                 {result.result.unmapped.map(u => (
                   <li key={u.code} className="flex gap-2">
