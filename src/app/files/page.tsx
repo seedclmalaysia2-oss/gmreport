@@ -58,7 +58,25 @@ function groupByMonth(files: RawFileEntry[]): GroupedFiles[] {
     if (existing) existing.files.push(f);
     else map.set(f.monthReportId, { monthReportId: f.monthReportId, year: f.year, month: f.month, files: [f] });
   }
+  // Sort each month's files so they walk in slide order (1 → 13). Within a
+  // file the chips are already sorted by SECTION_META.no below, but here we
+  // also re-order the ROWS by the *first* slide each file feeds so the user
+  // can read the table top-to-bottom in deck sequence. Files that we
+  // couldn't classify to any slide go to the bottom of their month.
+  for (const g of map.values()) {
+    g.files.sort((a, b) => firstSlideNo(a) - firstSlideNo(b));
+  }
   return [...map.values()].sort((a, b) => b.year - a.year || b.month - a.month);
+}
+
+/** Lowest section-number this file fed, or Infinity if none recognised. */
+function firstSlideNo(f: RawFileEntry): number {
+  let best = Infinity;
+  for (const k of f.sectionKeys) {
+    const meta = SECTION_META[k as SectionKey];
+    if (meta && meta.no < best) best = meta.no;
+  }
+  return best;
 }
 
 export default async function FilesPage() {
@@ -184,9 +202,13 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
 
 function FileRow({ file }: { file: RawFileEntry }) {
   const kindLabel = KIND_LABELS[file.kind] ?? file.kind;
+  // Slides are stored in the order they were touched at import time; render
+  // them in slide-number order (1, 5, 6 — not 6, 1, 5) so the chips read
+  // top-to-bottom of the deck and match the row-level sort above.
   const slides = file.sectionKeys
     .filter((k): k is SectionKey => (SECTION_KEYS as readonly string[]).includes(k))
-    .map(k => SECTION_META[k]);
+    .map(k => SECTION_META[k])
+    .sort((a, b) => a.no - b.no);
 
   return (
     <tr className="border-t border-[var(--color-ice-100)] align-top">
