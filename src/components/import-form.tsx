@@ -4,6 +4,7 @@ import { MONTH_NAMES, monthId } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FileText, UploadCloud } from "lucide-react";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
+import { detectPeriod } from "@/lib/filename-period";
 
 /**
  * POS import page form.
@@ -58,12 +59,47 @@ export function ImportForm() {
   // wipe a fresh queue. We also clear any previous result/error so the
   // success or failure of a prior import doesn't linger over a new context.
   const isInitialMount = useRef(true);
+  // When addFiles() retargets the form from a detected filename hint, we
+  // need to skip the next "reset on year/month change" pass — otherwise
+  // setYear/setMonth would fire the effect below and wipe the very files
+  // that triggered the retarget.
+  const skipNextReset = useRef(false);
+  // Last detected period — surfaced as an inline note so the user knows the
+  // form auto-updated and didn't silently mis-target the wrong month.
+  const [autoDetected, setAutoDetected] = useState<{ year: number; month: number } | null>(null);
   useEffect(() => {
     if (isInitialMount.current) { isInitialMount.current = false; return; }
+    if (skipNextReset.current) { skipNextReset.current = false; return; }
     setFiles([]);
     setResult(null);
     setErr("");
+    setAutoDetected(null);
   }, [year, month]);
+
+  // Centralised "add these files" path. Used by the drop handler and the
+  // hidden file input's onChange. When the queue was empty, scans the new
+  // files for a month/year hint (e.g. "Apr26") and retargets the form
+  // automatically so users don't accidentally upload April files into a
+  // May report just because today is May.
+  function addFiles(added: File[]) {
+    if (files.length === 0 && added.length > 0) {
+      for (const f of added) {
+        const hint = detectPeriod(f.name);
+        if (!hint) continue;
+        if (hint.year === year && hint.month === month) {
+          // Already on the right month — no need to retarget OR show a banner.
+          break;
+        }
+        // Retarget WITHOUT triggering the queue-clearing effect.
+        skipNextReset.current = true;
+        setYear(hint.year);
+        setMonth(hint.month);
+        setAutoDetected(hint);
+        break;
+      }
+    }
+    setFiles(prev => [...prev, ...added]);
+  }
 
   const sectionLabel = section && SECTION_META[section] ? `${SECTION_META[section].no}. ${SECTION_META[section].title}` : null;
 
@@ -123,24 +159,34 @@ export function ImportForm() {
           onDragOver={e => e.preventDefault()}
           onDrop={e => {
             e.preventDefault();
-            const dropped = [...e.dataTransfer.files];
-            setFiles(prev => [...prev, ...dropped]);
+            addFiles([...e.dataTransfer.files]);
           }}
           className="rounded-xl border-2 border-dashed border-[var(--color-ice-200)] p-8 text-center hover:border-[var(--color-ink-700)] cursor-pointer"
           onClick={() => document.getElementById("fileInput")?.click()}
         >
           <UploadCloud className="mx-auto text-[var(--color-ink-700)]" size={40} />
           <p className="mt-2 font-medium">Drop POS files here</p>
-          <p className="text-xs text-[var(--color-ink-600)]">PDF + XLSX — you can attach multiple. They'll be routed to the right parser automatically.</p>
+          <p className="text-xs text-[var(--color-ink-600)]">PDF + XLSX — you can attach multiple. They&rsquo;ll be routed to the right parser automatically.</p>
+          <p className="text-[11px] text-[var(--color-ink-600)] mt-1 italic">
+            Tip: the target month auto-updates from the file name (e.g. &ldquo;Apr26&rdquo; → April 2026).
+          </p>
           <input
             id="fileInput"
             type="file"
             multiple
             accept=".pdf,.xlsx,.xls"
             className="hidden"
-            onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files ?? [])])}
+            onChange={e => addFiles(Array.from(e.target.files ?? []))}
           />
         </div>
+
+        {autoDetected && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 flex items-center gap-2">
+            <strong>Month auto-set</strong> to{" "}
+            <span className="tabular-nums">{MONTH_NAMES[autoDetected.month - 1]} {autoDetected.year}</span>{" "}
+            from the file name. Override above if that&rsquo;s wrong.
+          </div>
+        )}
 
         {files.length > 0 && (
           <ul className="space-y-1 text-sm">

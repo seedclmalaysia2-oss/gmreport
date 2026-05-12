@@ -102,6 +102,73 @@ function recomputeInventoryTotals(curr: Inventory | null): { value: Inventory | 
   };
 }
 
+function isSalesAchievementEmpty(sa: SalesAchievement | null | undefined): boolean {
+  if (!sa) return true;
+  const noTarget = sa.target2026.every(v => v == null);
+  const noActual = sa.actual2026.every(v => v == null);
+  const noPrior  = sa.actual2025.every(v => v == null);
+  return noTarget && noActual && noPrior && (sa.kpi?.length ?? 0) === 0;
+}
+
+// Carry forward prior-month data ONLY into empty sections — never overwrites
+// what's already in the current month. Runs once at New-Month creation; this
+// is the safety-net that catches months created some other way (manual SQL,
+// import-first, restored from backup) so the editor doesn't show "missing".
+function carryForwardSections(curr: MonthReport, prior: MonthReport | undefined): {
+  next: Partial<MonthReport>;
+  notes: string[];
+} {
+  const next: Partial<MonthReport> = {};
+  const notes: string[] = [];
+  if (!prior) return { next, notes };
+
+  // Slide 1 — only carry when the current month has literally no SA data.
+  if (isSalesAchievementEmpty(curr.salesAchievement) && prior.salesAchievement) {
+    next.salesAchievement = {
+      target2026: [...prior.salesAchievement.target2026],
+      actual2026: Array(12).fill(null),
+      actual2025: [...prior.salesAchievement.actual2025],
+      netIncome2026: Array(12).fill(null),
+      netIncome2025: [...prior.salesAchievement.netIncome2025],
+      kpi: prior.salesAchievement.kpi ?? [],
+    };
+    notes.push("carried forward: budgets + 2025 actuals + KPI from prior month");
+  }
+
+  if (!curr.productRegistration && prior.productRegistration) {
+    next.productRegistration = {
+      rows: prior.productRegistration.rows.map(r => ({ ...r })),
+    };
+    notes.push("carried forward: product registration rows");
+  }
+
+  if (!curr.inventory && prior.inventory) {
+    next.inventory = {
+      groups: prior.inventory.groups.map(g => ({
+        name: g.name,
+        rows: g.rows.map(r => ({ product: r.product, warehouse: null, consignment: null })),
+      })),
+      totalWarehouse: null,
+      totalConsignment: null,
+      commentary: "",
+    };
+    notes.push("carried forward: inventory group shape (values cleared)");
+  }
+
+  if (!curr.financial) {
+    next.financial = {
+      arMyr: 0,
+      arLongTermMyr: 0,
+      apMyr: 0,
+      cashFlowMyr: 0,
+      collectionMyr: 0,
+    };
+    notes.push("carried forward: financial row labels");
+  }
+
+  return { next, notes };
+}
+
 function recomputeRegion(curr: SalesByRegion | null, prev: MonthReport | undefined): { value: SalesByRegion | null; changed: boolean } {
   if (!curr) return { value: null, changed: false };
   const priorByRegion = new Map((prev?.salesByRegion?.rows ?? []).map(r => [r.region, r.salesThis]));
@@ -129,28 +196,37 @@ export async function POST() {
     const notes: string[] = [];
     let changed = false;
 
-    const sa = healSalesAchievement(m.salesAchievement);
+    // Step 0 — carry-forward fill of empty sections. Runs first so the
+    // heal/recompute steps below see the carried values.
+    const carry = carryForwardSections(m, priorHealed);
+    const filled: MonthReport = { ...m, ...carry.next };
+    if (carry.notes.length) {
+      notes.push(...carry.notes);
+      changed = true;
+    }
+
+    const sa = healSalesAchievement(filled.salesAchievement);
     if (sa.changed) { notes.push("sales-achievement arrays padded to 12 months"); changed = true; }
 
-    const sq = healProducts(m.salesByQuantity);
+    const sq = healProducts(filled.salesByQuantity);
     if (sq.changed) { notes.push("sales-quantity product list re-aligned to catalogue"); changed = true; }
 
-    const region = recomputeRegion(m.salesByRegion, priorHealed);
+    const region = recomputeRegion(filled.salesByRegion, priorHealed);
     if (region.changed) { notes.push("region growth% relinked to prior month"); changed = true; }
 
-    const ecp = recomputeEcpPct(m.salesByECP);
+    const ecp = recomputeEcpPct(filled.salesByECP);
     if (ecp.changed) { notes.push("ECP category % recomputed from salesMyr"); changed = true; }
 
-    const inv = recomputeInventoryTotals(m.inventory);
+    const inv = recomputeInventoryTotals(filled.inventory);
     if (inv.changed) { notes.push("inventory totals recomputed from rows"); changed = true; }
 
     const healed: MonthReport = {
-      ...m,
-      salesAchievement: sa.value,
-      salesByQuantity: sq.value,
-      salesByRegion: region.value,
-      salesByECP: ecp.value,
-      inventory: inv.value,
+      ...filled,
+      salesAchievement: sa.value ?? filled.salesAchievement,
+      salesByQuantity: sq.value ?? filled.salesByQuantity,
+      salesByRegion: region.value ?? filled.salesByRegion,
+      salesByECP: ecp.value ?? filled.salesByECP,
+      inventory: inv.value ?? filled.inventory,
     };
 
     if (changed) {

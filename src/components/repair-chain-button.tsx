@@ -45,7 +45,7 @@ export function RepairChainButton() {
         onClick={run}
         disabled={busy}
         className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-ink-800)] bg-white text-[var(--color-ink-800)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ice-50)] disabled:opacity-60 dark:bg-[var(--surface-1)]"
-        title="Walk every month chronologically and relink cross-month derivations (YTD totals, region growth%, product lists)."
+        title="Walk every month chronologically. Carries prior-month data into empty new months (budgets, 2025 actuals, product registration, inventory shape) and relinks cross-month derivations (region growth%, totals)."
       >
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
         {busy ? "Relinking months…" : "Repair chain"}

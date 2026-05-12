@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 import { MONTH_NAMES, monthNameFull } from "@/lib/utils";
 import { NewMonthButton } from "@/components/new-month-button";
 import { RepairChainButton } from "@/components/repair-chain-button";
+import { DeleteMonthButton } from "@/components/delete-month-button";
 import { SECTION_KEYS, type MonthReport } from "@/lib/schema";
 import { AlertTriangle, ArrowRight, FileDown, FileUp } from "lucide-react";
 
@@ -89,10 +90,25 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function MonthCard({ report, completion, missing }: { report: MonthReport; completion: number; missing: number }) {
+  // Wrap in a `relative` so DeleteMonthButton can absolute-position itself
+  // in the corner of the card without being trapped inside the Link's click
+  // target.
+  return (
+    <div className="relative">
+      <DeleteMonthButton
+        monthId={report.id}
+        label={`${monthNameFull(report.month)} ${report.year}`}
+      />
+      <MonthCardLink report={report} completion={completion} missing={missing} />
+    </div>
+  );
+}
+
+function MonthCardLink({ report, completion, missing }: { report: MonthReport; completion: number; missing: number }) {
   return (
     <Link
       href={`/report/${report.id}`}
-      className="group rounded-2xl border border-[var(--color-ice-200)] bg-white p-5 hover:shadow-md transition"
+      className="group block rounded-2xl border border-[var(--color-ice-200)] bg-white p-5 hover:shadow-md transition"
     >
       <div className="flex items-center justify-between">
         <div>
