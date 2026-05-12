@@ -40,10 +40,10 @@ export function FileRowActions({
 
   async function remove() {
     const ok = confirm(
-      `Remove "${fileName}" from the upload log?\n\n` +
-      "This deletes the file record from Supabase but does NOT roll back the " +
-      "slide numbers it produced. To recompute the slides, re-import a fresh " +
-      "version of this file."
+      `Move "${fileName}" to the trash?\n\n` +
+      "It will disappear from the active list but you can restore it from " +
+      'the "Recently deleted" section at the bottom of this page. Slide ' +
+      "numbers produced by this file are unaffected either way."
     );
     if (!ok) return;
     setBusy("remove");
@@ -79,10 +79,11 @@ export function FileRowActions({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Update failed");
       }
-      // Replace, not append: drop the old audit row so the new one takes its
-      // place in the Files table. Failures here just mean both rows linger
-      // — non-fatal.
-      await fetch(`/api/files/${fileId}`, { method: "DELETE" }).catch(() => {});
+      // Replace, not append: HARD-delete the old audit row (?purge=1) so
+      // the new one cleanly takes its place. Without purge=1 the old row
+      // would soft-delete into the trash, which would be confusing — the
+      // user clicked Update, not Remove. Failures here are non-fatal.
+      await fetch(`/api/files/${fileId}?purge=1`, { method: "DELETE" }).catch(() => {});
       startTransition(() => router.refresh());
     } catch (err) {
       alert(err instanceof Error ? err.message : "Update failed");

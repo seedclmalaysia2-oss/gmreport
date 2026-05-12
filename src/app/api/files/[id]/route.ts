@@ -63,20 +63,43 @@ export async function GET(
 }
 
 /**
- * DELETE /api/files/{id}
+ * DELETE /api/files/{id}                  -> soft delete (moves to trash)
+ * DELETE /api/files/{id}?purge=1          -> hard delete (permanent)
  *
- * Removes a single RawFile audit-log row. Does NOT undo any slide data the
- * file may have produced — that lives in MonthReport's section JSON columns
- * and would need an explicit re-import or manual edit to revert. The Files
- * UI explains this in the confirmation dialog.
+ * Soft delete: sets RawFile.deletedAt = now(). The row is still in the
+ * database, just hidden from the active list and surfaced under the
+ * "Recently deleted" section of the Files page so it can be restored.
+ *
+ * Hard delete is used for two cases:
+ *   - The user clicks "Delete forever" on a row that's already in trash
+ *   - The Update flow replaces an audit row with a freshly-imported one
+ *     (no point keeping the old version around in the trash)
+ *
+ * Neither flavour rolls back the slide numbers the file produced. The UI
+ * makes that explicit in its confirmations.
  */
 export async function DELETE(
-  _: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  // .catch — if the row was already deleted in another tab, treat as a no-op
-  // rather than 500ing on the user.
-  await prisma.rawFile.delete({ where: { id } }).catch(() => {});
+  const purge = new URL(req.url).searchParams.get("purge") === "1";
+
+  if (purge) {
+    await prisma.rawFile.delete({ where: { id } }).catch(() => {});
+  } else {
+    await prisma.rawFile
+      .update({ where: { id }, data: { deletedAt: new Date() } })
+      .catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }
+
+/**
+ * POST /api/files/{id}/restore
+ *
+ * Clears the deletedAt tombstone so the file reappears in the active
+ * list. We expose this as a POST under the same /api/files/{id} route
+ * (next route segment) — see /restore/route.ts for the actual handler.
+ * Keeping the wrapper here just to consolidate documentation in one spot.
+ */

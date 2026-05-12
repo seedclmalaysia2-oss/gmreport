@@ -127,36 +127,60 @@ export type RawFileEntry = {
  * stream out of the dedicated GET /api/files/{id} endpoint on demand.
  */
 export async function listRawFiles(): Promise<RawFileEntry[]> {
+  return queryRawFiles({ deleted: false });
+}
+
+/**
+ * Trash-bin equivalent of listRawFiles — only rows whose deletedAt is set.
+ * Used by the "Recently deleted" section on the Files page. Sorted most-
+ * recently-deleted first so users can find a just-clicked row at the top.
+ */
+export async function listDeletedRawFiles(): Promise<(RawFileEntry & { deletedAt: string })[]> {
+  return queryRawFiles({ deleted: true }) as Promise<(RawFileEntry & { deletedAt: string })[]>;
+}
+
+type RawFileQueryRow = {
+  id: string;
+  monthReportId: string;
+  kind: string;
+  originalName: string;
+  byteSize: number;
+  sectionKeys: string | null;
+  createdAt: Date;
+  hasBytes: boolean;
+  year: number;
+  month: number;
+  deletedAt: Date | null;
+};
+
+async function queryRawFiles(opts: { deleted: boolean }): Promise<RawFileEntry[]> {
   // Prisma can't express "is column NULL?" in select, so we ask Postgres
-  // directly via $queryRaw. This keeps the payload tiny — a boolean per row
-  // instead of a megabyte of base64.
-  const rows = await prisma.$queryRaw<Array<{
-    id: string;
-    monthReportId: string;
-    kind: string;
-    originalName: string;
-    byteSize: number;
-    sectionKeys: string | null;
-    createdAt: Date;
-    hasBytes: boolean;
-    year: number;
-    month: number;
-  }>>`
-    SELECT
-      r."id",
-      r."monthReportId",
-      r."kind",
-      r."originalName",
-      r."byteSize",
-      r."sectionKeys",
-      r."createdAt",
-      (r."bytes" IS NOT NULL) AS "hasBytes",
-      m."year",
-      m."month"
-    FROM "RawFile" r
-    JOIN "MonthReport" m ON m."id" = r."monthReportId"
-    ORDER BY r."createdAt" DESC
-  `;
+  // directly via $queryRaw. Keeps the payload tiny — a boolean per row
+  // instead of a megabyte of base64 — and lets us filter on the tombstone.
+  const rows = opts.deleted
+    ? await prisma.$queryRaw<RawFileQueryRow[]>`
+        SELECT
+          r."id", r."monthReportId", r."kind", r."originalName",
+          r."byteSize", r."sectionKeys", r."createdAt", r."deletedAt",
+          (r."bytes" IS NOT NULL) AS "hasBytes",
+          m."year", m."month"
+        FROM "RawFile" r
+        JOIN "MonthReport" m ON m."id" = r."monthReportId"
+        WHERE r."deletedAt" IS NOT NULL
+        ORDER BY r."deletedAt" DESC
+      `
+    : await prisma.$queryRaw<RawFileQueryRow[]>`
+        SELECT
+          r."id", r."monthReportId", r."kind", r."originalName",
+          r."byteSize", r."sectionKeys", r."createdAt", r."deletedAt",
+          (r."bytes" IS NOT NULL) AS "hasBytes",
+          m."year", m."month"
+        FROM "RawFile" r
+        JOIN "MonthReport" m ON m."id" = r."monthReportId"
+        WHERE r."deletedAt" IS NULL
+        ORDER BY r."createdAt" DESC
+      `;
+
   return rows.map(r => ({
     id: r.id,
     monthReportId: r.monthReportId,
@@ -168,6 +192,7 @@ export async function listRawFiles(): Promise<RawFileEntry[]> {
     sectionKeys: r.sectionKeys ? safeParseStringArray(r.sectionKeys) : [],
     createdAt: r.createdAt.toISOString(),
     hasBytes: r.hasBytes,
+    ...(r.deletedAt ? { deletedAt: r.deletedAt.toISOString() } : {}),
   }));
 }
 

@@ -65,8 +65,14 @@ model RawFile {
   // without re-deriving from `kind` on the client.
   sectionKeys   String?
   createdAt     DateTime @default(now())
+  // Soft-delete tombstone. NULL = active row, set = in the "Recently
+  // deleted" section of the Files page. Cleared on Restore, hard-deleted
+  // only when the user clicks "Delete forever" or when an Update replaces
+  // the row (which is a swap, not a removal worth keeping in the trash).
+  deletedAt     DateTime?
 
   @@index([monthReportId, createdAt])
+  @@index([deletedAt])
 }
 
 // Named settings — outlet-type overrides, SKU map overrides, etc.

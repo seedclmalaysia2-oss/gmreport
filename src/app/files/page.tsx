@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { listMonthReports, listRawFiles, type RawFileEntry } from "@/lib/month-report";
+import { listDeletedRawFiles, listMonthReports, listRawFiles, type RawFileEntry } from "@/lib/month-report";
 import { SECTION_KEYS, SECTION_META, type MonthReport, type SectionKey } from "@/lib/schema";
 import { monthNameFull } from "@/lib/utils";
-import { ArrowRight, FileText, FileUp, Info } from "lucide-react";
+import { ArrowRight, FileText, FileUp, Info, Trash2 } from "lucide-react";
 import { ImportForm } from "@/components/import-form";
 import { FileRowActions } from "@/components/file-row-actions";
+import { FileTrashActions } from "@/components/file-trash-actions";
 
 // Combined Upload + History page. After a successful import the client form
 // calls router.refresh(), which triggers a fresh server render of this page
@@ -80,7 +81,11 @@ function firstSlideNo(f: RawFileEntry): number {
 }
 
 export default async function FilesPage() {
-  const [rawFiles, months] = await Promise.all([listRawFiles(), listMonthReports()]);
+  const [rawFiles, deletedFiles, months] = await Promise.all([
+    listRawFiles(),
+    listDeletedRawFiles(),
+    listMonthReports(),
+  ]);
   const groups = groupByMonth(rawFiles);
   const orderedMonths = months.slice().sort((a, b) => b.year - a.year || b.month - a.month);
   const monthsWithoutUploads = orderedMonths.filter(m => !groups.some(g => g.monthReportId === m.id));
@@ -150,7 +155,81 @@ export default async function FilesPage() {
           </div>
         )}
       </section>
+
+      {/* ---------- 3. Recently deleted (trash) ---------- */}
+      {deletedFiles.length > 0 && (
+        <section className="space-y-3 pt-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-[var(--font-display)] text-lg font-semibold flex items-center gap-2">
+              <Trash2 size={16} className="text-[var(--color-ink-600)]" />
+              Recently deleted
+            </h2>
+            <span className="text-xs text-[var(--color-ink-600)]">
+              {deletedFiles.length} file{deletedFiles.length === 1 ? "" : "s"} · restore any time
+            </span>
+          </div>
+          <p className="text-xs text-[var(--color-ink-600)]">
+            Files you removed are kept here until you click <strong>Delete forever</strong>.
+            Click <strong>Restore</strong> to put one back in the active list.
+          </p>
+          <div className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-[11px] uppercase tracking-wider text-[var(--color-ink-600)] bg-[var(--color-ice-50)]">
+                  <tr>
+                    <th className="text-left px-3 sm:px-5 py-2">File</th>
+                    <th className="text-left px-3 sm:px-5 py-2 hidden sm:table-cell">Month</th>
+                    <th className="text-right px-3 sm:px-5 py-2 w-[80px] hidden sm:table-cell">Size</th>
+                    <th className="text-right px-3 sm:px-5 py-2 w-[140px] hidden md:table-cell">Deleted</th>
+                    <th className="text-right px-3 sm:px-5 py-2 w-[220px] hidden sm:table-cell">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deletedFiles.map(f => <TrashRow key={f.id} file={f as RawFileEntry & { deletedAt: string }} />)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
     </main>
+  );
+}
+
+function TrashRow({ file }: { file: RawFileEntry & { deletedAt: string } }) {
+  return (
+    <tr className="border-t border-[var(--color-ice-100)] align-top">
+      <td className="px-3 sm:px-5 py-2.5">
+        <div className="flex items-start gap-2">
+          <FileText size={14} className="text-[var(--color-ink-600)] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <div className="break-all font-medium text-[var(--color-ink-900)]">{file.originalName}</div>
+            {/* Mobile-only collapsed metadata + actions, same pattern as
+                the active rows above. */}
+            <div className="sm:hidden text-[11px] text-[var(--color-ink-600)] mt-0.5 space-y-0.5">
+              <div>{monthNameFull(file.month)} {file.year}</div>
+              <div>{fmtBytes(file.byteSize)}</div>
+              <div>Deleted {fmtTimestamp(file.deletedAt)}</div>
+            </div>
+            <div className="sm:hidden mt-2">
+              <FileTrashActions fileId={file.id} fileName={file.originalName} />
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell text-[var(--color-ink-700)]">
+        {monthNameFull(file.month)} {file.year}
+      </td>
+      <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums hidden sm:table-cell">
+        {fmtBytes(file.byteSize)}
+      </td>
+      <td className="px-3 sm:px-5 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums whitespace-nowrap hidden md:table-cell">
+        {fmtTimestamp(file.deletedAt)}
+      </td>
+      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell">
+        <FileTrashActions fileId={file.id} fileName={file.originalName} />
+      </td>
+    </tr>
   );
 }
 
