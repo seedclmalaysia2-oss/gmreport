@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { FileDown, Files, Home, Menu, X } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { PalettePicker } from "./palette-picker";
+import { LogoutButton } from "./logout-button";
 
 /**
  * Top-level navigation. Layout:
@@ -53,6 +54,7 @@ export function SiteHeader() {
           <div className="hidden md:flex items-center gap-2">
             <PalettePicker />
             <ThemeToggle />
+            <LogoutButton />
           </div>
 
           {/* Hamburger — phones only */}
@@ -82,6 +84,11 @@ export function SiteHeader() {
               <PalettePicker />
               <ThemeToggle />
             </div>
+          </div>
+          {/* Sign out gets its own row — it's destructive enough that we don't
+              want it crammed next to the palette swatches. */}
+          <div className="px-3 py-2 border-t border-[var(--color-ice-200)]">
+            <LogoutButton variant="drawer" />
           </div>
         </div>
       )}
