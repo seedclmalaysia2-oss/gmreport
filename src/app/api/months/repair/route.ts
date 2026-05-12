@@ -11,6 +11,7 @@
 // call repeatedly — it's idempotent.
 
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { listMonthReports, upsertMonthReport } from "@/lib/month-report";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
@@ -102,18 +103,75 @@ function recomputeInventoryTotals(curr: Inventory | null): { value: Inventory | 
   };
 }
 
-function isSalesAchievementEmpty(sa: SalesAchievement | null | undefined): boolean {
-  if (!sa) return true;
-  const noTarget = sa.target2026.every(v => v == null);
-  const noActual = sa.actual2026.every(v => v == null);
-  const noPrior  = sa.actual2025.every(v => v == null);
-  return noTarget && noActual && noPrior && (sa.kpi?.length ?? 0) === 0;
+/**
+ * Per-slot chain merge for Slide 1 Sales Achievement.
+ *
+ * The previous all-or-nothing carry-forward only ran when the current
+ * month's SA was completely empty — so once *any* slot was filled
+ * (typically the current month's actual from a POS import), Jan/Feb/Mar
+ * stayed null in April's row even though those months had been imported
+ * and had values of their own.
+ *
+ * Rules:
+ *   - Full-year fields (target2026, actual2025, netIncome2025): pull
+ *     every null slot from the prior month's healed snapshot.
+ *   - Accruing fields (actual2026, netIncome2026): pull every null slot
+ *     up to and including the current month index. Future months stay
+ *     null — they haven't been reported yet.
+ *   - KPI commentary: copy from prior month only if the current month
+ *     has no entries.
+ *
+ * Idempotent: running this on an already-merged month produces the same
+ * output (changed = false).
+ */
+function mergeSalesAchievementChain(
+  curr: SalesAchievement | null | undefined,
+  prior: SalesAchievement | null | undefined,
+  monthIdx: number,
+): { value: SalesAchievement | null; changed: boolean } {
+  if (!prior) return { value: curr ?? null, changed: false };
+
+  // Materialise current — even if it's null, we synthesize an empty SA
+  // so the prior-month values get a place to land.
+  const cur: SalesAchievement = curr ?? {
+    target2026: Array(12).fill(null),
+    actual2026: Array(12).fill(null),
+    actual2025: Array(12).fill(null),
+    netIncome2026: Array(12).fill(null),
+    netIncome2025: Array(12).fill(null),
+    kpi: [],
+  };
+
+  // Full-year merge: take current's non-null, else prior's, else null.
+  const mergeFull = (cu: (number | null)[], pr: (number | null)[]): (number | null)[] =>
+    Array.from({ length: 12 }, (_, i) => (cu[i] != null ? cu[i] : (pr[i] ?? null)));
+
+  // Accruing merge: only up to monthIdx (don't leak future-month forecasts).
+  const mergeAccrual = (cu: (number | null)[], pr: (number | null)[]): (number | null)[] =>
+    Array.from({ length: 12 }, (_, i) => {
+      if (i > monthIdx) return cu[i] ?? null;
+      return cu[i] != null ? cu[i] : (pr[i] ?? null);
+    });
+
+  const next: SalesAchievement = {
+    target2026:    mergeFull   (cur.target2026,    prior.target2026),
+    actual2026:    mergeAccrual(cur.actual2026,    prior.actual2026),
+    actual2025:    mergeFull   (cur.actual2025,    prior.actual2025),
+    netIncome2026: mergeAccrual(cur.netIncome2026, prior.netIncome2026),
+    netIncome2025: mergeFull   (cur.netIncome2025, prior.netIncome2025),
+    kpi: cur.kpi.length ? cur.kpi : (prior.kpi ?? []),
+  };
+
+  // Detect whether anything actually changed (idempotent re-runs report
+  // changed=false so we don't spam database writes).
+  const changed = JSON.stringify(next) !== JSON.stringify(cur);
+  return { value: next, changed };
 }
 
-// Carry forward prior-month data ONLY into empty sections — never overwrites
-// what's already in the current month. Runs once at New-Month creation; this
-// is the safety-net that catches months created some other way (manual SQL,
-// import-first, restored from backup) so the editor doesn't show "missing".
+// Carry forward prior-month SHAPE data — registration rows, inventory groups,
+// financial row labels — when the current month has none. Per-slot fill of
+// salesAchievement now lives in mergeSalesAchievementChain above; this
+// function only handles the all-or-nothing structural cases.
 function carryForwardSections(curr: MonthReport, prior: MonthReport | undefined): {
   next: Partial<MonthReport>;
   notes: string[];
@@ -121,19 +179,6 @@ function carryForwardSections(curr: MonthReport, prior: MonthReport | undefined)
   const next: Partial<MonthReport> = {};
   const notes: string[] = [];
   if (!prior) return { next, notes };
-
-  // Slide 1 — only carry when the current month has literally no SA data.
-  if (isSalesAchievementEmpty(curr.salesAchievement) && prior.salesAchievement) {
-    next.salesAchievement = {
-      target2026: [...prior.salesAchievement.target2026],
-      actual2026: Array(12).fill(null),
-      actual2025: [...prior.salesAchievement.actual2025],
-      netIncome2026: Array(12).fill(null),
-      netIncome2025: [...prior.salesAchievement.netIncome2025],
-      kpi: prior.salesAchievement.kpi ?? [],
-    };
-    notes.push("carried forward: budgets + 2025 actuals + KPI from prior month");
-  }
 
   if (!curr.productRegistration && prior.productRegistration) {
     next.productRegistration = {
@@ -196,10 +241,27 @@ export async function POST() {
     const notes: string[] = [];
     let changed = false;
 
-    // Step 0 — carry-forward fill of empty sections. Runs first so the
-    // heal/recompute steps below see the carried values.
-    const carry = carryForwardSections(m, priorHealed);
-    const filled: MonthReport = { ...m, ...carry.next };
+    // Step 0a — pull Slide 1 Sales Achievement values forward from the
+    // prior month, slot by slot. This is what makes April's row show
+    // Jan/Feb/Mar actuals after those months have been imported earlier
+    // in the chain.
+    const monthIdx = m.month - 1;
+    const chain = mergeSalesAchievementChain(
+      m.salesAchievement,
+      priorHealed?.salesAchievement,
+      monthIdx,
+    );
+    let filled: MonthReport = m;
+    if (chain.changed) {
+      filled = { ...filled, salesAchievement: chain.value };
+      notes.push("sales-achievement: merged null slots from prior month chain");
+      changed = true;
+    }
+
+    // Step 0b — carry-forward structural shapes (product registration,
+    // inventory groups, financial row labels) when missing.
+    const carry = carryForwardSections(filled, priorHealed);
+    filled = { ...filled, ...carry.next };
     if (carry.notes.length) {
       notes.push(...carry.notes);
       changed = true;
@@ -234,6 +296,17 @@ export async function POST() {
     }
     results.push({ id: m.id, changed, notes });
     priorHealed = healed;
+  }
+
+  // Bust caches for every page that renders month data so the user sees
+  // the freshly-merged Sales Achievement rows the instant they navigate.
+  if (results.some(r => r.changed)) {
+    revalidatePath("/");
+    revalidatePath("/files");
+    revalidatePath("/export");
+    for (const r of results.filter(x => x.changed)) {
+      revalidatePath(`/report/${r.id}`);
+    }
   }
 
   return NextResponse.json({
