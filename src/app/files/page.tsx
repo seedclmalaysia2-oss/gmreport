@@ -143,18 +143,20 @@ export default async function FilesPage() {
           </div>
         )}
 
-        <div className="space-y-5">
-          {groups.map(g => <MonthBlock key={g.monthReportId} group={g} />)}
-        </div>
-
+        {/* Months still missing files — surfaced at the top so the user sees
+            what needs uploading before scrolling through completed months. */}
         {monthsWithoutUploads.length > 0 && (
           <div className="space-y-2">
-            <h3 className="font-[var(--font-display)] text-sm font-semibold text-[var(--color-ink-700)] mt-4">Months without uploads</h3>
+            <h3 className="font-[var(--font-display)] text-sm font-semibold text-[var(--color-ink-700)]">Months without uploads</h3>
             <div className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden divide-y divide-[var(--color-ice-100)]">
               {monthsWithoutUploads.map(m => <EmptyMonthRow key={m.id} month={m} />)}
             </div>
           </div>
         )}
+
+        <div className="space-y-5">
+          {groups.map(g => <MonthBlock key={g.monthReportId} group={g} />)}
+        </div>
       </section>
 
       {/* ---------- 3. Recently deleted (trash) ---------- */}
