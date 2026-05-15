@@ -185,6 +185,12 @@ consignment        = master[stockId] − warehouse   (clamped at 0 per row)
 - "DISOP ACUAISS DUAL GEL" is its own inventory slot — excluded from the
   "DISOP ACUAISS → Ultra Eyedrop" description rule so it isn't double-counted.
 
+**BOC consignment exception** — Breath O Correct consignment stock is NOT in
+the master SCLM file. Upload `SCLM Stock List BOC <date>.xlsx` and the BOC
+row's consignment is read directly from that file's printed Grand Total
+quantity (the qty line directly above the "Grand Total" label). BOC warehouse
+still comes from the master/HQ split.
+
 ### Slide 7 ECP prefix → category
 
 | Account-type prefix | Category |
@@ -207,6 +213,7 @@ Most-specific first; first match wins:
    - `ecp list` → ECP join table
    - `stock list hq2` / `sclm … hq2` → Inventory warehouse file (HQ2)
    - `stock list hq` / `sclm … hq` → Inventory warehouse file (HQ)
+   - `stock list boc` / `sclm … boc` → BOC consignment listing
    - `stock list` / `sclm` → Inventory master (nationwide total)
    - `sales analysis region` / `sales by region` → Slide 8
    - `salesman ... sales/collection` / `account type` → Slide 7 + Collection fallback

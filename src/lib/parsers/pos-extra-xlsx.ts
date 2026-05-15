@@ -33,6 +33,62 @@ export interface StockParseResult {
 }
 
 /**
+ * Parse the dedicated "SCLM Stock List BOC" export and return the total BOC
+ * (Breath O Correct ortho-K) consignment quantity.
+ *
+ * This is a per-unit "Stock Balance Quantity Listing" report — a free-form
+ * layout with merged cells and no clean column headers. The reliable signal
+ * is the printed grand total: the quantity (e.g. "1,284") sits in the row
+ * directly above the "Grand Total" label row. BOC consignment is NOT in the
+ * master SCLM file, so Slide 10 reads this number directly.
+ *
+ * Returns 0 when the file can't be understood (caller emits a warning).
+ */
+export function parseBocConsignmentXlsx(buf: ArrayBuffer): number {
+  const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const g = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
+
+  const toNum = (v: unknown): number => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    if (typeof v === "string") {
+      const n = Number(v.replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+
+  // Primary: the row immediately above "Grand Total" carries the qty total.
+  for (let r = 0; r < g.length; r++) {
+    const row = g[r] || [];
+    if (row.some(c => typeof c === "string" && /^grand\s*total$/i.test(c.trim()))) {
+      const above = g[r - 1] || [];
+      for (const c of above) {
+        const n = toNum(c);
+        if (n > 0) return Math.round(n);
+      }
+    }
+  }
+
+  // Fallback: count every per-unit row (each BOC ortho-K lens lists Qty 1+).
+  let sum = 0;
+  for (const row of g) {
+    if (!row) continue;
+    const isBoc = row.some(c => typeof c === "string" && /BOC\s*ORTHO/i.test(c));
+    if (!isBoc) continue;
+    // The unit qty is a small integer next to the "PCS" UOM cell.
+    const uomIdx = row.findIndex(c => typeof c === "string" && /^pcs$/i.test(c.trim()));
+    if (uomIdx > 0) {
+      for (let c = uomIdx - 1; c >= Math.max(0, uomIdx - 8); c--) {
+        const n = toNum(row[c]);
+        if (n > 0 && n < 1000) { sum += n; break; }
+      }
+    }
+  }
+  return Math.round(sum);
+}
+
+/**
  * Lightweight parse of an SCLM stock-list export into a Stock ID → balance
  * map. Used for the HQ / HQ2 warehouse files, which we only need to join
  * against the master file by Stock ID — no description mapping required.

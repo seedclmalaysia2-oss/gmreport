@@ -13,7 +13,14 @@ import type { Inventory } from "@/lib/schema";
 
 type Row = Inventory["groups"][number]["rows"][number];
 
-export function inventoryFromStock(stock: StockParseResult): Inventory {
+/**
+ * @param stock          parsed master SCLM (optionally warehouse-split)
+ * @param bocConsignment BOC consignment qty from the dedicated "SCLM Stock
+ *                       List BOC" file. BOC consignment is NOT in the master,
+ *                       so when this file is supplied it overrides the BOC
+ *                       row's consignment cell directly.
+ */
+export function inventoryFromStock(stock: StockParseResult, bocConsignment?: number): Inventory {
   const canon = { ...stock.byCanonical };
   const mcuv = stock.byMcuvVariant;
   // Warehouse-split data — present only when HQ/HQ2 were uploaded.
@@ -95,10 +102,20 @@ export function inventoryFromStock(stock: StockParseResult): Inventory {
     }
   }
 
+  // BOC consignment is sourced from its own file — not derivable from the
+  // master. When provided, it overrides the "BOC" slot's consignment.
+  const hasBoc = typeof bocConsignment === "number";
+
   const groups = INVENTORY_GROUPS.map(g => ({
     name: g.name,
     rows: g.products.map((p): Row => {
       const total = labelToTotal[p] ?? 0;
+      if (p === "BOC" && hasBoc) {
+        // Warehouse still comes from the master/HQ split (or total in legacy
+        // mode); consignment is the dedicated BOC file's grand total.
+        const warehouse = split ? (labelToWarehouse[p] ?? 0) : total;
+        return { product: p, warehouse, consignment: bocConsignment! };
+      }
       if (!split) {
         // Legacy: master file only — everything is warehouse, consignment unknown.
         return { product: p, warehouse: total, consignment: null };
@@ -113,7 +130,16 @@ export function inventoryFromStock(stock: StockParseResult): Inventory {
   const totalWarehouse = split
     ? Object.values(labelToWarehouse).reduce((s, v) => s + v, 0)
     : totalAll;
-  const totalConsignment = split ? Math.max(0, totalAll - totalWarehouse) : null;
+  // Roll the explicit BOC consignment into the grand total. In split mode the
+  // master-derived BOC consignment is ~0 (BOC isn't in the master), so adding
+  // the file figure doesn't double-count.
+  let totalConsignment = split ? Math.max(0, totalAll - totalWarehouse) : null;
+  if (hasBoc) {
+    const masterBocConsignment = split
+      ? Math.max(0, (labelToTotal["BOC"] ?? 0) - (labelToWarehouse["BOC"] ?? 0))
+      : 0;
+    totalConsignment = (totalConsignment ?? 0) - masterBocConsignment + bocConsignment!;
+  }
 
   return {
     groups,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parsePosPdf, type PosMasterParseResult, type PosMcuvParseResult, type PosWriteOffParseResult } from "@/lib/parsers/pos-pdf";
 import { parseEcpListXlsx, parseMasterXlsx, parseOutletXlsx, parseSalesByRegionXlsx, parseSalesmanSalesXlsx } from "@/lib/parsers/pos-xlsx";
-import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx, parseStockBalancesById } from "@/lib/parsers/pos-extra-xlsx";
+import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx, parseStockBalancesById, parseBocConsignmentXlsx } from "@/lib/parsers/pos-extra-xlsx";
 import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesByRegion, salesByRegionFromStates, topProducts, unmappedSkus } from "@/lib/aggregation";
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { expireByMonth } from "@/lib/aggregation/from-writeoff";
@@ -73,6 +73,7 @@ export async function POST(req: Request): Promise<Response> {
   let stockXlsxBuf: ArrayBuffer | null = null;       // master SCLM (nationwide total)
   let stockHqXlsxBuf: ArrayBuffer | null = null;     // HQ warehouse export
   let stockHq2XlsxBuf: ArrayBuffer | null = null;    // HQ2 warehouse export
+  let stockBocXlsxBuf: ArrayBuffer | null = null;    // BOC consignment listing
   let collectionXlsxBuf: ArrayBuffer | null = null;
   let dailySalesXlsxBuf: ArrayBuffer | null = null;
   // Full-year prior-year (2025) reference, parsed from a "Sales Summary"
@@ -128,9 +129,11 @@ export async function POST(req: Request): Promise<Response> {
       }
       else if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f, buf); }
       // SCLM stock files. HQ2 must be tested before HQ ("HQ2" also contains
-      // "HQ"); the plain master is whatever's left. All feed Slide 10.
+      // "HQ"); BOC is the dedicated consignment listing; the plain master is
+      // whatever's left. All feed Slide 10.
       else if (/(stock\s*list|sclm).*hq\s*2|hq\s*2.*(stock\s*list|sclm)/i.test(name)) { stockHq2XlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/(stock\s*list|sclm).*hq|hq.*(stock\s*list|sclm)/i.test(name)) { stockHqXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
+      else if (/(stock\s*list|sclm).*boc|boc.*(stock\s*list|sclm)/i.test(name)) { stockBocXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/sales.*analysis.*region|sales.*by.*region/i.test(name)) { regionXlsxBuf = buf; pushFile("pos_region", f, buf); }
       else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f, buf); }
@@ -218,10 +221,18 @@ export async function POST(req: Request): Promise<Response> {
       warnings.push("Inventory: only the master SCLM file was uploaded — consignment can't be split. Add the HQ and HQ2 stock files for the warehouse/consignment breakdown.");
     }
     const stock = parseStockListXlsx(stockXlsxBuf, new Date(year, month, 0), warehouseById);
-    sections.inventory = inventoryFromStock(stock);
+    // BOC consignment isn't in the master — it comes from its own SCLM file.
+    let bocConsignment: number | undefined;
+    if (stockBocXlsxBuf) {
+      bocConsignment = parseBocConsignmentXlsx(stockBocXlsxBuf);
+      if (!bocConsignment) {
+        warnings.push("Inventory: the SCLM Stock List BOC file was uploaded but no BOC quantity could be read — BOC consignment left at 0.");
+      }
+    }
+    sections.inventory = inventoryFromStock(stock, bocConsignment);
     sectionsTouched.add("inventory");
-  } else if (stockHqXlsxBuf || stockHq2XlsxBuf) {
-    warnings.push("Inventory: HQ/HQ2 stock files were uploaded without the master SCLM file — Slide 10 needs the master to compute consignment.");
+  } else if (stockHqXlsxBuf || stockHq2XlsxBuf || stockBocXlsxBuf) {
+    warnings.push("Inventory: HQ / HQ2 / BOC stock files were uploaded without the master SCLM file — Slide 10 needs the master to compute consignment.");
   }
 
   if (collectionXlsxBuf || salesmanCollection != null) {
