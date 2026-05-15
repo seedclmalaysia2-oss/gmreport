@@ -3,8 +3,16 @@
  * accent scales via CSS custom properties set on <html>. The PPTX generators stay
  * on the default Midnight Executive palette — only the dashboard chrome changes.
  *
- * Shape of a palette: one dominant "ink" for branded buttons / header chrome,
- * three ice tints (light backgrounds), and two accents. Everything else cascades.
+ * IMPORTANT — dark-mode handling:
+ *
+ *   Earlier versions wrote the LIGHT-mode ice/ink values as inline styles on
+ *   <html>. Inline styles trump the `html.dark { ... }` CSS rules, so any non-
+ *   default palette + dark theme produced low-contrast text (e.g. teal text on
+ *   teal cards for the "Teal Trust" palette). applyPalette() and the bootstrap
+ *   script now branch on document.documentElement.classList.contains("dark")
+ *   and write a DARK-mode variant of the palette derived from its own hues.
+ *   ThemeToggle re-applies the active palette every time the theme flips so
+ *   the surface/text tokens stay coherent.
  */
 
 export type Palette = {
@@ -155,30 +163,136 @@ export function modernSlidePalette(paletteId: string | undefined): SlidePalette 
   };
 }
 
+// ----- Color math helpers (no deps) -----
+//
+// All hex strings, no rgba/hsla. Used to derive dark-mode tokens from each
+// palette without requiring designers to specify two parallel scales.
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace("#", "");
+  const v = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16);
+  return { r: (v >> 16) & 0xff, g: (v >> 8) & 0xff, b: v & 0xff };
+}
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return "#" + ((clamp(r) << 16) | (clamp(g) << 8) | clamp(b)).toString(16).padStart(6, "0");
+}
+/** Mix two hex colors. weight=0 returns a, weight=1 returns b. */
+function mix(a: string, b: string, weight: number): string {
+  const A = hexToRgb(a), B = hexToRgb(b);
+  return rgbToHex(
+    A.r * (1 - weight) + B.r * weight,
+    A.g * (1 - weight) + B.g * weight,
+    A.b * (1 - weight) + B.b * weight,
+  );
+}
+const darken  = (hex: string, w: number) => mix(hex, "#000000", w);
+const lighten = (hex: string, w: number) => mix(hex, "#ffffff", w);
+
+/**
+ * Derive the full token set we write to <html> for a given palette + theme.
+ * Returns a flat record { '--token': value } so the caller can apply it via
+ * setProperty.
+ *
+ * Light mode: ink scale is the palette's "real" dark hues; ice scale is the
+ * palette's "real" light tints; surfaces are mostly white.
+ *
+ * Dark mode: ink scale flips so primary text (--color-ink-900) becomes
+ * near-white; the ice scale is remapped to *dark* tints derived from the
+ * palette so cards/borders read as dark surfaces with the palette's hue.
+ * Page bg = a very dark version of ink950, surfaces step up from there.
+ */
+export function tokensFor(p: Palette, isDark: boolean): Record<string, string> {
+  if (!isDark) {
+    return {
+      "--color-ink-950": p.ink950,
+      "--color-ink-900": p.ink900,
+      "--color-ink-800": p.ink800,
+      "--color-ink-700": p.ink700,
+      "--color-ink-600": p.ink600,
+      "--color-ice-200": p.ice200,
+      "--color-ice-100": p.ice100,
+      "--color-ice-50":  p.ice50,
+      "--color-accent":  p.accent,
+      "--color-accent-2": p.accent2,
+      "--page-bg":       "#f6f7fb",
+      "--surface-1":     "#ffffff",
+      "--surface-2":     p.ice50,
+      "--surface-3":     p.ice100,
+      "--text-primary":  p.ink900,
+      "--text-secondary": p.ink600,
+      "--text-muted":    "#6b7280",
+      "--border-subtle": p.ice100,
+      "--border-strong": p.ice200,
+    };
+  }
+
+  // ---- DARK MODE ----
+  // Derive a dark surface ladder from the palette's deepest hue. Each step
+  // lightens by ~5% so cards / hover / borders all read as elevations of
+  // the page bg without losing the palette's character.
+  const pageBg   = p.pageDark ?? darken(p.ink950, 0.35);
+  const surface1 = lighten(pageBg, 0.06);   // primary card
+  const surface2 = lighten(pageBg, 0.10);   // hover / row-alt
+  const surface3 = lighten(pageBg, 0.16);   // chip / divider tint
+
+  // Light text with a hint of the palette hue so the UI doesn't feel
+  // disconnected from the chosen theme. Mix the palette's lightest ice
+  // toward pure white at high weight.
+  const textPrimary   = lighten(p.ice50, 0.20);   // headings + numbers
+  const textSecondary = mix(p.ice200, "#ffffff", 0.55); // body / labels
+  const textMuted     = mix(p.ice200, "#94a3b8", 0.40); // hints
+
+  return {
+    // Keep the brand-button hues unchanged in dark mode so buttons still
+    // pop. ink900 swaps to a light tint because it's used as primary
+    // text colour across the editor.
+    "--color-ink-950": p.ink950,
+    "--color-ink-900": textPrimary,
+    "--color-ink-800": p.ink800,
+    "--color-ink-700": p.ink700,
+    "--color-ink-600": textSecondary,
+    // The ice scale doubles as "card background" in many components, so
+    // remap to the dark surface ladder. Anything reading from these
+    // tokens automatically lands on a readable dark surface.
+    "--color-ice-50":  surface1,
+    "--color-ice-100": surface2,
+    "--color-ice-200": surface3,
+    "--color-accent":  p.accent,
+    "--color-accent-2": p.accent2,
+    "--page-bg":       pageBg,
+    "--surface-1":     surface1,
+    "--surface-2":     surface2,
+    "--surface-3":     surface3,
+    "--text-primary":  textPrimary,
+    "--text-secondary": textSecondary,
+    "--text-muted":    textMuted,
+    "--border-subtle": surface2,
+    "--border-strong": surface3,
+  };
+}
+
 /** Apply a palette to the <html> element by writing CSS variables. */
 export function applyPalette(p: Palette) {
   const root = document.documentElement;
-  const set = (k: string, v: string) => root.style.setProperty(k, v);
-  set("--color-ink-950", p.ink950);
-  set("--color-ink-900", p.ink900);
-  set("--color-ink-800", p.ink800);
-  set("--color-ink-700", p.ink700);
-  set("--color-ink-600", p.ink600);
-  set("--color-ice-200", p.ice200);
-  set("--color-ice-100", p.ice100);
-  set("--color-ice-50",  p.ice50);
-  set("--color-accent",  p.accent);
-  set("--color-accent-2", p.accent2);
-  // Keep semantic surface tokens coherent too.
-  set("--surface-3", p.ice200);
-  set("--surface-2", p.ice100);
-  set("--surface-1", p.ice50.replace(/^#/, "#"));
-  set("--border-strong", p.ice200);
-  set("--border-subtle", p.ice100);
+  const isDark = root.classList.contains("dark");
+  const tokens = tokensFor(p, isDark);
+  for (const [k, v] of Object.entries(tokens)) root.style.setProperty(k, v);
   try { localStorage.setItem("gm-palette", p.id); } catch { /* */ }
 }
 
-/** Inline bootstrap script content — applies the saved palette before hydration. */
+/** Re-apply whichever palette is currently saved. Used by ThemeToggle so the
+ *  surface ladder switches between light and dark variants on theme flip. */
+export function reapplyActivePalette() {
+  try {
+    const id = localStorage.getItem("gm-palette") || DEFAULT_PALETTE_ID;
+    const p = PALETTES.find(x => x.id === id) ?? PALETTES[0];
+    applyPalette(p);
+  } catch { /* */ }
+}
+
+/** Inline bootstrap script content — applies the saved palette before hydration.
+ *  We inline the color math so this runs without importing the module. */
 export function paletteBootstrapScript(): string {
   const lookup = JSON.stringify(
     Object.fromEntries(PALETTES.map(p => [p.id, p])),
@@ -190,22 +304,65 @@ export function paletteBootstrapScript(): string {
     var map = ${lookup};
     var p = map[id] || map["${DEFAULT_PALETTE_ID}"];
     if (!p) return;
+    var isDark = document.documentElement.classList.contains("dark");
+
+    function h2rgb(hex){var h=hex.replace("#","");var v=parseInt(h.length===3?h.split("").map(function(c){return c+c}).join(""):h,16);return {r:(v>>16)&255,g:(v>>8)&255,b:v&255}}
+    function rgb2h(r,g,b){function c(n){return Math.max(0,Math.min(255,Math.round(n)))}return "#"+((c(r)<<16)|(c(g)<<8)|c(b)).toString(16).padStart(6,"0")}
+    function mix(a,b,w){var A=h2rgb(a),B=h2rgb(b);return rgb2h(A.r*(1-w)+B.r*w,A.g*(1-w)+B.g*w,A.b*(1-w)+B.b*w)}
+    var dk=function(x,w){return mix(x,"#000000",w)};
+    var lt=function(x,w){return mix(x,"#ffffff",w)};
+
     var r = document.documentElement.style;
-    r.setProperty("--color-ink-950", p.ink950);
-    r.setProperty("--color-ink-900", p.ink900);
-    r.setProperty("--color-ink-800", p.ink800);
-    r.setProperty("--color-ink-700", p.ink700);
-    r.setProperty("--color-ink-600", p.ink600);
-    r.setProperty("--color-ice-200", p.ice200);
-    r.setProperty("--color-ice-100", p.ice100);
-    r.setProperty("--color-ice-50",  p.ice50);
-    r.setProperty("--color-accent",  p.accent);
-    r.setProperty("--color-accent-2", p.accent2);
-    r.setProperty("--surface-3", p.ice200);
-    r.setProperty("--surface-2", p.ice100);
-    r.setProperty("--surface-1", p.ice50);
-    r.setProperty("--border-strong", p.ice200);
-    r.setProperty("--border-subtle", p.ice100);
+    function set(k,v){r.setProperty(k,v)}
+
+    if (!isDark) {
+      set("--color-ink-950", p.ink950);
+      set("--color-ink-900", p.ink900);
+      set("--color-ink-800", p.ink800);
+      set("--color-ink-700", p.ink700);
+      set("--color-ink-600", p.ink600);
+      set("--color-ice-200", p.ice200);
+      set("--color-ice-100", p.ice100);
+      set("--color-ice-50",  p.ice50);
+      set("--color-accent",  p.accent);
+      set("--color-accent-2", p.accent2);
+      set("--page-bg",       "#f6f7fb");
+      set("--surface-1",     "#ffffff");
+      set("--surface-2",     p.ice50);
+      set("--surface-3",     p.ice100);
+      set("--text-primary",  p.ink900);
+      set("--text-secondary", p.ink600);
+      set("--text-muted",    "#6b7280");
+      set("--border-subtle", p.ice100);
+      set("--border-strong", p.ice200);
+    } else {
+      var pageBg = p.pageDark || dk(p.ink950, 0.35);
+      var s1 = lt(pageBg, 0.06);
+      var s2 = lt(pageBg, 0.10);
+      var s3 = lt(pageBg, 0.16);
+      var tPri = lt(p.ice50, 0.20);
+      var tSec = mix(p.ice200, "#ffffff", 0.55);
+      var tMut = mix(p.ice200, "#94a3b8", 0.40);
+      set("--color-ink-950", p.ink950);
+      set("--color-ink-900", tPri);
+      set("--color-ink-800", p.ink800);
+      set("--color-ink-700", p.ink700);
+      set("--color-ink-600", tSec);
+      set("--color-ice-50",  s1);
+      set("--color-ice-100", s2);
+      set("--color-ice-200", s3);
+      set("--color-accent",  p.accent);
+      set("--color-accent-2", p.accent2);
+      set("--page-bg",       pageBg);
+      set("--surface-1",     s1);
+      set("--surface-2",     s2);
+      set("--surface-3",     s3);
+      set("--text-primary",  tPri);
+      set("--text-secondary", tSec);
+      set("--text-muted",    tMut);
+      set("--border-subtle", s2);
+      set("--border-strong", s3);
+    }
   } catch(e){}
 })();
 `;

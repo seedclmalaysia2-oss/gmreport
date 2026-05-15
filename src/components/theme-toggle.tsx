@@ -1,6 +1,7 @@
 "use client";
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { reapplyActivePalette } from "@/lib/themes";
 
 type Theme = "light" | "dark";
 
@@ -19,6 +20,11 @@ export function ThemeToggle() {
   function apply(next: Theme) {
     document.documentElement.classList.toggle("dark", next === "dark");
     localStorage.setItem("gm-theme", next);
+    // Re-apply the active palette so its surface/text tokens switch to the
+    // light or dark variant. Without this, picking a non-default palette
+    // then toggling the theme leaves stale light-mode tokens inline on
+    // <html> — which is exactly the teal-on-teal unreadable-numbers bug.
+    reapplyActivePalette();
   }
 
   function toggle() {
