@@ -579,8 +579,8 @@ function SlideSalesByQuantity({ report, P, scale, siblings }: { report: MonthRep
   const fmt = (n: number) => (n === 0 ? "" : n.toLocaleString("en-US"));
 
   // Sized to fit the whole 13.33×7.5 slide with ~30 rows + header + total — no scroll.
-  const bodyFont = fs(6.5, scale);
-  const headFont = fs(7, scale);
+  const bodyFont = fs(8.5, scale);
+  const headFont = fs(9, scale);
   const titleFont = fs(18, scale);
 
   return (
@@ -611,7 +611,7 @@ function SlideSalesByQuantity({ report, P, scale, siblings }: { report: MonthRep
               <th style={{ background: P.header, color: "#fff", padding: fs(3, scale), fontSize: headFont, textAlign: "center", border: `1px solid ${P.border}` }}>2025</th>
               <th style={{ background: GREEN, color: "#1F3864", padding: fs(3, scale), fontSize: headFont, textAlign: "center", fontWeight: 700, border: `1px solid ${P.border}` }}>2026</th>
               <th style={{ background: P.header, color: "#fff", padding: fs(3, scale), fontSize: headFont, textAlign: "center", border: `1px solid ${P.border}` }}>2025</th>
-              <th rowSpan={2} style={{ background: P.header, color: "#fff", padding: fs(3, scale), fontSize: headFont, textAlign: "right", border: `1px solid ${P.border}` }}>
+              <th rowSpan={2} style={{ background: P.header, color: "#fff", padding: fs(3, scale), fontSize: headFont, textAlign: "center", border: `1px solid ${P.border}` }}>
                 Total 2026<br/><span style={{ fontWeight: 400, opacity: 0.8 }}>Jan ~ {currShort}</span>
               </th>
             </tr>
@@ -632,21 +632,21 @@ function SlideSalesByQuantity({ report, P, scale, siblings }: { report: MonthRep
               return (
                 <tr key={r.product} style={{ background: i % 2 === 0 ? "#ffffff" : "#F2F4F8" }}>
                   <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, color, fontWeight: bold, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.product}</td>
-                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "right", color: P.text }}>{fmt(p?.qty2026 ?? 0)}</td>
-                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "right", color: P.muted }}>{fmt(p?.qty2025 ?? 0)}</td>
-                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "right", color, fontWeight: bold, background: GREEN }}>{fmt(r.qty2026)}</td>
-                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "right", color: P.muted }}>{fmt(r.qty2025)}</td>
-                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "right", color, fontWeight: 700 }}>{fmt(ytd)}</td>
+                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "center", color: P.text }}>{fmt(p?.qty2026 ?? 0)}</td>
+                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "center", color: P.muted }}>{fmt(p?.qty2025 ?? 0)}</td>
+                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "center", color, fontWeight: bold, background: GREEN }}>{fmt(r.qty2026)}</td>
+                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "center", color: P.muted }}>{fmt(r.qty2025)}</td>
+                  <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, textAlign: "center", color, fontWeight: 700 }}>{fmt(ytd)}</td>
                 </tr>
               );
             })}
             <tr>
               <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700 }}>Total</td>
-              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "right" }}>{fmt(totPrev26)}</td>
-              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "right" }}>{fmt(totPrev25)}</td>
-              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: GREEN, color: "#1F3864", fontWeight: 700, textAlign: "right" }}>{fmt(totCurr26)}</td>
-              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "right" }}>{fmt(totCurr25)}</td>
-              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "right" }}>{fmt(totYtd)}</td>
+              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "center" }}>{fmt(totPrev26)}</td>
+              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "center" }}>{fmt(totPrev25)}</td>
+              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: GREEN, color: "#1F3864", fontWeight: 700, textAlign: "center" }}>{fmt(totCurr26)}</td>
+              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "center" }}>{fmt(totCurr25)}</td>
+              <td style={{ padding: fs(2.5, scale), border: `1px solid ${P.border}`, background: P.header, color: "#fff", fontWeight: 700, textAlign: "center" }}>{fmt(totYtd)}</td>
             </tr>
           </tbody>
         </table>
