@@ -9,9 +9,12 @@ import { lookupProduct } from "@/lib/catalog/sku-map";
 export interface StockRow {
   stockId: string;
   description: string;
-  balance: number;
+  balance: number;           // master/total balance qty
   expiryYm: string | null;   // YYYYMM as string
   totalCost: number;
+  /** Warehouse (actual) portion of `balance`, from HQ+HQ2. Only set when the
+   *  warehouse files were uploaded; 0 otherwise. consignment = balance - this. */
+  warehouseBalance: number;
 }
 
 export interface StockParseResult {
@@ -21,6 +24,33 @@ export interface StockParseResult {
   byMcuvVariant: Record<"BLUE" | "ORANGE" | "PEGA", number>;
   nearExpiryRows: StockRow[];             // expiring within 3 months of asOf
   grandTotalQty: number;
+  /** Warehouse (actual) split — populated only when a `warehouseById` map is
+   *  passed to parseStockListXlsx (i.e. the HQ + HQ2 files were uploaded).
+   *  null when only the master SCLM file was uploaded. The consignment
+   *  portion is `byCanonical - byCanonicalWarehouse`. See docs/CLAUDE-RULES. */
+  byCanonicalWarehouse: Record<string, number> | null;
+  byMcuvVariantWarehouse: Record<"BLUE" | "ORANGE" | "PEGA", number> | null;
+}
+
+/**
+ * Lightweight parse of an SCLM stock-list export into a Stock ID → balance
+ * map. Used for the HQ / HQ2 warehouse files, which we only need to join
+ * against the master file by Stock ID — no description mapping required.
+ * Same balance/total handling as parseStockListXlsx (skips the "Total" row).
+ */
+export function parseStockBalancesById(buf: ArrayBuffer): Map<string, number> {
+  const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
+  const byId = new Map<string, number>();
+  for (const r of rows) {
+    const id = String(r["Stock ID"] ?? "").trim();
+    if (!id) continue; // skips the trailing "Total" row (blank Stock ID)
+    const bal = Number(r["Balance Quantity"] ?? 0);
+    if (!bal) continue;
+    byId.set(id, (byId.get(id) ?? 0) + bal);
+  }
+  return byId;
 }
 
 // Map a stock-list description to a canonical product label.
@@ -48,7 +78,9 @@ function mapStockDescription(desc: string): CanonicalProduct | null {
   if (d.startsWith("MINASOFT CARE UV")) return "Minasoft Care UV";
   if (d.startsWith("SEED BOC")) return "Breath O Correct";
   if (d.startsWith("DISOP HIDROHEALTH")) return "DISOP H2O2 Solution";
-  if (d.startsWith("DISOP ACUAISS")) return "DISOP Ultra Eyedrop";
+  // "DISOP ACUAISS DUAL GEL" is its own inventory slot — handled separately in
+  // from-stock.ts — so exclude it here or it double-counts into Ultra Eyedrop.
+  if (d.startsWith("DISOP ACUAISS") && !/DUAL\s*GEL/i.test(d)) return "DISOP Ultra Eyedrop";
   if (d.startsWith("SEED AS LUNA") || d.startsWith("SEED AS-LUNA")) return "As-Luna / O2 Noah";
   if (d.startsWith("SEED UV-1")) return "UV-1 / UV-1 KC";
   if (d.startsWith("SEED SOFT IRIS")) return "Iris Lens";
@@ -75,11 +107,27 @@ function mapMcuvVariant(desc: string): "BLUE" | "ORANGE" | "PEGA" | null {
   return null;
 }
 
-export function parseStockListXlsx(buf: ArrayBuffer, asOf?: Date): StockParseResult {
+/**
+ * Parse the master SCLM stock list. Pass `warehouseById` (Stock ID → balance,
+ * built from the HQ + HQ2 exports via parseStockBalancesById) to also split
+ * each product into its warehouse (actual) vs consignment portion:
+ *
+ *   warehouse  = HQ[stockId] + HQ2[stockId]      (the "actual stock")
+ *   consignment = master[stockId] - warehouse    (clamped at 0)
+ *
+ * Without the map, byCanonicalWarehouse / byMcuvVariantWarehouse stay null and
+ * the inventory grid falls back to "everything in warehouse" (legacy behaviour).
+ */
+export function parseStockListXlsx(
+  buf: ArrayBuffer,
+  asOf?: Date,
+  warehouseById?: Map<string, number>,
+): StockParseResult {
   const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
 
+  const split = warehouseById != null;
   const stock: StockRow[] = [];
   for (const r of rows) {
     const desc = String(r["Stock Description"] ?? r["Description"] ?? "").trim();
@@ -87,25 +135,37 @@ export function parseStockListXlsx(buf: ArrayBuffer, asOf?: Date): StockParseRes
     const bal = Number(r["Balance Quantity"] ?? 0);
     if (!bal) continue;
     const exp = r["Expiry Date"] == null ? null : String(r["Expiry Date"]).trim();
+    const stockId = String(r["Stock ID"] ?? "").trim();
+    // warehouse portion for this exact Stock ID (HQ + HQ2 combined), never
+    // exceeding the master balance so consignment can't go negative.
+    const warehouseBalance = split ? Math.min(bal, warehouseById!.get(stockId) ?? 0) : 0;
     stock.push({
-      stockId: String(r["Stock ID"] ?? "").trim(),
+      stockId,
       description: desc,
       balance: bal,
       expiryYm: exp,
       totalCost: Number(r["Total Cost"] ?? 0),
+      warehouseBalance,
     });
   }
 
   const byCanonical: Record<string, number> = {};
   const byMcuv = { BLUE: 0, ORANGE: 0, PEGA: 0 };
+  const byCanonicalWh: Record<string, number> = {};
+  const byMcuvWh = { BLUE: 0, ORANGE: 0, PEGA: 0 };
   for (const s of stock) {
+    const wh = s.warehouseBalance;
     const canonical = mapStockDescription(s.description);
     if (canonical) {
       byCanonical[canonical] = (byCanonical[canonical] ?? 0) + s.balance;
+      if (split) byCanonicalWh[canonical] = (byCanonicalWh[canonical] ?? 0) + wh;
       continue;
     }
     const mcuv = mapMcuvVariant(s.description);
-    if (mcuv) byMcuv[mcuv] += s.balance;
+    if (mcuv) {
+      byMcuv[mcuv] += s.balance;
+      if (split) byMcuvWh[mcuv] += wh;
+    }
   }
 
   const effectiveAsOf = asOf ?? new Date();
@@ -125,6 +185,8 @@ export function parseStockListXlsx(buf: ArrayBuffer, asOf?: Date): StockParseRes
     byMcuvVariant: byMcuv,
     nearExpiryRows: nearExpiry,
     grandTotalQty: stock.reduce((s, r) => s + r.balance, 0),
+    byCanonicalWarehouse: split ? byCanonicalWh : null,
+    byMcuvVariantWarehouse: split ? byMcuvWh : null,
   };
 }
 

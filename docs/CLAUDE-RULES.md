@@ -149,7 +149,7 @@ This table is the contract for what each slide computes from what file.
 | **7 Sales by ECP** | `Salesman Sales and Collection Listing By Account Type.xlsx` | Account-type prefix classifier: `SIO*`→SIO, `KCS*`→KCS, `KIO*`→KIO, `HOS*`/`UNI*`/`SPE*`→Hospital & University Clinic, `OVE*`/`EXPORT*`/empty→Overseas. | Outlet sales amount (`Mar' 2026 Sales` column) raw per row. Percentages derived from totals. |
 | **8 Sales by Region** | `Sales Analysis By Region.xlsx` | State→region mapping (see below) | "Sub Total" row's monthly amount per `Customer UD Group : <STATE>` block. Country groups (e.g. `INDONESIA (COUNTRY)`) skipped. |
 | **9 Product Registration** | Manual | — | Carries forward when a new month is created. |
-| **10 Inventory** | `SCLM - Stock List YYYY.MM.DD.xlsx` | — | Warehouse + consignment cells per group row. Totals auto-recomputed by Recalculate. |
+| **10 Inventory** | `SCLM - Stock List` (master) **+** `SCLM Stock List HQ` **+** `SCLM Stock List HQ2` | warehouse vs consignment split (see below) | Per-product balance from the master; warehouse from HQ+HQ2. |
 | **11 Expire Stock** | `Stocks Write Off Report.pdf` | — | Splits the multi-month PDF into the correct month's `expireWriteOff.rows`. |
 | **12 Financial** | `Colletion Listing.xlsx` (preferred) or `Salesman Sales and Collection Listing By Account Type.xlsx`'s `Coll.` column (fallback) | — | Collection total raw. AR / AP / Cashflow remain manual. |
 | **13 Other Market** | Manual | — | — |
@@ -167,6 +167,23 @@ This table is the contract for what each slide computes from what file.
 Country groups (`INDONESIA (COUNTRY)`, `PAKISTAN (COUNTRY)`, etc.) are excluded
 from regional totals — they're export sales and roll up to Slide 7's "Overseas"
 ECP category via the salesman file's account-type column.
+
+### Slide 10 inventory — warehouse vs consignment
+
+The SCLM master file is the **nationwide total** (warehouse + consignment).
+The HQ and HQ2 files are the two **warehouse** exports. Joined by `Stock ID`:
+
+```
+warehouse (actual) = HQ[stockId] + HQ2[stockId]
+consignment        = master[stockId] − warehouse   (clamped at 0 per row)
+```
+
+- Upload all three files together for the split. With only the master, the
+  grid falls back to "everything in warehouse, consignment blank" and the
+  import emits a warning.
+- The master's trailing "Total" row (blank Stock ID) is skipped.
+- "DISOP ACUAISS DUAL GEL" is its own inventory slot — excluded from the
+  "DISOP ACUAISS → Ultra Eyedrop" description rule so it isn't double-counted.
 
 ### Slide 7 ECP prefix → category
 
@@ -188,7 +205,9 @@ Most-specific first; first match wins:
 1. PDF auto-detect: master / MCUV BLUE/ORANGE/PEGA / write-off (by header text).
 2. XLSX filename match:
    - `ecp list` → ECP join table
-   - `stock list` / `sclm` → Inventory
+   - `stock list hq2` / `sclm … hq2` → Inventory warehouse file (HQ2)
+   - `stock list hq` / `sclm … hq` → Inventory warehouse file (HQ)
+   - `stock list` / `sclm` → Inventory master (nationwide total)
    - `sales analysis region` / `sales by region` → Slide 8
    - `salesman ... sales/collection` / `account type` → Slide 7 + Collection fallback
    - `daily sales` → Slide 4 (Format A per-SKU; Format B consolidated also accepted)

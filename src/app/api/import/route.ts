@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parsePosPdf, type PosMasterParseResult, type PosMcuvParseResult, type PosWriteOffParseResult } from "@/lib/parsers/pos-pdf";
 import { parseEcpListXlsx, parseMasterXlsx, parseOutletXlsx, parseSalesByRegionXlsx, parseSalesmanSalesXlsx } from "@/lib/parsers/pos-xlsx";
-import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx } from "@/lib/parsers/pos-extra-xlsx";
+import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx, parseStockBalancesById } from "@/lib/parsers/pos-extra-xlsx";
 import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesByRegion, salesByRegionFromStates, topProducts, unmappedSkus } from "@/lib/aggregation";
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { expireByMonth } from "@/lib/aggregation/from-writeoff";
@@ -70,7 +70,9 @@ export async function POST(req: Request): Promise<Response> {
   let ecpListBuf: ArrayBuffer | null = null;
   let regionXlsxBuf: ArrayBuffer | null = null;
   let salesmanXlsxBuf: ArrayBuffer | null = null;
-  let stockXlsxBuf: ArrayBuffer | null = null;
+  let stockXlsxBuf: ArrayBuffer | null = null;       // master SCLM (nationwide total)
+  let stockHqXlsxBuf: ArrayBuffer | null = null;     // HQ warehouse export
+  let stockHq2XlsxBuf: ArrayBuffer | null = null;    // HQ2 warehouse export
   let collectionXlsxBuf: ArrayBuffer | null = null;
   let dailySalesXlsxBuf: ArrayBuffer | null = null;
   // Full-year prior-year (2025) reference, parsed from a "Sales Summary"
@@ -125,6 +127,10 @@ export async function POST(req: Request): Promise<Response> {
         pushFile("pos_master", f, buf);
       }
       else if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f, buf); }
+      // SCLM stock files. HQ2 must be tested before HQ ("HQ2" also contains
+      // "HQ"); the plain master is whatever's left. All feed Slide 10.
+      else if (/(stock\s*list|sclm).*hq\s*2|hq\s*2.*(stock\s*list|sclm)/i.test(name)) { stockHq2XlsxBuf = buf; pushFile("pos_inventory", f, buf); }
+      else if (/(stock\s*list|sclm).*hq|hq.*(stock\s*list|sclm)/i.test(name)) { stockHqXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/sales.*analysis.*region|sales.*by.*region/i.test(name)) { regionXlsxBuf = buf; pushFile("pos_region", f, buf); }
       else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f, buf); }
@@ -196,9 +202,26 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if (stockXlsxBuf) {
-    const stock = parseStockListXlsx(stockXlsxBuf, new Date(year, month, 0));
+    // When the HQ / HQ2 warehouse exports are also uploaded, build a combined
+    // Stock ID → warehouse-balance map. The master parser then splits each
+    // product: warehouse = HQ + HQ2, consignment = master − warehouse.
+    let warehouseById: Map<string, number> | undefined;
+    if (stockHqXlsxBuf || stockHq2XlsxBuf) {
+      warehouseById = new Map<string, number>();
+      for (const wbuf of [stockHqXlsxBuf, stockHq2XlsxBuf]) {
+        if (!wbuf) continue;
+        for (const [id, qty] of parseStockBalancesById(wbuf)) {
+          warehouseById.set(id, (warehouseById.get(id) ?? 0) + qty);
+        }
+      }
+    } else {
+      warnings.push("Inventory: only the master SCLM file was uploaded — consignment can't be split. Add the HQ and HQ2 stock files for the warehouse/consignment breakdown.");
+    }
+    const stock = parseStockListXlsx(stockXlsxBuf, new Date(year, month, 0), warehouseById);
     sections.inventory = inventoryFromStock(stock);
     sectionsTouched.add("inventory");
+  } else if (stockHqXlsxBuf || stockHq2XlsxBuf) {
+    warnings.push("Inventory: HQ/HQ2 stock files were uploaded without the master SCLM file — Slide 10 needs the master to compute consignment.");
   }
 
   if (collectionXlsxBuf || salesmanCollection != null) {
