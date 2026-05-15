@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SectionProps } from "../report-editor";
-import { SectionShell } from "./shared";
+import { SectionShell, TextArea } from "./shared";
 import { Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
 import { MONTH_NAMES, cn } from "@/lib/utils";
-import { Move, RotateCcw } from "lucide-react";
+import { Move, Pencil, RotateCcw, Save } from "lucide-react";
 import type { LabelOffset, SalesTrend } from "@/lib/schema";
 
 type SeriesKey = "actual2026" | "target2026" | "actual2025";
@@ -225,6 +225,83 @@ export function SectionSalesTrend({ report, update }: SectionProps) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Commentary — explicit Save / Edit workflow (no auto-save). */}
+      <TrendCommentary
+        value={trend?.commentary ?? ""}
+        onSave={text => update({
+          salesTrend: { ...(report.salesTrend ?? { series: {} }), commentary: text } as SalesTrend,
+        })}
+      />
     </SectionShell>
+  );
+}
+
+/**
+ * Commentary box with an explicit Save / Edit cycle:
+ *  - empty / editing → textarea + Save (and Cancel once a value exists)
+ *  - saved & idle    → read-only text + Edit button
+ * The draft is local; nothing is persisted until Save is pressed.
+ */
+function TrendCommentary({ value, onSave }: { value: string; onSave: (text: string) => void }) {
+  const [editing, setEditing] = useState(() => value.trim() === "");
+  const [draft, setDraft] = useState(value);
+
+  // Re-sync from the server value whenever it changes and we're not editing
+  // (e.g. switching months) so the box never shows a stale draft.
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-semibold">Commentary</h4>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => { setDraft(value); setEditing(true); }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-ice-200)] px-2.5 py-1 text-xs font-semibold text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
+          >
+            <Pencil size={13} /> Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <>
+          <TextArea
+            value={draft}
+            onChange={setDraft}
+            rows={5}
+            placeholder="Add commentary on the sales trend — drivers, anomalies, outlook…"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { onSave(draft); setEditing(false); }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ink-700)]"
+            >
+              <Save size={14} /> Save
+            </button>
+            {value.trim() !== "" && (
+              <button
+                type="button"
+                onClick={() => { setDraft(value); setEditing(false); }}
+                className="rounded-md border border-[var(--color-ice-200)] px-3 py-1.5 text-sm text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-ink-800)]">
+          {value.trim() !== ""
+            ? value
+            : <span className="italic text-[var(--color-ink-600)]">No commentary yet.</span>}
+        </p>
+      )}
+    </div>
   );
 }

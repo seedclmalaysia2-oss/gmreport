@@ -162,6 +162,9 @@ function salesTrend(pptx: PptxGenJS, input: PptxInput) {
   const actual2026Trimmed = lastFilled >= 0
     ? SA.actual2026.map((v, i) => i <= lastFilled ? (v ?? 0) : null)
     : SA.actual2026.map(() => null);
+  // Commentary card pushes up from the bottom; the chart shrinks to fit.
+  const commentary = (input.months[input.months.length - 1].salesTrend?.commentary ?? "").trim();
+  const chartH = commentary ? 3.9 : 5.3;
   s.addChart(pptx.ChartType.line, [
     { name: "Actual 2026", labels: cats, values: actual2026Trimmed as number[] },
     { name: "Target 2026", labels: cats, values: safe(SA.target2026) },
@@ -173,7 +176,7 @@ function salesTrend(pptx: PptxGenJS, input: PptxInput) {
     dataLabelFontBold: true,
     dataLabelPosition: "t",
     dataLabelFormatCode: "#,##0",
-    x: 0.6, y: 1.5, w: 12.15, h: 5.3,
+    x: 0.6, y: 1.5, w: 12.15, h: chartH,
     chartColors: ["0B1F5C", "DC2626", "22C55E"],
     lineSize: 3,
     catAxisLabelFontFace: BODY_FONT, catAxisLabelColor: P.ink3, catAxisLabelFontSize: 14, catAxisLabelFontBold: true,
@@ -181,6 +184,24 @@ function salesTrend(pptx: PptxGenJS, input: PptxInput) {
     showLegend: true, legendPos: "b", legendFontFace: BODY_FONT, legendFontSize: 15, legendColor: P.ink,
     lineDataSymbol: "circle", lineDataSymbolSize: 10,
   });
+
+  // ---- Commentary card ----
+  if (commentary) {
+    const commentY = 1.5 + chartH + 0.15;
+    const commentH = Math.max(0.4, 7.3 - commentY - 0.1);
+    s.addShape("roundRect", {
+      x: 0.6, y: commentY, w: 12.15, h: commentH, rectRadius: 0.10,
+      fill: { color: P.mutedBg }, line: { color: P.ice, width: 0.75 },
+    });
+    s.addText("COMMENTARY", {
+      x: 0.74, y: commentY + 0.05, w: 12.0, h: 0.28,
+      fontFace: BODY_FONT, fontSize: 10, bold: true, color: P.ink3, charSpacing: 4,
+    });
+    s.addText(commentary, {
+      x: 0.74, y: commentY + 0.36, w: 12.0, h: commentH - 0.42,
+      fontFace: BODY_FONT, fontSize: 13, color: P.ink, valign: "top", paraSpaceAfter: 4, wrap: true,
+    });
+  }
 }
 
 function outlook(pptx: PptxGenJS, input: PptxInput) {

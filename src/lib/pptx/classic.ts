@@ -196,6 +196,9 @@ function slideSalesTrend(pptx: PptxGenJS, input: PptxInput) {
   const actual2026Trimmed = lastFilled >= 0
     ? SA.actual2026.map((v, i) => i <= lastFilled ? (v ?? 0) : null)
     : SA.actual2026.map(() => null);
+  // Commentary card pushes up from the bottom; the chart shrinks to fit.
+  const commentary = (last.salesTrend?.commentary ?? "").trim();
+  const chartH = commentary ? 4.5 : 5.7;
   // Order matters for overlap control: Actual 2026 sits on top (labels above),
   // Target 2026 below (red, labels below), Actual 2025 at bottom (light orange).
   s.addChart(pptx.ChartType.line, [
@@ -209,7 +212,7 @@ function slideSalesTrend(pptx: PptxGenJS, input: PptxInput) {
     dataLabelFontBold: true,
     dataLabelPosition: "t",
     dataLabelFormatCode: "#,##0",
-    x: 0.5, y: 0.95, w: 12.3, h: 5.7,
+    x: 0.5, y: 0.95, w: 12.3, h: chartH,
     chartArea: { fill: { color: "FFFFFF" } },
     // Actual 2026 → navy bold, Target 2026 → red, Actual 2025 → green.
     chartColors: ["0B1F5C", "DC2626", "22C55E"],
@@ -219,6 +222,24 @@ function slideSalesTrend(pptx: PptxGenJS, input: PptxInput) {
     valAxisLabelFontFace: FONT, valAxisLabelFontSize: 14,
     lineDataSymbol: "circle", lineDataSymbolSize: 10,
   });
+
+  // ---- Commentary card ----
+  if (commentary) {
+    const commentY = 0.95 + chartH + 0.15;
+    const commentH = 7.3 - commentY - 0.1;
+    s.addShape("roundRect", {
+      x: 0.25, y: commentY, w: 12.85, h: commentH, rectRadius: 0.08,
+      fill: { color: "F4F7FF" }, line: { color: "CADCFC", width: 0.75 },
+    });
+    s.addText("COMMENTARY", {
+      x: 0.40, y: commentY + 0.05, w: 12.6, h: 0.28,
+      fontFace: FONT, fontSize: 10, bold: true, color: C.muted, charSpacing: 4,
+    });
+    s.addText(commentary, {
+      x: 0.40, y: commentY + 0.36, w: 12.6, h: commentH - 0.42,
+      fontFace: FONT, fontSize: 14, color: C.text, valign: "top", paraSpaceAfter: 4, wrap: true,
+    });
+  }
 }
 
 function slideOutlook(pptx: PptxGenJS, input: PptxInput) {

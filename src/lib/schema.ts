@@ -182,6 +182,8 @@ export const SalesTrendZ = z.object({
    * survive page reloads.
    */
   labelOffsets: z.record(z.string(), z.record(z.string(), LabelOffsetZ)).optional(),
+  /** Manual commentary shown below the trend chart (editor, preview, PPTX). */
+  commentary: z.string().default(""),
 });
 export type SalesTrend = z.infer<typeof SalesTrendZ>;
 

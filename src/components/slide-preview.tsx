@@ -315,10 +315,13 @@ function SlideSalesTrend({ report, P, scale }: { report: MonthReport; P: Palette
     "Actual 2026": i <= lastFilled ? (SA?.actual2026[i] ?? null) : null,
     "Actual 2025": SA?.actual2025[i] ?? null,
   }));
+  // Commentary: when present, the chart shrinks to make room for a card below.
+  const commentary = (report.salesTrend?.commentary ?? "").trim();
+  const hasComment = commentary.length > 0;
   return (
     <>
       <SlideTitle palette={P} scale={scale} text="2. Sales Trend 2026" />
-      <div style={{ position: "absolute", left: px(0.4, scale), top: px(0.9, scale), width: px(12.6, scale), height: px(6.1, scale) }}>
+      <div style={{ position: "absolute", left: px(0.4, scale), top: px(0.9, scale), width: px(12.6, scale), height: px(hasComment ? 4.5 : 6.1, scale) }}>
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 12, right: 24, bottom: 20, left: 16 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5ebf7" />
@@ -338,6 +341,26 @@ function SlideSalesTrend({ report, P, scale }: { report: MonthReport; P: Palette
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Commentary card — only when there's text, mirrors Daily Sales styling. */}
+      {hasComment && (
+        <div style={{
+          position: "absolute", left: px(0.4, scale), top: px(5.55, scale),
+          width: px(12.6, scale), height: px(1.65, scale),
+          background: "#F4F7FF",
+          border: `1px solid ${P.border}`,
+          borderRadius: Math.max(4, 0.06 * scale),
+          padding: px(0.14, scale),
+          overflow: "hidden",
+        }}>
+          <div style={{ fontSize: fs(8, scale), color: P.muted, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, marginBottom: px(0.04, scale) }}>
+            Commentary
+          </div>
+          <div style={{ fontSize: fs(11, scale), color: P.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+            {commentary}
+          </div>
+        </div>
+      )}
     </>
   );
 }
