@@ -236,7 +236,7 @@ function FileRow({ file }: { file: RawFileEntry }) {
   // top-to-bottom of the deck and match the row-level sort above.
   const slides = file.sectionKeys
     .filter((k): k is SectionKey => (SECTION_KEYS as readonly string[]).includes(k))
-    .map(k => SECTION_META[k])
+    .map(k => ({ key: k, ...SECTION_META[k] }))
     .sort((a, b) => a.no - b.no);
 
   return (
@@ -264,7 +264,20 @@ function FileRow({ file }: { file: RawFileEntry }) {
             <div className="sm:hidden text-[11px] text-[var(--color-ink-600)] mt-0.5 space-y-0.5">
               <div>{kindLabel}</div>
               <div>{fmtTimestamp(file.createdAt)}</div>
-              {slides.length > 0 && <div>Slides: {slides.map(s => s.title).join(", ")}</div>}
+              {slides.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                  <span>Slides:</span>
+                  {slides.map(s => (
+                    <Link
+                      key={s.no}
+                      href={`/report/${file.monthReportId}?section=${s.key}`}
+                      className="rounded-full bg-[var(--color-ice-100)] px-1.5 py-0.5 text-[var(--color-ink-800)]"
+                    >
+                      {s.no}. {s.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
             {/* Mobile-only action row — desktop has its own column on the right. */}
             <div className="sm:hidden mt-2">
@@ -286,13 +299,14 @@ function FileRow({ file }: { file: RawFileEntry }) {
         ) : (
           <div className="flex flex-wrap gap-1">
             {slides.map(s => (
-              <span
+              <Link
                 key={s.no}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--color-ice-100)] px-2 py-0.5 text-[11px] text-[var(--color-ink-800)]"
-                title={`Slide ${s.no}`}
+                href={`/report/${file.monthReportId}?section=${s.key}`}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--color-ice-100)] px-2 py-0.5 text-[11px] text-[var(--color-ink-800)] hover:bg-[var(--color-ink-800)] hover:text-white transition"
+                title={`Go to Slide ${s.no} — ${s.title}`}
               >
                 {s.no}. {s.title}
-              </span>
+              </Link>
             ))}
           </div>
         )}
