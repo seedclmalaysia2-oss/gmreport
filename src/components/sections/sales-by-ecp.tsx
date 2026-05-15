@@ -1,7 +1,6 @@
 "use client";
 import type { SectionProps } from "../report-editor";
-import { NumberCell, SectionShell, Table, Td, Th } from "./shared";
-import { RichTextEditor } from "../rich-text-editor";
+import { NumberCell, SectionShell, Table, Td, Th, CommentEditor } from "./shared";
 import { ECP_CATEGORIES } from "@/lib/catalog/mappings";
 import { fmtJPY, fmtMYR, fmtPct } from "@/lib/utils";
 
@@ -47,10 +46,13 @@ export function SectionSalesByECP({ report, update }: SectionProps) {
       </Table>
 
       {/* Commentary — full formatting tools. */}
-      <div className="mt-5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-600)] mb-2">Commentary</div>
-        <RichTextEditor value={commentary} onChange={setCommentary} placeholder="Notes on channel mix — SIO growth, KCS seasonality, overseas push…" minHeight={140} />
-      </div>
+      <CommentEditor
+        variant="rich"
+        value={commentary}
+        onSave={setCommentary}
+        placeholder="Notes on channel mix — SIO growth, KCS seasonality, overseas push…"
+        minHeight={140}
+      />
     </SectionShell>
   );
 }

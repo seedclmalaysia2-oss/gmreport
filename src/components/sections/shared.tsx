@@ -242,6 +242,115 @@ export function TextArea({ value, onChange, placeholder, rows = 10 }: {
   );
 }
 
+/** True when the string has no visible content (ignoring HTML tags / whitespace). */
+function isBlankComment(s: string): boolean {
+  return s.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim() === "";
+}
+
+/**
+ * Manual-comment field with an explicit Save / Edit cycle (no auto-save):
+ *  - empty / editing → the editor (rich or plain) + Save (and Cancel once a
+ *    value exists)
+ *  - saved & idle    → the comment rendered read-only + an Edit button
+ *
+ * The draft is local; nothing is persisted until Save is pressed. External
+ * changes (switching months, AI generation) are synced in unless the user has
+ * an unsaved draft that would be lost.
+ */
+export function CommentEditor({
+  value, onSave,
+  variant = "plain",
+  heading = "Commentary",
+  placeholder,
+  rows = 5,
+  minHeight = 200,
+  toolbar,
+  className = "mt-5",
+}: {
+  value: string;
+  onSave: (value: string) => void;
+  variant?: "plain" | "rich";
+  /** Label above the field. Pass null for no heading. */
+  heading?: React.ReactNode | null;
+  placeholder?: string;
+  rows?: number;
+  minHeight?: number;
+  /** Extra controls shown above the editor while editing (e.g. AI generate). */
+  toolbar?: React.ReactNode;
+  className?: string;
+}) {
+  const blank = isBlankComment(value);
+  const [editing, setEditing] = React.useState(blank);
+  const [draft, setDraft] = React.useState(value);
+
+  // Pull in external changes (month switch, AI generate) without trampling an
+  // in-progress edit that holds the user's own content.
+  React.useEffect(() => {
+    if (!editing || isBlankComment(draft)) setDraft(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return (
+    <div className={className}>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        {heading != null ? (
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-600)]">
+            {heading}
+          </div>
+        ) : <span />}
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => { setDraft(value); setEditing(true); }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-ice-200)] px-2.5 py-1 text-xs font-semibold text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
+          >
+            <Pencil size={13} /> Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <>
+          {toolbar}
+          {variant === "rich" ? (
+            <RichTextEditor value={draft} onChange={setDraft} placeholder={placeholder} minHeight={minHeight} />
+          ) : (
+            <TextArea value={draft} onChange={setDraft} placeholder={placeholder} rows={rows} />
+          )}
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { onSave(draft); setEditing(false); }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ink-700)]"
+            >
+              <Save size={14} /> Save
+            </button>
+            {!blank && (
+              <button
+                type="button"
+                onClick={() => { setDraft(value); setEditing(false); }}
+                className="rounded-md border border-[var(--color-ice-200)] px-3 py-1.5 text-sm text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </>
+      ) : blank ? (
+        <p className="text-sm italic text-[var(--color-ink-600)]">No commentary yet.</p>
+      ) : variant === "rich" ? (
+        <div
+          className="text-sm leading-relaxed text-[var(--color-ink-800)] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+          // Trusted HTML — produced by our own RichTextEditor.
+          dangerouslySetInnerHTML={{ __html: value }}
+        />
+      ) : (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-ink-800)]">{value}</p>
+      )}
+    </div>
+  );
+}
+
 export function Table({ children }: { children: React.ReactNode }) {
   // Inner table is left to size naturally so all 14 columns + min-width inputs
   // get their full footprint; the wrapper scrolls horizontally when needed.

@@ -1,9 +1,8 @@
 "use client";
 import type { SectionProps } from "../report-editor";
-import { NumberCell, SectionShell, TextCell } from "./shared";
+import { NumberCell, SectionShell, TextCell, CommentEditor } from "./shared";
 import { INVENTORY_GROUPS } from "@/lib/catalog/products";
 import type { Inventory } from "@/lib/schema";
-import { RichTextEditor } from "../rich-text-editor";
 import { cn } from "@/lib/utils";
 
 /**
@@ -238,17 +237,14 @@ export function SectionInventory({ report, update }: SectionProps) {
       </div>
 
       {/* Commentary (rich text, matches slide bullet block) */}
-      <div className="mt-4">
-        <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-ink-600)] mb-1.5">
-          Commentary
-        </div>
-        <RichTextEditor
-          value={inv.commentary}
-          onChange={v => set({ commentary: v })}
-          placeholder="DISOP Product Arrival in April 24th&#10;DISOP Hidro Health 360ml = 3,620 btl…"
-          minHeight={140}
-        />
-      </div>
+      <CommentEditor
+        variant="rich"
+        className="mt-4"
+        value={inv.commentary ?? ""}
+        onSave={v => set({ commentary: v })}
+        placeholder="DISOP Product Arrival in April 24th&#10;DISOP Hidro Health 360ml = 3,620 btl…"
+        minHeight={140}
+      />
     </SectionShell>
   );
 }

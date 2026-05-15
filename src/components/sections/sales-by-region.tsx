@@ -1,6 +1,6 @@
 "use client";
 import type { SectionProps } from "../report-editor";
-import { NumberCell, SectionShell, Table, Td, Th, TextArea } from "./shared";
+import { NumberCell, SectionShell, Table, Td, Th, CommentEditor } from "./shared";
 import { REGIONS } from "@/lib/catalog/mappings";
 import { fmtMYR, fmtPct } from "@/lib/utils";
 
@@ -39,8 +39,12 @@ export function SectionSalesByRegion({ report, update }: SectionProps) {
           </tr>
         </tbody>
       </Table>
-      <h4 className="font-semibold mt-5">Commentary</h4>
-      <TextArea value={commentary} onChange={v => set(rows, v)} rows={5} />
+      <CommentEditor
+        variant="plain"
+        value={commentary}
+        onSave={v => set(rows, v)}
+        rows={5}
+      />
     </SectionShell>
   );
 }

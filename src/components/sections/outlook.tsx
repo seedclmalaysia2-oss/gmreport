@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { SectionProps } from "../report-editor";
-import { SectionShell } from "./shared";
-import { RichTextEditor } from "../rich-text-editor";
+import { SectionShell, CommentEditor } from "./shared";
 import { cn } from "@/lib/utils";
 
 export function SectionOutlook({ report, update }: SectionProps) {
@@ -39,28 +38,33 @@ export function SectionOutlook({ report, update }: SectionProps) {
       subtitle="Slide 5 — formatted market commentary. Click Generate outlook to draft from this month's figures, then edit."
       isMissing={!plain}
     >
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={!canGenerate || isGenerating}
-          title={canGenerate ? "Draft commentary from this month's figures" : "Import POS data first"}
-          className={cn(
-            "inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold border transition",
-            "bg-[var(--color-ink-800)] text-white border-[var(--color-ink-800)] hover:bg-[var(--color-ink-700)]",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-          )}
-        >
-          {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          {isGenerating ? "Generating…" : "Generate outlook"}
-        </button>
-        {error && <span className="text-xs text-red-600">{error}</span>}
-      </div>
-      <RichTextEditor
+      <CommentEditor
+        variant="rich"
+        heading={null}
+        className=""
         value={body}
-        onChange={v => update({ marketOutlook: { body: v } })}
+        onSave={v => update({ marketOutlook: { body: v } })}
         placeholder="Malaysia's economy continues to show resilience…"
         minHeight={320}
+        toolbar={
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <button
+              type="button"
+              onClick={onGenerate}
+              disabled={!canGenerate || isGenerating}
+              title={canGenerate ? "Draft commentary from this month's figures" : "Import POS data first"}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold border transition",
+                "bg-[var(--color-ink-800)] text-white border-[var(--color-ink-800)] hover:bg-[var(--color-ink-700)]",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+              )}
+            >
+              {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              {isGenerating ? "Generating…" : "Generate outlook"}
+            </button>
+            {error && <span className="text-xs text-red-600">{error}</span>}
+          </div>
+        }
       />
     </SectionShell>
   );

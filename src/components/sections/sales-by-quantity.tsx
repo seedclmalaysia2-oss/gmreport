@@ -1,7 +1,6 @@
 "use client";
 import type { SectionProps } from "../report-editor";
-import { NumberCell, SectionShell } from "./shared";
-import { RichTextEditor } from "../rich-text-editor";
+import { NumberCell, SectionShell, CommentEditor } from "./shared";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import { MONTH_NAMES, cn } from "@/lib/utils";
 import type { MonthReport, SalesByQuantity as SQQ } from "@/lib/schema";
@@ -230,10 +229,13 @@ export function SectionSalesByQuantity({ report, update, siblings = [] }: Sectio
       </div>
 
       {/* Commentary — same formatting tools as Market Outlook. */}
-      <div className="mt-5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-600)] mb-2">Commentary</div>
-        <RichTextEditor value={commentary} onChange={setCommentary} placeholder="Observations on this month's quantity mix…" minHeight={140} />
-      </div>
+      <CommentEditor
+        variant="rich"
+        value={commentary}
+        onSave={setCommentary}
+        placeholder="Observations on this month's quantity mix…"
+        minHeight={140}
+      />
     </SectionShell>
   );
 }

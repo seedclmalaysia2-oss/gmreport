@@ -1,6 +1,6 @@
 "use client";
 import type { SectionProps } from "../report-editor";
-import { NumberCell, SectionShell, TextArea, TextCell } from "./shared";
+import { NumberCell, SectionShell, TextCell, CommentEditor } from "./shared";
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { Calendar, Plus, RefreshCw, Trash2 } from "lucide-react";
@@ -196,8 +196,13 @@ export function SectionDailySales({ report, update }: SectionProps) {
         </div>
       </details>
 
-      <h4 className="font-semibold mt-6 mb-2">Commentary</h4>
-      <TextArea value={D.commentary} onChange={v => set({ commentary: v })} rows={5} />
+      <CommentEditor
+        variant="plain"
+        className="mt-6"
+        value={D.commentary ?? ""}
+        onSave={v => set({ commentary: v })}
+        rows={5}
+      />
     </SectionShell>
   );
 }
