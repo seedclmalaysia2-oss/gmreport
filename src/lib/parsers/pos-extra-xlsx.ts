@@ -4,6 +4,77 @@
 import * as XLSX from "xlsx";
 import type { CanonicalProduct } from "@/lib/catalog/products";
 import { lookupProduct } from "@/lib/catalog/sku-map";
+import type { PosWriteOffParseResult } from "./pos-pdf";
+
+// ---------- Stock Write-Off Listing (Slide 11) ----------
+//
+// The XLSX twin of the "Stocks Write Off Report" PDF. Layout (one sheet,
+// "Page 1", lots of merged cells so columns are sparse):
+//
+//   • A document header row carries the WOFF number in col B and the
+//     write-off date (DD/MM/YYYY) in col K.
+//   • Each written-off line spans ~2 rows; the FIRST carries the item
+//     number (col D), description (col L), quantity (col AD) and amount
+//     (col AS). The second carries brand/power/expiry — ignored here.
+//
+// Produces the same PosWriteOffParseResult shape as the PDF parser so the
+// existing expireByMonth() aggregation handles month distribution.
+export function parseWriteOffXlsx(buf: ArrayBuffer): PosWriteOffParseResult {
+  const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  // raw:false → every cell is a formatted string, so the DD/MM/YYYY date
+  // stays text and comma-grouped amounts arrive as "5,803.14".
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null, raw: false });
+
+  const cell = (row: unknown[], i: number): string =>
+    row[i] == null ? "" : String(row[i]).trim();
+  const toNum = (v: unknown): number => {
+    if (v == null || v === "") return 0;
+    const n = Number(String(v).replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const events: PosWriteOffParseResult["events"] = [];
+  let current: PosWriteOffParseResult["events"][number] | null = null;
+
+  for (const row of rows) {
+    const c1 = cell(row, 1);
+    // Document header — "WOFF00449" etc. — starts a new write-off event.
+    if (/^WOFF\s*\d+/i.test(c1)) {
+      if (current) events.push(current);
+      const dm = cell(row, 10).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const date = dm
+        ? `${dm[3]}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`
+        : null;
+      const monthKey = dm ? `${dm[3]}-${dm[2].padStart(2, "0")}` : null;
+      current = {
+        writeOffNo: c1.replace(/\s+/g, ""),
+        date, monthKey,
+        rows: [], totalQty: 0, totalAmt: 0,
+      };
+      continue;
+    }
+    if (!current) continue;
+
+    // Item line — col D is a plain item number, col L the description.
+    const itemNo = cell(row, 3);
+    const desc = cell(row, 11);
+    if (/^\d+$/.test(itemNo) && desc) {
+      const qty = Math.round(toNum(row[29]));
+      const amt = toNum(row[44]);
+      if (qty !== 0 || amt !== 0) {
+        current.rows.push({ productDesc: desc, qty, totalCost: amt });
+      }
+    }
+  }
+  if (current) events.push(current);
+
+  for (const ev of events) {
+    ev.totalQty = ev.rows.reduce((s, r) => s + r.qty, 0);
+    ev.totalAmt = Math.round(ev.rows.reduce((s, r) => s + r.totalCost, 0) * 100) / 100;
+  }
+  return { kind: "writeoff", events };
+}
 
 // ---------- Stock list (inventory at month end) ----------
 export interface StockRow {

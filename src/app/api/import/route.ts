@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parsePosPdf, type PosMasterParseResult, type PosMcuvParseResult, type PosWriteOffParseResult } from "@/lib/parsers/pos-pdf";
 import { parseEcpListXlsx, parseMasterXlsx, parseOutletXlsx, parseSalesByRegionXlsx, parseSalesmanSalesXlsx } from "@/lib/parsers/pos-xlsx";
-import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx, parseStockBalancesById, parseBocConsignmentXlsx } from "@/lib/parsers/pos-extra-xlsx";
+import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx, parseStockBalancesById, parseBocConsignmentXlsx, parseWriteOffXlsx } from "@/lib/parsers/pos-extra-xlsx";
 import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesByRegion, salesByRegionFromStates, topProducts, unmappedSkus } from "@/lib/aggregation";
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { expireByMonth } from "@/lib/aggregation/from-writeoff";
@@ -120,6 +120,18 @@ export async function POST(req: Request): Promise<Response> {
           warnings.push(`Could not parse 2025 Sales Summary "${name}": ${e instanceof Error ? e.message : "unknown error"}`);
         }
         pushFile("ref_2025", f, buf);
+      }
+      else if (/write\s*-?\s*off/i.test(name)) {
+        // XLSX twin of the "Stocks Write Off Report" PDF. Tested before the
+        // master/stock-list checks because "Stock Write Off Listing" also
+        // contains the word "Stock". Feeds Slide 11. The downstream
+        // expireByMonth() block (shared with the PDF path) distributes it.
+        try {
+          writeOff = parseWriteOffXlsx(buf);
+        } catch (e) {
+          warnings.push(`Could not parse Write-Off file "${name}": ${e instanceof Error ? e.message : "unknown error"}`);
+        }
+        pushFile("pos_writeoff", f, buf);
       }
       else if (/stock\s*sales\s*analysis|summary\s*by\s*group/i.test(name)) {
         // The XLSX twin of the master "Stock Sales Analysis Summary By Group"
