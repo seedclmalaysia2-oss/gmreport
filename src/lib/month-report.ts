@@ -204,21 +204,34 @@ function safeParseStringArray(raw: string): string[] {
 }
 
 /**
- * Returns a map of originalName → RawFile.id for every ACTIVE (not soft-
- * deleted) file uploaded against a given month. Used by the report editor
- * to wire the section-shell source chips to the View/download endpoint.
- *
- * If two rows share a name (e.g. the same file uploaded twice without
- * deletion in between), the most recent one wins — that's the row the
- * View button should target.
+ * Returns every ACTIVE (not soft-deleted) RawFile row for one month, as
+ * RawFileEntry records. This is the canonical list the report editor's
+ * section source-chips render from — so a file deleted on the Files page
+ * (or here) immediately stops appearing as a section source, instead of
+ * lingering in the stale MonthReport.sourceFiles JSON blob.
  */
-export async function listFileIdsByName(monthReportId: string): Promise<Record<string, string>> {
-  const rows = await prisma.rawFile.findMany({
-    where: { monthReportId, deletedAt: null },
-    select: { id: true, originalName: true, createdAt: true },
-    orderBy: { createdAt: "asc" },
-  });
-  const map: Record<string, string> = {};
-  for (const r of rows) map[r.originalName] = r.id; // last write wins → newest id
-  return map;
+export async function listRawFilesForMonth(monthReportId: string): Promise<RawFileEntry[]> {
+  const rows = await prisma.$queryRaw<RawFileQueryRow[]>`
+    SELECT
+      r."id", r."monthReportId", r."kind", r."originalName",
+      r."byteSize", r."sectionKeys", r."createdAt", r."deletedAt",
+      (r."bytes" IS NOT NULL) AS "hasBytes",
+      m."year", m."month"
+    FROM "RawFile" r
+    JOIN "MonthReport" m ON m."id" = r."monthReportId"
+    WHERE r."monthReportId" = ${monthReportId} AND r."deletedAt" IS NULL
+    ORDER BY r."createdAt" ASC
+  `;
+  return rows.map(r => ({
+    id: r.id,
+    monthReportId: r.monthReportId,
+    year: r.year,
+    month: r.month,
+    kind: r.kind,
+    originalName: r.originalName,
+    byteSize: r.byteSize,
+    sectionKeys: r.sectionKeys ? safeParseStringArray(r.sectionKeys) : [],
+    createdAt: r.createdAt.toISOString(),
+    hasBytes: r.hasBytes,
+  }));
 }

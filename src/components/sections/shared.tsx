@@ -4,7 +4,9 @@ import Link from "next/link";
 import type { SourceFile } from "@/lib/schema";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Eye, FileText, FileUp } from "lucide-react";
+import { AlertTriangle, FileUp } from "lucide-react";
+import type { RawFileEntry } from "@/lib/month-report";
+import { SectionSourceFiles } from "../section-source-files";
 
 // Per-section hint about which raw POS file feeds it. Drives the missing-data banner.
 const FILE_HINT: Partial<Record<SectionKey, string>> = {
@@ -30,11 +32,14 @@ export type SectionShellContextValue = {
   reportId: string;
   year: number;
   month: number;
+  /** Legacy per-section filename JSON. Kept for back-compat; the source
+   *  chips now render from `monthFiles` instead so they stay in sync with
+   *  the RawFile table. */
   sourceFiles?: Record<string, SourceFile[]>;
-  /** Filename → RawFile.id for active uploads. Lets each source chip
-   *  expose a "View" link that streams the file out of /api/files/{id}
-   *  with disposition=inline. */
-  fileIdsByName?: Record<string, string>;
+  /** This month's live RawFile rows (active only). The section source
+   *  strip filters these by `sectionKeys` so deleted files vanish and
+   *  fresh uploads appear without a stale-JSON round-trip. */
+  monthFiles?: RawFileEntry[];
 };
 export const SectionShellContext = React.createContext<SectionShellContextValue | null>(null);
 
@@ -56,7 +61,13 @@ export function SectionShell({
     ? `/files?year=${ctx.year}&month=${ctx.month}&from=${encodeURIComponent(`/report/${ctx.reportId}?section=${sectionKey}`)}&section=${sectionKey}#upload`
     : "/files#upload";
 
-  const sources: SourceFile[] = ctx?.sourceFiles?.[sectionKey] ?? [];
+  // Source files for THIS section, taken from the live RawFile list. A file
+  // feeds a section when its sectionKeys array (recorded at import time)
+  // contains this sectionKey. This replaces the old sourceFiles-JSON read,
+  // which never reflected deletes done on the Files page.
+  const sectionFiles: RawFileEntry[] = (ctx?.monthFiles ?? []).filter(
+    f => f.sectionKeys.includes(sectionKey),
+  );
 
   return (
     <div className="space-y-5 animate-fadein">
@@ -68,63 +79,12 @@ export function SectionShell({
         {subtitle && <p className="text-[var(--color-ink-600)] mt-1 text-sm">{subtitle}</p>}
       </header>
 
-      {/* Source-file chips — shown when an import has populated this slide.
-          Each chip surfaces a quick "View" eye-icon that opens our in-browser
-          viewer page at /files/{id}. The page renders XLSX as HTML tables and
-          PDFs in an iframe, so the user can sanity-check the source numbers
-          without triggering a download. The chip falls back to a plain label
-          (no view button) on legacy rows where we don't have an id. */}
-      {sources.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-ink-600)]">
-          <span className="uppercase tracking-[0.15em] font-semibold">Source</span>
-          {sources.map((f, i) => {
-            const fileId = ctx?.fileIdsByName?.[f.name];
-            const viewHref = fileId ? `/files/${fileId}` : null;
-            return (
-              <span
-                key={i}
-                title={f.at ? `Imported ${new Date(f.at).toLocaleString()}` : undefined}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] pl-2 pr-1 py-0.5 text-[var(--color-ink-800)] max-w-[320px]"
-              >
-                <FileText size={11} />
-                <span className="truncate">{f.name}</span>
-                {f.at && (
-                  <span className="text-[var(--color-ink-600)] opacity-70 hidden sm:inline">
-                    · {new Date(f.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                  </span>
-                )}
-                {viewHref ? (
-                  <a
-                    href={viewHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`Quick view — opens ${f.name} in a new tab`}
-                    aria-label={`Quick view ${f.name}`}
-                    className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full
-                               bg-[var(--color-ink-800)] text-white hover:bg-[var(--color-ink-700)]
-                               active:scale-95 transition"
-                  >
-                    <Eye size={11} />
-                  </a>
-                ) : (
-                  <span
-                    title="No stored copy of this file — re-upload from the Files page to enable Quick view"
-                    className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full
-                               bg-[var(--color-ice-200)] text-[var(--color-ink-600)] opacity-50"
-                  >
-                    <Eye size={11} />
-                  </span>
-                )}
-              </span>
-            );
-          })}
-          <Link
-            href={importHref}
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-ice-200)] px-2 py-0.5 hover:bg-[var(--color-ice-100)] text-[var(--color-ink-800)]"
-          >
-            <FileUp size={11} /> Replace file
-          </Link>
-        </div>
+      {/* Source-file strip — wired directly to the RawFile table so it always
+          matches the Files page. View / Delete / multi-select + an inline
+          Upload button. Shown whenever this slide has source files OR the
+          slide is import-fed and currently empty (so the user can upload). */}
+      {(sectionFiles.length > 0 || isMissing) && ctx && (
+        <SectionSourceFiles files={sectionFiles} year={ctx.year} month={ctx.month} />
       )}
 
       {isMissing && (

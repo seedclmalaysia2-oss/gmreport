@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useSearchParams } from "next/navigation";
 import type { MonthReport, SectionKey } from "@/lib/schema";
 import { SECTION_KEYS, SECTION_META } from "@/lib/schema";
+import type { RawFileEntry } from "@/lib/month-report";
 import { SectionShellContext } from "./sections/shared";
 import { SectionSalesAchievement } from "./sections/sales-achievement";
 import { SectionOutlook } from "./sections/outlook";
@@ -23,14 +24,15 @@ import { ArrowLeft, ChevronRight, Download, FileUp, Info, Layers, Loader2, Refre
 import { SlidePreview } from "./slide-preview";
 
 export function ReportEditor({
-  initial, isNew = false, siblings = [], fileIdsByName = {},
+  initial, isNew = false, siblings = [], monthFiles = [],
 }: {
   initial: MonthReport;
   isNew?: boolean;
   siblings?: MonthReport[];
-  /** name → RawFile.id for this month's active uploads. Drives the View
-   *  button next to each source chip in the section-shell header. */
-  fileIdsByName?: Record<string, string>;
+  /** This month's live RawFile rows (active only). Drives the section
+   *  source chips — upload / view / delete / multi-select — so they
+   *  always reflect the real upload state, not stale sourceFiles JSON. */
+  monthFiles?: RawFileEntry[];
 }) {
   const [report, setReport] = useState<MonthReport>(initial);
   const sp = useSearchParams();
@@ -278,7 +280,7 @@ export function ReportEditor({
       <SectionShellContext.Provider value={{
         reportId: report.id, year: report.year, month: report.month,
         sourceFiles: report.sourceFiles ?? {},
-        fileIdsByName,
+        monthFiles,
       }}>
         <section className="min-w-0">
           {active === "salesAchievement" && <SectionSalesAchievement report={report} update={update} />}

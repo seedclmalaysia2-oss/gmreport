@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
-import { getMonthReportById, listFileIdsByName, listMonthReports } from "@/lib/month-report";
+import { getMonthReportById, listMonthReports, listRawFilesForMonth } from "@/lib/month-report";
 import { ReportEditor } from "@/components/report-editor";
 import { emptyMonthReport } from "@/lib/schema";
 import { parseMonthId } from "@/lib/utils";
+
+// Always re-fetch — uploads/deletes done from a section source row call
+// router.refresh(), and we want the new RawFile list reflected immediately.
+export const dynamic = "force-dynamic";
 
 export default async function ReportPage({
   params,
@@ -22,18 +26,18 @@ export default async function ReportPage({
   }
   // Parallel fetches:
   //  - full-year context so sections like Sales Quantity can compare prior months
-  //  - name→RawFile.id map so section chips can render a "View" link without
-  //    making the client guess at the row's id
-  const [allReports, fileIdsByName] = await Promise.all([
+  //  - the month's live RawFile rows so each section's source chips reflect the
+  //    real upload state (deleted files vanish, new ones appear)
+  const [allReports, monthFiles] = await Promise.all([
     listMonthReports(),
-    listFileIdsByName(report.id),
+    listRawFilesForMonth(report.id),
   ]);
   return (
     <ReportEditor
       initial={report}
       isNew={isNew}
       siblings={allReports}
-      fileIdsByName={fileIdsByName}
+      monthFiles={monthFiles}
     />
   );
 }
