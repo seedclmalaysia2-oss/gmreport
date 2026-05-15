@@ -232,7 +232,56 @@ function recomputeRegion(curr: SalesByRegion | null, prev: MonthReport | undefin
   return { value: next, changed };
 }
 
+/**
+ * De-duplicate the RawFile audit log. Within each month we keep only the
+ * most-recent upload of each distinct filename; older copies — and any file
+ * we never recognised (kind "unknown") — are soft-deleted into the Files
+ * page "Recently deleted" bin. The latest upload always wins (the query is
+ * ordered newest-first, so the first time we see a name it's the keeper).
+ *
+ * Soft-delete only — nothing is purged, so the user can restore from trash.
+ */
+async function dedupeRawFiles(): Promise<{ trashed: number; details: string[] }> {
+  const active = await prisma.rawFile.findMany({
+    where: { deletedAt: null },
+    select: { id: true, monthReportId: true, originalName: true, kind: true, createdAt: true },
+    orderBy: { createdAt: "desc" }, // newest first → first occurrence is the keeper
+  });
+
+  const seen = new Set<string>();
+  const toTrash: string[] = [];
+  const details: string[] = [];
+
+  for (const f of active) {
+    // Unrecognised files fed no slide — treat as unused and remove.
+    if (f.kind === "unknown") {
+      toTrash.push(f.id);
+      details.push(`unused (unrecognised): ${f.originalName}`);
+      continue;
+    }
+    const key = `${f.monthReportId}::${f.originalName.trim().toLowerCase()}`;
+    if (seen.has(key)) {
+      toTrash.push(f.id); // an older copy of a filename we've already kept
+      details.push(`duplicate: ${f.originalName}`);
+    } else {
+      seen.add(key);
+    }
+  }
+
+  if (toTrash.length) {
+    await prisma.rawFile.updateMany({
+      where: { id: { in: toTrash } },
+      data: { deletedAt: new Date() },
+    });
+  }
+  return { trashed: toTrash.length, details };
+}
+
 export async function POST() {
+  // Step 0 — clean the file audit log: move duplicate / unused uploads to the
+  // trash so the rest of the recalculation works from the latest files only.
+  const dedup = await dedupeRawFiles();
+
   const all = await listMonthReports();
   // Chronological order so each month can look at the *healed* prior month.
   const ordered = [...all].sort((a, b) => a.year - b.year || a.month - b.month);
@@ -331,7 +380,7 @@ export async function POST() {
 
   // Bust caches for every page that renders month data so the user sees
   // the freshly-merged Sales Achievement rows the instant they navigate.
-  if (results.some(r => r.changed)) {
+  if (results.some(r => r.changed) || dedup.trashed > 0) {
     revalidatePath("/");
     revalidatePath("/files");
     revalidatePath("/export");
@@ -344,6 +393,8 @@ export async function POST() {
     ok: true,
     monthsChecked: results.length,
     monthsChanged: results.filter(r => r.changed).length,
+    filesDeduped: dedup.trashed,
+    dedupDetails: dedup.details,
     results,
   });
 }
