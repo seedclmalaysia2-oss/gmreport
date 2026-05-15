@@ -115,13 +115,28 @@ function parseMaster(text: string): PosMasterParseResult {
   const rows: PosMasterRow[] = [];
   const unmapped: PosMasterRow[] = [];
   let grandQty = 0, grandNet = 0;
+  // PERMANENT RULE (docs/CLAUDE-RULES.md): when the export carries a "Sales adj"
+  // line under the Grand Total, the headline figure is the *adjusted* net
+  // sales (Grand Total + signed adjustment), i.e. the "Grand total" cell —
+  // never the raw "Total". We accumulate every adjustment found and apply it
+  // once after the walk so this matches the XLSX parser's behaviour.
+  let salesAdjustment = 0;
 
   const rowRe = /^([A-Z0-9][A-Z0-9\-+]*)\s+(.+?)\s+([\d,]+)\s+([\d,\.-]+)\s+([\d,\.-]+)\s+([\d,\.-]+)\s+([\d,\.-]+)\s+([\d,\.-]+)\s*$/;
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    if (/^Grand\s+Total\b/i.test(line)) {
+    // Sales adj line — capture the signed adjustment (e.g. "-73.60"). Checked
+    // before the data-row regex so the line isn't mistaken for a product.
+    if (/sales\s*adj/i.test(line)) {
+      const m = line.match(/-?\s*[\d,]+\.\d{1,2}/);
+      if (m) salesAdjustment += num(m[0].replace(/\s/g, ""));
+      continue;
+    }
+    // "Grand Total" may sit anywhere in the line — POS PDFs frequently glue
+    // the preceding number to the label (e.g. "323,892.31Grand Total 23,467").
+    if (/grand\s+total/i.test(line)) {
       const parts = line.split(/\s+/);
       const nums = parts.map(num).filter(n => n > 0);
       if (nums.length >= 2) {
@@ -157,12 +172,16 @@ function parseMaster(text: string): PosMasterParseResult {
     grandNet = rows.reduce((s, r) => s + r.netSales, 0);
   }
 
+  // Apply the Sales adj rule. Adjustment is signed (e.g. -73.60); round to two
+  // decimals to avoid trailing FP noise. With no adjustment this is a no-op.
+  const adjustedNet = Math.round((grandNet + salesAdjustment) * 100) / 100;
+
   return {
     kind: "master",
     periodStart: start,
     periodEnd: end,
     rows,
-    grandTotal: { qty: grandQty, netSales: grandNet },
+    grandTotal: { qty: grandQty, netSales: adjustedNet },
     unmapped,
   };
 }
