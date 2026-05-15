@@ -165,7 +165,11 @@ export function ReportEditor({
           // Mobile drawer
           "md:relative md:translate-x-0 md:w-auto md:bg-transparent md:p-0 md:shadow-none md:border-0 md:overflow-visible",
           drawerOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
-          "fixed left-0 top-0 z-50 h-full w-[88vw] max-w-[320px] overflow-y-auto",
+          // z-50 lifts the off-canvas drawer above the scrim on phones. On
+          // desktop it MUST drop back to auto — otherwise this sticky sidebar
+          // outranks the site header (z-40) and paints over the header's
+          // dropdown menus (the "Months" popover overlap bug).
+          "fixed left-0 top-0 z-50 md:z-auto h-full w-[88vw] max-w-[320px] overflow-y-auto",
           "bg-[var(--surface-1)] border-r border-[var(--color-ice-200)] shadow-xl",
           "p-3 transition-transform duration-200",
           // Desktop sticky behaviour

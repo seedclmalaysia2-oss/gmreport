@@ -31,7 +31,7 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header className="border-b border-[var(--color-ice-200)] bg-[var(--surface-1)]/95 backdrop-blur sticky top-0 z-30">
+    <header className="border-b border-[var(--color-ice-200)] bg-[var(--surface-1)]/95 backdrop-blur sticky top-0 z-40">
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6">
         <Link href="/" className="flex items-center gap-2 font-semibold min-w-0">
           <span className="inline-block h-8 w-8 rounded-md bg-[var(--color-ink-800)] text-white grid place-items-center shrink-0">
@@ -73,7 +73,7 @@ export function SiteHeader() {
 
       {/* Mobile drawer */}
       {open && (
-        <div className="md:hidden absolute inset-x-0 top-full bg-[var(--surface-1)] border-t border-b border-[var(--color-ice-200)] shadow-lg animate-fadein z-30">
+        <div className="md:hidden absolute inset-x-0 top-full bg-[var(--surface-1)] border-t border-b border-[var(--color-ice-200)] shadow-lg animate-fadein z-40">
           <nav className="px-3 py-2 flex flex-col">
             <DrawerLink href="/" icon={<Home size={18} />}>Months</DrawerLink>
             <MonthsDrawerSection />
