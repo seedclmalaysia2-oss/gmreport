@@ -7,6 +7,8 @@ type RepairResult = {
   ok: boolean;
   monthsChecked: number;
   monthsChanged: number;
+  filesDeduped?: number;
+  dedupDetails?: string[];
   results: { id: string; changed: boolean; notes: string[] }[];
 };
 
@@ -79,6 +81,18 @@ export function RepairChainButton() {
                     ? " nothing needed fixing."
                     : ` repaired ${result.monthsChanged}.`}
                 </p>
+                {!!result.filesDeduped && result.filesDeduped > 0 && (
+                  <div className="text-xs rounded-lg border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] p-3">
+                    <p className="font-semibold text-[var(--color-ink-900)]">
+                      {result.filesDeduped} duplicate / unused file{result.filesDeduped === 1 ? "" : "s"} moved to Recently deleted
+                    </p>
+                    {result.dedupDetails && result.dedupDetails.length > 0 && (
+                      <ul className="mt-1 text-[var(--color-ink-600)] list-disc pl-4 space-y-0.5 max-h-32 overflow-y-auto">
+                        {result.dedupDetails.map((d, i) => <li key={i}>{d}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
                 {result.results.some(r => r.changed) && (
                   <ul className="text-xs max-h-64 overflow-y-auto border border-[var(--color-ice-200)] rounded-lg divide-y divide-[var(--color-ice-100)]">
                     {result.results.filter(r => r.changed).map(r => (
