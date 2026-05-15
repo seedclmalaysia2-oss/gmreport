@@ -13,6 +13,8 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { listMonthReports, upsertMonthReport } from "@/lib/month-report";
+import { prisma } from "@/lib/db";
+import { applyYear2025ToReport, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
 import { REGIONS } from "@/lib/catalog/mappings";
@@ -237,6 +239,23 @@ export async function POST() {
   const results: RepairReport[] = [];
   let priorHealed: MonthReport | undefined;
 
+  // If a prior-year "Sales Summary" workbook was ever uploaded (kind
+  // "ref_2025"), re-parse the most recent one so every month's 2025
+  // comparison columns can be re-synced below. Re-parsing a sub-100 KB
+  // xlsx is cheap; this keeps the reference authoritative without a
+  // separate table.
+  let year2025Ref: Year2025Reference | null = null;
+  try {
+    const refRow = await prisma.rawFile.findFirst({
+      where: { kind: "ref_2025", deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { bytes: true },
+    });
+    if (refRow?.bytes) year2025Ref = parse2025Summary(new Uint8Array(refRow.bytes));
+  } catch (e) {
+    console.error("[repair] failed to load 2025 reference:", e);
+  }
+
   for (const m of ordered) {
     const notes: string[] = [];
     let changed = false;
@@ -265,6 +284,18 @@ export async function POST() {
     if (carry.notes.length) {
       notes.push(...carry.notes);
       changed = true;
+    }
+
+    // Step 0c — fill prior-year (2025) comparison columns from the uploaded
+    // "Sales Summary" reference, if one exists. Runs after the chain merge so
+    // the authoritative reference figures win over carried-forward guesses.
+    if (year2025Ref) {
+      const y25 = applyYear2025ToReport(filled, year2025Ref);
+      if (y25.changed) {
+        filled = y25.next;
+        notes.push("2025 comparison columns filled from Sales Summary reference");
+        changed = true;
+      }
     }
 
     const sa = healSalesAchievement(filled.salesAchievement);

@@ -26,6 +26,7 @@ const KIND_LABELS: Record<string, string> = {
   pos_inventory:  "Stock List (SCLM)",
   pos_collection: "Collection Listing",
   pos_daily:      "Daily Sales Quantity",
+  ref_2025:       "2025 Sales Summary (prior-year reference)",
   unknown:        "Unrecognised file",
 };
 

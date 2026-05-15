@@ -40,6 +40,8 @@ export function ImportForm() {
       filesByKind?: Record<string, string[]>;
     };
     warnings: string[];
+    /** Set when a 2025 Sales Summary was uploaded — # months it filled. */
+    year2025Applied?: number;
   } | null>(null);
   const [err, setErr] = useState("");
 
@@ -239,6 +241,15 @@ export function ImportForm() {
               Slides refreshed:{" "}
               <strong>{result.result.sectionsTouched.map(s => SECTION_META[s]?.title ?? s).join(", ")}</strong>
             </p>
+          )}
+
+          {/* Prior-year reference confirmation. */}
+          {typeof result.year2025Applied === "number" && (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              <strong>2025 reference applied.</strong> Prior-year sales &amp; quantity
+              comparison columns filled across{" "}
+              <strong>{result.year2025Applied}</strong> month{result.year2025Applied === 1 ? "" : "s"}.
+            </div>
           )}
 
           {result.result.unmapped.length > 0 && (

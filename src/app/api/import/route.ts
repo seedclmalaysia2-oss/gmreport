@@ -5,8 +5,10 @@ import { parseCollectionXlsx, parseDailySalesXlsx, parseStockListXlsx } from "@/
 import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesByRegion, salesByRegionFromStates, topProducts, unmappedSkus } from "@/lib/aggregation";
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { expireByMonth } from "@/lib/aggregation/from-writeoff";
-import { getMonthReport, upsertMonthReport } from "@/lib/month-report";
+import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month-report";
 import { prisma } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { applyYear2025ToReport, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import type { MonthReport, SectionKey, SourceFile, SourceFiles } from "@/lib/schema";
 
 export const runtime = "nodejs";
@@ -23,6 +25,7 @@ type FileKind =
   | "pos_inventory"   // SCLM - Stock List *.xlsx
   | "pos_collection"  // Collection Listing.xlsx
   | "pos_daily"       // Daily Sales Quantity.xlsx
+  | "ref_2025"        // SEED(M) Sales Summary <year>.xlsx — prior-year reference
   | "unknown";
 
 // Which file kinds drive which slides. Used to populate MonthReport.sourceFiles.
@@ -37,6 +40,7 @@ const KIND_TO_SECTIONS: Record<FileKind, SectionKey[]> = {
   pos_inventory:  ["inventory"],
   pos_collection: ["financial"],
   pos_daily:      ["dailySales"],
+  ref_2025:       ["salesAchievement", "salesByQuantity"],
   unknown:        [],
 };
 
@@ -69,6 +73,9 @@ export async function POST(req: Request): Promise<Response> {
   let stockXlsxBuf: ArrayBuffer | null = null;
   let collectionXlsxBuf: ArrayBuffer | null = null;
   let dailySalesXlsxBuf: ArrayBuffer | null = null;
+  // Full-year prior-year (2025) reference, parsed from a "Sales Summary"
+  // workbook if one is in this upload. Applied to every month afterwards.
+  let year2025Ref: Year2025Reference | null = null;
   const warnings: string[] = [];
   // Track each uploaded file against a FileKind so we can surface the list,
   // map it back to the slide(s) it drove, AND keep the raw bytes so we can
@@ -101,7 +108,17 @@ export async function POST(req: Request): Promise<Response> {
       const buf = await f.arrayBuffer();
       // Order matters — several patterns overlap (Region also contains "sales",
       // master also says "Stock Sales Analysis"). Most-specific first.
-      if (/stock\s*sales\s*analysis|summary\s*by\s*group/i.test(name)) {
+      if (is2025SummaryFile(name)) {
+        // Full-year prior-year reference workbook. Parsed once; applied to
+        // every month's 2025 comparison columns after the main import below.
+        try {
+          year2025Ref = parse2025Summary(buf);
+        } catch (e) {
+          warnings.push(`Could not parse 2025 Sales Summary "${name}": ${e instanceof Error ? e.message : "unknown error"}`);
+        }
+        pushFile("ref_2025", f, buf);
+      }
+      else if (/stock\s*sales\s*analysis|summary\s*by\s*group/i.test(name)) {
         // The XLSX twin of the master "Stock Sales Analysis Summary By Group"
         // PDF. Drives Sales Achievement, Sales Quantity, Top Products.
         master = parseMasterXlsx(buf);
@@ -248,6 +265,13 @@ export async function POST(req: Request): Promise<Response> {
     sectionsTouched.add("salesAchievement");
   }
 
+  // A 2025 reference file feeds Slide 1 + Slide 5 — mark those touched so the
+  // file is recorded as their source and shows in the "Slides refreshed" line.
+  if (year2025Ref) {
+    sectionsTouched.add("salesAchievement");
+    sectionsTouched.add("salesByQuantity");
+  }
+
   // Build the sourceFiles map: for every FileKind we recognised, attach its
   // filenames to each downstream section, layering on top of anything already
   // saved so an incremental import (e.g. just the outlet Excel) doesn't wipe
@@ -300,6 +324,28 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
+  // ----- Apply the 2025 reference to EVERY month -----
+  // A "Sales Summary" workbook is a whole-year dataset, not a single month's
+  // POS dump. When one is uploaded we fan it out: every existing MonthReport
+  // gets its Slide 1 actual2025 row and Slide 5 qty2025 columns filled from
+  // the same reference, so YoY comparisons line up across the whole year.
+  let year2025Applied = 0;
+  if (year2025Ref) {
+    const allMonths = await listMonthReports();
+    for (const mr of allMonths) {
+      const { changed, next } = applyYear2025ToReport(mr, year2025Ref);
+      if (changed) {
+        await upsertMonthReport(next);
+        year2025Applied++;
+        revalidatePath(`/report/${mr.id}`);
+      }
+    }
+    if (year2025Applied > 0) {
+      revalidatePath("/");
+      revalidatePath("/export");
+    }
+  }
+
   const result: ImportResult = {
     year, month,
     grandTotalMyr: grand,
@@ -311,5 +357,12 @@ export async function POST(req: Request): Promise<Response> {
     ) as Partial<Record<FileKind, string[]>>,
     unmapped,
   };
-  return NextResponse.json({ ok: true, saved, result, warnings });
+  return NextResponse.json({
+    ok: true,
+    saved,
+    result,
+    warnings,
+    // Surfaced in the import-complete panel when a Sales Summary was uploaded.
+    year2025Applied: year2025Ref ? year2025Applied : undefined,
+  });
 }
