@@ -28,14 +28,24 @@ export function grandTotalMyr(master: PosMasterParseResult): number {
 }
 
 // --- Slide 7: Sales Quantity by Product (2026 vs 2025) ---
+//
 // MCUV colour PDFs feed the 3 MC lines; master PDF feeds everything else.
+//
+// PERMANENT RULE (docs/CLAUDE-RULES.md): trial-lens codes report a *trial-pack*
+// qty that must be divided by the parent pack size before rolling into Slide 5.
+// PRM codes roll in at full qty. Sales MYR is NEVER adjusted by this step —
+// that's Slide 6 / Slide 1, which read row.netSales / grandTotal as-is.
+//
+// `row.qtyDivisor` is set by `lookupProduct` (1 for normal/PRM rows, 32/10/6/3/2
+// for trial-lens). We round AFTER summing so e.g. 31 trial packs ÷ 32 + 30 trial
+// packs ÷ 32 → round(0.97 + 0.94) = 2, not 1+1.
 export function salesByQuantity(
   master: PosMasterParseResult,
   mcuv: PosMcuvParseResult[],
   priorYearQty: Partial<Record<CanonicalProduct, number>> = {},
 ): SalesByQuantity {
-  const qty = new Map<string, number>();
-  for (const p of CANONICAL_PRODUCTS) qty.set(p, 0);
+  const qtyFloat = new Map<string, number>();
+  for (const p of CANONICAL_PRODUCTS) qtyFloat.set(p, 0);
 
   const haveMcuvFor = new Set(mcuv.map(m => m.canonicalProduct).filter((x): x is string => !!x));
   for (const row of master.rows) {
@@ -43,17 +53,18 @@ export function salesByQuantity(
     // When a dedicated MCUV breakdown PDF is uploaded for a given variant,
     // skip the master's rollup row for that variant to avoid double counting.
     if (haveMcuvFor.has(row.product)) continue;
-    qty.set(row.product, (qty.get(row.product) ?? 0) + row.qty);
+    const divisor = row.qtyDivisor || 1;
+    qtyFloat.set(row.product, (qtyFloat.get(row.product) ?? 0) + row.qty / divisor);
   }
   for (const m of mcuv) {
     if (!m.canonicalProduct) continue;
-    qty.set(m.canonicalProduct, m.grandTotal.qty);
+    qtyFloat.set(m.canonicalProduct, m.grandTotal.qty);
   }
 
   return {
     rows: CANONICAL_PRODUCTS.map(p => ({
       product: p,
-      qty2026: qty.get(p) ?? 0,
+      qty2026: Math.round(qtyFloat.get(p) ?? 0),
       qty2025: priorYearQty[p] ?? 0,
     })),
     commentary: "",

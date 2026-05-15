@@ -86,15 +86,17 @@ export async function POST(req: Request): Promise<Response> {
     const name = f.name;
     const lower = name.toLowerCase();
     if (lower.endsWith(".pdf")) {
-      // arrayBuffer() can only be consumed once, so capture it before
-      // handing a Uint8Array view to the parser.
-      const buf = await f.arrayBuffer();
-      const bytes = new Uint8Array(buf);
+      // arrayBuffer() can only be consumed once. pdfjs-dist may detach the
+      // underlying ArrayBuffer while parsing, so we keep an independent copy
+      // for the RawFile audit log alongside the working copy the parser owns.
+      const original = await f.arrayBuffer();
+      const audit = original.slice(0); // own buffer, never transferred elsewhere
+      const bytes = new Uint8Array(original);
       const parsed = await parsePosPdf(bytes, name);
-      if (parsed.kind === "master") { master = parsed; pushFile("pos_master", f, buf); }
-      else if (parsed.kind === "mcuv") { mcuv.push(parsed); pushFile("pos_mcuv", f, buf); }
-      else if (parsed.kind === "writeoff") { writeOff = parsed; pushFile("pos_writeoff", f, buf); }
-      else { warnings.push(`Unrecognised PDF: ${name}`); pushFile("unknown", f, buf); }
+      if (parsed.kind === "master") { master = parsed; pushFile("pos_master", f, audit); }
+      else if (parsed.kind === "mcuv") { mcuv.push(parsed); pushFile("pos_mcuv", f, audit); }
+      else if (parsed.kind === "writeoff") { writeOff = parsed; pushFile("pos_writeoff", f, audit); }
+      else { warnings.push(`Unrecognised PDF: ${name}`); pushFile("unknown", f, audit); }
     } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
       const buf = await f.arrayBuffer();
       // Order matters — several patterns overlap (Region also contains "sales",

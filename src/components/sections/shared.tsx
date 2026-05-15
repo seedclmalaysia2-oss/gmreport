@@ -69,17 +69,17 @@ export function SectionShell({
       </header>
 
       {/* Source-file chips — shown when an import has populated this slide.
-          Each chip surfaces a quick "View" eye-icon that opens the original
-          file in a new tab via /api/files/{id}?disposition=inline, so the
-          user can sanity-check the source numbers without leaving the page
-          and without triggering a download. The chip falls back to a plain
-          label (no view button) on legacy rows where we don't have an id. */}
+          Each chip surfaces a quick "View" eye-icon that opens our in-browser
+          viewer page at /files/{id}. The page renders XLSX as HTML tables and
+          PDFs in an iframe, so the user can sanity-check the source numbers
+          without triggering a download. The chip falls back to a plain label
+          (no view button) on legacy rows where we don't have an id. */}
       {sources.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-ink-600)]">
           <span className="uppercase tracking-[0.15em] font-semibold">Source</span>
           {sources.map((f, i) => {
             const fileId = ctx?.fileIdsByName?.[f.name];
-            const viewHref = fileId ? `/api/files/${fileId}?disposition=inline` : null;
+            const viewHref = fileId ? `/files/${fileId}` : null;
             return (
               <span
                 key={i}

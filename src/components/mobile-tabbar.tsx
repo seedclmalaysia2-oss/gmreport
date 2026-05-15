@@ -38,7 +38,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="Primary"
-      // pb-[env(...)] adds the iPhone home-indicator inset on top of base padding.
+      // env(safe-area-inset-bottom) adds the iPhone home-indicator inset on top of base padding.
       className="md:hidden fixed inset-x-0 bottom-0 z-40
                  border-t border-[var(--color-ice-200)]
                  bg-[var(--surface-1)]/95 backdrop-blur

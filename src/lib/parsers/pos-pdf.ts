@@ -19,6 +19,10 @@ export interface PosMasterRow {
   grossProfit: number;
   gpPct: number;
   product: string | null;  // canonical product label if mapped
+  /** Divisor to apply to qty before rolling into Slide 5 (32 / 10 / 6 / 3 / 2
+   *  for trial-lens codes; 1 for normal + PRM rows). MYR fields are never
+   *  adjusted — see docs/CLAUDE-RULES.md. */
+  qtyDivisor: number;
 }
 
 export interface PosMasterParseResult {
@@ -129,7 +133,8 @@ function parseMaster(text: string): PosMasterParseResult {
     const m = line.match(rowRe);
     if (!m) continue;
     const [, code, description, qty, disc, net, cost, gp, gpp] = m;
-    const { product, suffix } = lookupProduct(code);
+    const { product, suffix, qtyDivisor, excluded } = lookupProduct(code);
+    if (excluded) continue; // PRMSD-style codes — drop entirely per rules doc
     const baseCode = suffix ? code.slice(0, -suffix.length) : code;
     const row: PosMasterRow = {
       code, baseCode, suffix,
@@ -141,6 +146,7 @@ function parseMaster(text: string): PosMasterParseResult {
       grossProfit: num(gp),
       gpPct: num(gpp),
       product,
+      qtyDivisor,
     };
     rows.push(row);
     if (!product) unmapped.push(row);

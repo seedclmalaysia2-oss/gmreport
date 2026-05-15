@@ -3,6 +3,7 @@
 
 import * as XLSX from "xlsx";
 import type { CanonicalProduct } from "@/lib/catalog/products";
+import { lookupProduct } from "@/lib/catalog/sku-map";
 
 // ---------- Stock list (inventory at month end) ----------
 export interface StockRow {
@@ -186,23 +187,139 @@ function toIsoDate(val: unknown): string | null {
   return null;
 }
 
+// Convert Excel date serial (days since 1899-12-30) to YYYY-MM-DD.
+// Use UTC components so we don't accidentally shift across timezones.
+function excelSerialToIso(serial: number): string | null {
+  if (!Number.isFinite(serial)) return null;
+  const ms = (serial - 25569) * 86400 * 1000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+// When XLSX returns a Date object (cellDates: true), it represents the
+// authored calendar day in LOCAL time. Reading the local-time components
+// gives us the same calendar day regardless of the server's timezone.
+function dateObjectToIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function parseDailySalesXlsx(buf: ArrayBuffer): DailySalesParseResult {
   const wb = XLSX.read(new Uint8Array(buf), { type: "array", cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { defval: null, header: 1 });
 
-  // Observed layout: col [1] = DocumentDate / "Total", col [7] = type flag (1 or 2),
-  // col [90] = Grand Total (amount when flag=1, qty when flag=2).
-  // Amount row and Qty row for each day are consecutive.
+  // ------------------------------------------------------------------
+  // FORMAT B — pre-consolidated daily summary
+  //
+  // Detect by header row 0: col [1] === "Date" and col [4]+ holding
+  // product-level codes (1DMS, 1DPE, …). The cells in this file are ALREADY
+  // adjusted for trial-lens divisors and PRM rollups; we trust them as-is.
+  // Used by HQ when they share a pre-rolled summary instead of the raw
+  // per-SKU file (Format A below).
+  // ------------------------------------------------------------------
+  const h0 = grid[0];
+  if (h0 && typeof h0[1] === "string" && /^date$/i.test(h0[1].trim())) {
+    const totalCol = h0.findIndex(c => typeof c === "string" && /^total$/i.test(c.trim()));
+    const amtCol = h0.findIndex(c => typeof c === "string" && /^amt$/i.test(c.trim()));
+    const productColStart = 4;
+    const productColEnd = totalCol > 0 ? totalCol - 1 : 29;
+
+    const days: DailySalesDay[] = [];
+    for (let r = 1; r < grid.length; r++) {
+      const row = grid[r];
+      if (!row) continue;
+      // Date sits in col 1 as either an Excel serial (number) or a real Date.
+      const cell = row[1];
+      let iso: string | null = null;
+      if (typeof cell === "number") iso = excelSerialToIso(cell);
+      else if (cell instanceof Date) iso = dateObjectToIso(cell);
+      else if (typeof cell === "string") iso = toIsoDate(cell);
+      if (!iso) continue;
+
+      // The HQ "Daily sales qty <Mmm>YY.xlsx" file uses Sunday rows as the
+      // WEEKLY SUBTOTAL of the prior week (Mon–Sat). The Total cell in those
+      // rows is not a daily qty and must be skipped to avoid double-counting.
+      // Real Sundays show 0 in the manual chart anyway (no trading), so
+      // emitting 0 for every Sunday is correct.
+      const dow = typeof row[0] === "string" ? row[0].trim().toLowerCase() : "";
+      const isSunday = dow.startsWith("sun");
+
+      let qty = 0;
+      let amount = 0;
+      if (!isSunday) {
+        if (totalCol > 0 && typeof row[totalCol] === "number" && Number.isFinite(row[totalCol] as number)) {
+          qty = row[totalCol] as number;
+        } else {
+          for (let c = productColStart; c <= productColEnd; c++) {
+            const v = row[c];
+            if (typeof v === "number" && Number.isFinite(v)) qty += v;
+          }
+        }
+        if (amtCol > 0 && typeof row[amtCol] === "number" && Number.isFinite(row[amtCol] as number)) {
+          amount = row[amtCol] as number;
+        }
+      }
+
+      days.push({ date: iso, qty: Math.round(qty), amount });
+    }
+    return {
+      days,
+      monthStart: days[0]?.date ?? null,
+      monthEnd: days.at(-1)?.date ?? null,
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // FORMAT A — raw per-SKU file (Daily Sales Quantity.xlsx)
+  // ------------------------------------------------------------------
+
+  // Observed layout:
+  //   • A row near the top has col [1] = "DocumentDate" and per-SKU codes in
+  //     subsequent columns (e.g. col 8 = "1DMS", col 19 = "1DPETR", …).
+  //   • Each date row pair: col [1] = DD/MM/YYYY, col [7] = type flag
+  //     (1 = amount, 2 = qty).
+  //   • The Grand Total column (was col 90) sums the row UN-ADJUSTED.
+  //
+  // PERMANENT RULE (docs/CLAUDE-RULES.md): trial-lens SKU columns must be
+  // divided by their pack-size divisor before being summed into the day's qty;
+  // PRMSD-style codes are excluded entirely. Sales amount (RM) is never
+  // adjusted. We therefore compute the daily qty by walking the per-SKU
+  // columns ourselves rather than trusting the raw Grand Total.
+
+  // Step 1: locate the SKU-header row (col [1] === "DocumentDate") and build
+  // a colIndex → divisor map. Skips excluded codes outright.
+  const skuColumns: { col: number; divisor: number }[] = [];
+  for (let r = 0; r < grid.length; r++) {
+    const row = grid[r];
+    if (!row) continue;
+    if (typeof row[1] === "string" && /^documentdate$/i.test(row[1].trim())) {
+      for (let c = 2; c < row.length; c++) {
+        const code = row[c];
+        if (typeof code !== "string" || !code.trim()) continue;
+        if (/^grand\s*total$/i.test(code.trim())) continue; // skip the Grand Total column
+        const { excluded, qtyDivisor } = lookupProduct(code);
+        if (excluded) continue;
+        skuColumns.push({ col: c, divisor: qtyDivisor || 1 });
+      }
+      break;
+    }
+  }
+  // Fallback: if the header row layout ever moves, fall back to the legacy
+  // behaviour (treat col 90 as the qty grand total) so we don't return zero.
+  const useFallback = skuColumns.length === 0;
+
   const byDate = new Map<string, { qty: number; amount: number }>();
   let pendingDate: string | null = null;
 
   for (const r of grid) {
     if (!r || !r.length) continue;
     const flag = typeof r[7] === "number" ? r[7] : Number(r[7]);
-    const grand = typeof r[90] === "number" ? r[90] : 0;
-
     const label = r[1];
+
     if (label && typeof label === "string" && /^total$/i.test(label.trim())) {
       pendingDate = null;
       continue;
@@ -210,20 +327,34 @@ export function parseDailySalesXlsx(buf: ArrayBuffer): DailySalesParseResult {
     const d = toIsoDate(label);
     if (d) {
       pendingDate = d;
-      const cur = byDate.get(d) ?? { qty: 0, amount: 0 };
-      if (flag === 1) cur.amount = Math.max(cur.amount, grand);
-      byDate.set(d, cur);
-      continue;
+      byDate.set(d, byDate.get(d) ?? { qty: 0, amount: 0 });
+      // Header date cell rows sometimes also carry the amount/qty totals.
+      // Fall through into the flag handling below.
     }
-    if (pendingDate && flag === 2) {
-      const cur = byDate.get(pendingDate) ?? { qty: 0, amount: 0 };
-      cur.qty = Math.max(cur.qty, grand);
-      byDate.set(pendingDate, cur);
-    } else if (pendingDate && flag === 1) {
-      const cur = byDate.get(pendingDate) ?? { qty: 0, amount: 0 };
+
+    if (!pendingDate) continue;
+    const cur = byDate.get(pendingDate) ?? { qty: 0, amount: 0 };
+
+    if (flag === 2) {
+      // Qty row — apply trial-lens divisors per-column.
+      let sum = 0;
+      if (useFallback) {
+        const grand = typeof r[90] === "number" ? r[90] : 0;
+        sum = grand;
+      } else {
+        for (const { col, divisor } of skuColumns) {
+          const v = r[col];
+          if (typeof v !== "number" || !Number.isFinite(v)) continue;
+          sum += v / divisor;
+        }
+      }
+      cur.qty = Math.max(cur.qty, sum);
+    } else if (flag === 1) {
+      // Amount row — MYR is never adjusted, so the file's Grand Total is fine.
+      const grand = typeof r[90] === "number" ? r[90] : 0;
       cur.amount = Math.max(cur.amount, grand);
-      byDate.set(pendingDate, cur);
     }
+    byDate.set(pendingDate, cur);
   }
 
   const days: DailySalesDay[] = [...byDate.entries()]

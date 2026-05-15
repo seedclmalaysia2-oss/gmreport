@@ -134,12 +134,14 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     const grossProfit = toNum(row[gpCol]);
     const gpPct     = toNum(row[gppCol]);
 
-    const { product, suffix } = lookupProduct(trimmed);
+    const { product, suffix, qtyDivisor, excluded } = lookupProduct(trimmed);
+    if (excluded) continue; // PRMSD-style codes — drop entirely per rules doc
     const baseCode = suffix ? trimmed.slice(0, -suffix.length) : trimmed;
     const rowOut: PosMasterRow = {
       code: trimmed, baseCode, suffix,
       description, qty, discount, netSales, netCost, grossProfit, gpPct,
       product,
+      qtyDivisor,
     };
     rows.push(rowOut);
     if (!product) unmapped.push(rowOut);
