@@ -6,6 +6,7 @@ import { FileDown, Files, Home, Menu, X } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { PalettePicker } from "./palette-picker";
 import { LogoutButton } from "./logout-button";
+import { MonthsMenu, MonthsDrawerSection } from "./months-menu";
 
 /**
  * Top-level navigation. Layout:
@@ -43,7 +44,7 @@ export function SiteHeader() {
 
         {/* Desktop nav (hidden on phones) */}
         <nav className="hidden md:flex items-center gap-1 text-sm ml-4">
-          <NavLink href="/" icon={<Home size={15} />}>Months</NavLink>
+          <MonthsMenu />
           <NavLink href="/files" icon={<Files size={15} />}>Files</NavLink>
           <NavLink href="/export" icon={<FileDown size={15} />}>Export PPTX</NavLink>
         </nav>
@@ -75,6 +76,8 @@ export function SiteHeader() {
         <div className="md:hidden absolute inset-x-0 top-full bg-[var(--surface-1)] border-t border-b border-[var(--color-ice-200)] shadow-lg animate-fadein z-30">
           <nav className="px-3 py-2 flex flex-col">
             <DrawerLink href="/" icon={<Home size={18} />}>Months</DrawerLink>
+            <MonthsDrawerSection />
+            <div className="border-t border-[var(--color-ice-200)] mt-1 pt-1" />
             <DrawerLink href="/files" icon={<Files size={18} />}>Files</DrawerLink>
             <DrawerLink href="/export" icon={<FileDown size={18} />}>Export PPTX</DrawerLink>
           </nav>
