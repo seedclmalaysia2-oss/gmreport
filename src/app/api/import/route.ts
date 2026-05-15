@@ -350,6 +350,17 @@ export async function POST(req: Request): Promise<Response> {
       }));
     });
   if (rawFileRows.length) {
+    // Same-name re-upload = REPLACEMENT, not a new file. Before inserting the
+    // fresh rows, soft-delete any active prior copy with the same filename in
+    // this month so it drops into "Recently deleted" and the upload list never
+    // shows two of the same name (and the row numbering stays stable — a
+    // re-upload takes over the old slot rather than getting a new number).
+    const names = [...new Set(rawFileRows.map(r => r.originalName))];
+    await prisma.rawFile.updateMany({
+      where: { monthReportId: saved.id, originalName: { in: names }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    }).catch(err => console.error("[import] failed to supersede prior copies:", err));
+
     // createMany is fire-and-forget; if it fails (e.g. transient pooler hiccup)
     // we don't want to fail the whole import — the section data is already
     // saved. Log to server console instead.

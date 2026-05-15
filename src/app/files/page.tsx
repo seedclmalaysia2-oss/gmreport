@@ -210,6 +210,7 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
         <table className="w-full text-sm">
           <thead className="text-[11px] uppercase tracking-wider text-[var(--color-ink-600)] bg-white">
             <tr>
+              <th className="text-right px-2 sm:px-3 py-2 w-[44px]">#</th>
               <th className="text-left px-3 sm:px-5 py-2">File</th>
               <th className="text-left px-3 sm:px-5 py-2 hidden sm:table-cell">Detected as</th>
               <th className="text-left px-3 sm:px-5 py-2 hidden md:table-cell">Slides fed</th>
@@ -221,7 +222,11 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
             </tr>
           </thead>
           <tbody>
-            {files.map(f => <FileRow key={f.id} file={f} />)}
+            {/* Row number is positional — it re-sequences automatically when a
+                file is removed (the page re-renders server-side). A same-name
+                re-upload supersedes the old copy at import time, so it reuses
+                the slot rather than taking a fresh number. */}
+            {files.map((f, i) => <FileRow key={f.id} file={f} index={i + 1} />)}
           </tbody>
         </table>
       </div>
@@ -229,7 +234,7 @@ function MonthBlock({ group }: { group: GroupedFiles }) {
   );
 }
 
-function FileRow({ file }: { file: RawFileEntry }) {
+function FileRow({ file, index }: { file: RawFileEntry; index: number }) {
   const kindLabel = KIND_LABELS[file.kind] ?? file.kind;
   // Slides are stored in the order they were touched at import time; render
   // them in slide-number order (1, 5, 6 — not 6, 1, 5) so the chips read
@@ -241,6 +246,9 @@ function FileRow({ file }: { file: RawFileEntry }) {
 
   return (
     <tr className="border-t border-[var(--color-ice-100)] align-top">
+      <td className="px-2 sm:px-3 py-2.5 text-right text-[var(--color-ink-600)] tabular-nums font-medium">
+        {index}
+      </td>
       <td className="px-3 sm:px-5 py-2.5">
         <div className="flex items-start gap-2">
           <FileText size={14} className="text-[var(--color-ink-600)] mt-0.5 shrink-0" />
