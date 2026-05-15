@@ -4,9 +4,10 @@ import Link from "next/link";
 import type { SourceFile } from "@/lib/schema";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, FileUp } from "lucide-react";
+import { AlertTriangle, FileUp, Pencil, Save } from "lucide-react";
 import type { RawFileEntry } from "@/lib/month-report";
 import { SectionSourceFiles } from "../section-source-files";
+import { RichTextEditor } from "../rich-text-editor";
 
 // Per-section hint about which raw POS file feeds it. Drives the missing-data banner.
 const FILE_HINT: Partial<Record<SectionKey, string>> = {
@@ -131,7 +132,7 @@ export function NumberCell({
   /** Horizontal alignment of the text inside the input. Default "right". */
   align?: "left" | "center" | "right";
   /** Font size preset. Default "sm". */
-  size?: "sm" | "base" | "lg" | "xl";
+  size?: "xs" | "sm" | "base" | "lg" | "xl";
   /** Render in semibold. */
   bold?: boolean;
 }) {
@@ -157,6 +158,7 @@ export function NumberCell({
     size === "xl"   ? "text-xl"
   : size === "lg"   ? "text-lg"
   : size === "base" ? "text-base"
+  : size === "xs"   ? "text-[12px]"
   :                   "text-sm";
 
   const alignClass =

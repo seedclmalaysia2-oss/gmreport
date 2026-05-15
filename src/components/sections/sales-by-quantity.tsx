@@ -158,32 +158,36 @@ export function SectionSalesByQuantity({ report, update, siblings = [] }: Sectio
                   >
                     {r.product}
                   </th>
-                  <td className={cn("px-2 py-1 text-right text-[var(--color-ink-900)]", !isLast && "border-b border-[var(--color-ice-100)]")}>
+                  <td className={cn("px-2 py-1 text-center text-[12px] text-[var(--color-ink-900)]", !isLast && "border-b border-[var(--color-ice-100)]")}>
                     {r.prev2026 ? r.prev2026.toLocaleString("en-US") : <span className="opacity-30">—</span>}
                   </td>
-                  <td className={cn("px-2 py-1 text-right text-[var(--color-ink-600)]", !isLast && "border-b border-[var(--color-ice-100)]")}>
+                  <td className={cn("px-2 py-1 text-center text-[12px] text-[var(--color-ink-600)]", !isLast && "border-b border-[var(--color-ice-100)]")}>
                     {r.prev2025 ? r.prev2025.toLocaleString("en-US") : <span className="opacity-30">—</span>}
                   </td>
                   <td className={cn(
-                    "px-2 py-1 text-right bg-[var(--color-accent-2)]/30",
+                    "px-2 py-1 text-center bg-[var(--color-accent-2)]/30",
                     !isLast && "border-b border-[var(--color-ice-100)]",
                     red && "font-semibold text-[var(--color-accent)]",
                   )}>
                     <NumberCell
                       variant="plain"
+                      align="center"
+                      size="xs"
                       value={r.curr2026}
                       onChange={n => setCurr(r.product, "qty2026", n)}
                     />
                   </td>
-                  <td className={cn("px-2 py-1 text-right", !isLast && "border-b border-[var(--color-ice-100)]")}>
+                  <td className={cn("px-2 py-1 text-center", !isLast && "border-b border-[var(--color-ice-100)]")}>
                     <NumberCell
                       variant="plain"
+                      align="center"
+                      size="xs"
                       value={r.curr2025}
                       onChange={n => setCurr(r.product, "qty2025", n)}
                     />
                   </td>
                   <td className={cn(
-                    "px-3 py-1 text-right font-semibold",
+                    "px-3 py-1 text-center text-[12px] font-semibold",
                     red ? "text-[var(--color-accent)]" : "text-[var(--color-ink-900)]",
                     i % 2 === 0 ? "bg-[var(--color-ice-50)]" : "bg-[var(--color-ice-100)]/60",
                     !isLast && "border-b border-[var(--color-ice-100)]",
@@ -198,13 +202,13 @@ export function SectionSalesByQuantity({ report, update, siblings = [] }: Sectio
               <th scope="row" className="sticky left-0 z-10 bg-[var(--color-ink-800)] text-white text-left px-4 py-2 text-xs uppercase tracking-[0.2em]">
                 Total
               </th>
-              <td className="px-2 py-2 text-right font-semibold tabular-nums">{totals.prev2026.toLocaleString("en-US")}</td>
-              <td className="px-2 py-2 text-right font-semibold tabular-nums opacity-90">{totals.prev2025.toLocaleString("en-US")}</td>
-              <td className="px-2 py-2 text-right font-bold tabular-nums bg-[var(--color-accent-2)] text-[var(--color-ink-900)]">
+              <td className="px-2 py-2 text-center text-[12px] font-semibold tabular-nums">{totals.prev2026.toLocaleString("en-US")}</td>
+              <td className="px-2 py-2 text-center text-[12px] font-semibold tabular-nums opacity-90">{totals.prev2025.toLocaleString("en-US")}</td>
+              <td className="px-2 py-2 text-center text-[12px] font-bold tabular-nums bg-[var(--color-accent-2)] text-[var(--color-ink-900)]">
                 {totals.curr2026.toLocaleString("en-US")}
               </td>
-              <td className="px-2 py-2 text-right font-semibold tabular-nums opacity-90">{totals.curr2025.toLocaleString("en-US")}</td>
-              <td className="px-3 py-2 text-right font-bold tabular-nums">{totals.ytd.toLocaleString("en-US")}</td>
+              <td className="px-2 py-2 text-center text-[12px] font-semibold tabular-nums opacity-90">{totals.curr2025.toLocaleString("en-US")}</td>
+              <td className="px-3 py-2 text-center text-[12px] font-bold tabular-nums">{totals.ytd.toLocaleString("en-US")}</td>
             </tr>
           </tbody>
         </table>
