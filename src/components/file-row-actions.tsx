@@ -92,10 +92,12 @@ export function FileRowActions({
     }
   }
 
-  // Inline view = open in a new tab (PDF renders, XLSX downloads — browsers
-  // don't render xlsx natively but the request still streams).
-  // Attachment download = forced "Save As".
-  const viewHref = `/api/files/${fileId}?disposition=inline`;
+  // View = the in-app viewer page (`/files/<id>`). It renders XLSX as HTML
+  // tables and PDFs in an iframe, so the file is previewed online instead of
+  // being downloaded — browsers can't render .xlsx natively, so linking
+  // straight to the raw-bytes API forced a "Save As" download.
+  // Attachment download = forced "Save As" for an offline copy.
+  const viewHref = `/files/${fileId}`;
   const downloadHref = `/api/files/${fileId}?disposition=attachment`;
 
   return (
@@ -122,7 +124,7 @@ export function FileRowActions({
             href={viewHref}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open file in a new tab"
+            title="Preview the file online in a new tab"
             className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold
                        bg-[var(--color-ink-800)] text-white hover:bg-[var(--color-ink-700)]
                        active:scale-95 transition"
