@@ -95,11 +95,14 @@ export function ReportEditor({
 
       const changed = typeof data.monthsChanged === "number" ? data.monthsChanged : 0;
       const checked = typeof data.monthsChecked === "number" ? data.monthsChecked : 0;
-      setRecalcMessage(
-        changed === 0
-          ? `All ${checked} months already in sync.`
-          : `Updated ${changed} of ${checked} month${checked === 1 ? "" : "s"}.`,
-      );
+      const deduped = typeof data.filesDeduped === "number" ? data.filesDeduped : 0;
+      const monthsMsg = changed === 0
+        ? `All ${checked} months in sync.`
+        : `Updated ${changed} of ${checked} month${checked === 1 ? "" : "s"}.`;
+      const dedupMsg = deduped > 0
+        ? ` ${deduped} duplicate/unused file${deduped === 1 ? "" : "s"} moved to Recently deleted.`
+        : "";
+      setRecalcMessage(monthsMsg + dedupMsg);
       setRecalcState("done");
       setSavedAt(new Date());
       setTimeout(() => setRecalcState(s => (s === "done" ? "idle" : s)), 4000);
