@@ -6,7 +6,6 @@ import { SECTION_KEYS, SECTION_META } from "@/lib/schema";
 import type { RawFileEntry } from "@/lib/month-report";
 import { SectionShellContext } from "./sections/shared";
 import { SectionFrontCover } from "./sections/front-cover";
-import { SectionAppendix } from "./sections/appendix";
 import { SectionSalesAchievement } from "./sections/sales-achievement";
 import { SectionOutlook } from "./sections/outlook";
 import { SectionDailySales } from "./sections/daily-sales";
@@ -323,7 +322,6 @@ export function ReportEditor({
           {active === "expireWriteOff"   && <SectionExpireWriteOff report={report} update={update} siblings={siblings} />}
           {active === "financial"        && <SectionFinancial report={report} update={update} />}
           {active === "otherMarket"      && <SectionOtherMarket report={report} update={update} />}
-          {active === "appendix"         && <SectionAppendix report={report} update={update} />}
 
           {/* Front Cover previews the deck's cover slide. */}
           <SlidePreview section={active === "frontCover" ? "cover" : active} report={report} siblings={siblings} />

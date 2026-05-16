@@ -200,13 +200,6 @@ export type SourceFile = z.infer<typeof SourceFileZ>;
 export const SourceFilesZ = z.record(z.string(), z.array(SourceFileZ));
 export type SourceFiles = z.infer<typeof SourceFilesZ>;
 
-// Appendix — a free-form rich-text block exported as the deck's closing
-// reference page, just before the Thank You slide.
-export const AppendixZ = z.object({
-  body: z.string().default(""),
-});
-export type Appendix = z.infer<typeof AppendixZ>;
-
 // ---------- Aggregate MonthReport ----------
 
 export const MonthReportZ = z.object({
@@ -229,7 +222,6 @@ export const MonthReportZ = z.object({
   expireWriteOff: ExpireWriteOffZ.nullable(),
   financial: FinancialZ.nullable(),
   otherMarket: OtherMarketZ.nullable(),
-  appendix: AppendixZ.nullable(),
   sourceFiles: SourceFilesZ.default({}),
 });
 export type MonthReport = z.infer<typeof MonthReportZ>;
@@ -253,7 +245,6 @@ export function emptyMonthReport(id: string, year: number, month: number): Month
     expireWriteOff: null,
     financial: null,
     otherMarket: null,
-    appendix: null,
     sourceFiles: {},
   };
 }
@@ -275,7 +266,6 @@ export const SECTION_KEYS = [
   "expireWriteOff",
   "financial",
   "otherMarket",
-  "appendix",
 ] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
@@ -293,5 +283,4 @@ export const SECTION_META: Record<SectionKey, { no: number; title: string }> = {
   expireWriteOff:      { no: 11, title: "Expire Stock (Write-Off)" },
   financial:           { no: 12, title: "Financial Relationship" },
   otherMarket:         { no: 13, title: "Other Market Update" },
-  appendix:            { no: 14, title: "Appendix" },
 };

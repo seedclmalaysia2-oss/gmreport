@@ -33,7 +33,6 @@ model MonthReport {
   expireWriteOff       String?
   financial            String?
   otherMarket          String?
-  appendix             String?
   // Map of { sectionKey: [{ name, size, at }] } — last set of files that fed each slide.
   sourceFiles          String?
 

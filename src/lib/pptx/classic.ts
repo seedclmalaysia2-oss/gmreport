@@ -43,7 +43,6 @@ export async function generateClassicPptx(input: PptxInput): Promise<Uint8Array>
   slideExpireWriteOff(pptx, input);
   slideFinancial(pptx, input);
   slideOtherMarket(pptx, input);
-  slideAppendix(pptx, input);
   slideThankYou(pptx);
 
   const out = await pptx.write({ outputType: "nodebuffer" });
@@ -84,8 +83,13 @@ function slideAgenda(pptx: PptxGenJS) {
     fontFace: FONT, fontSize: 24, bold: true, color: C.header,
   });
   s.addText(
-    AGENDA.map((t, i) => ({ text: `${i + 1}.  ${t}`, options: { bullet: false } })),
-    { x: 1.09, y: 1.25, w: 11.50, h: 5.68, fontFace: FONT, fontSize: 24, color: C.text, paraSpaceAfter: 10 },
+    // breakLine: true puts each agenda item on its own line — without it
+    // pptxgenjs concatenates the runs into one wrapped paragraph.
+    AGENDA.map((t, i) => ({
+      text: `${i + 1}.  ${t}`,
+      options: { breakLine: true, bullet: false },
+    })),
+    { x: 1.09, y: 1.25, w: 11.50, h: 5.68, fontFace: FONT, fontSize: 20, color: C.text, paraSpaceAfter: 6, lineSpacingMultiple: 1.1 },
   );
 }
 
@@ -830,20 +834,6 @@ function slideOtherMarket(pptx: PptxGenJS, input: PptxInput) {
   const runs = htmlToPptxRuns(o?.body, 15);
   s.addText(runs.length ? runs : [{ text: "", options: { fontSize: 15 } }], {
     x: 7.5, y: 1.66, w: 5.5, h: 5.5, fontFace: FONT, color: C.text, valign: "top", paraSpaceAfter: 6, wrap: true,
-  });
-}
-
-// Appendix — the deck's closing reference page. Skipped entirely when the
-// appendix body is empty so a deck without one doesn't gain a blank slide.
-function slideAppendix(pptx: PptxGenJS, input: PptxInput) {
-  const a = input.months[input.months.length - 1].appendix;
-  const plain = (a?.body ?? "").replace(/<[^>]*>/g, "").trim();
-  if (!plain) return;
-  const s = pptx.addSlide();
-  titleBar(s, "Appendix", 0.60, 0.30, 11.5, 0.52, 22);
-  const runs = htmlToPptxRuns(a?.body, 15);
-  s.addText(runs.length ? runs : [{ text: "", options: { fontSize: 15 } }], {
-    x: 0.92, y: 1.30, w: 11.50, h: 5.6, fontFace: FONT, color: C.text, valign: "top", paraSpaceAfter: 6, wrap: true,
   });
 }
 

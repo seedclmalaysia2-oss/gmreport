@@ -239,7 +239,6 @@ const marchReport: Omit<MonthReport, "id" | "presentDate"> = {
   expireWriteOff: marchExpire,
   financial: marchFinancial,
   otherMarket: marchOther,
-  appendix: null,
   sourceFiles: {},
 };
 

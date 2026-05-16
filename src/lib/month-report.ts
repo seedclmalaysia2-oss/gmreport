@@ -51,7 +51,6 @@ function rowToReport(row: NonNullable<DbRow>): MonthReport {
     expireWriteOff:      parse(row.expireWriteOff),
     financial:           parse(row.financial),
     otherMarket:         parse(row.otherMarket),
-    appendix:            parse(row.appendix),
     sourceFiles:         parse<SourceFiles>((row as { sourceFiles: string | null }).sourceFiles) ?? {},
   };
   return r;
