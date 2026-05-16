@@ -71,6 +71,56 @@ export async function listMonthReports(): Promise<MonthReport[]> {
   return rows.map(rowToReport);
 }
 
+/**
+ * Lightweight month listing for the dashboard cards. The home page only needs
+ * id / year / month / fxRate and how many of the 13 section blobs are filled —
+ * NOT the blobs themselves. `listMonthReports()` pulls every section's full
+ * JSON for every month (megabytes on a busy year); this returns one small row
+ * each, so the initial dashboard load is fast.
+ */
+export type MonthSummary = {
+  id: string;
+  year: number;
+  month: number;
+  fxRate: number;
+  filledSections: number;   // 0..13 — count of non-null section columns
+};
+
+export async function listMonthSummaries(): Promise<MonthSummary[]> {
+  // Prisma's `select` can't compute "is column NULL", so go raw. One CASE per
+  // section column, summed → filledSections, with zero blob payload.
+  const rows = await prisma.$queryRaw<MonthSummary[]>`
+    SELECT
+      "id", "year", "month", "fxRate",
+      (
+        (CASE WHEN "salesAchievement"    IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesTrend"          IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "marketOutlook"       IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "dailySales"          IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesByQuantity"     IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "topProducts"         IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesByECP"          IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesByRegion"       IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "productRegistration" IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "inventory"           IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "expireWriteOff"      IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "financial"           IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "otherMarket"         IS NOT NULL THEN 1 ELSE 0 END)
+      )::int AS "filledSections"
+    FROM "MonthReport"
+    ORDER BY "year" DESC, "month" DESC
+  `;
+  // $queryRaw can hand back BigInt for integer expressions on some drivers —
+  // normalise to plain numbers so the value serialises cleanly to the client.
+  return rows.map(r => ({
+    id: r.id,
+    year: Number(r.year),
+    month: Number(r.month),
+    fxRate: Number(r.fxRate),
+    filledSections: Number(r.filledSections),
+  }));
+}
+
 export async function upsertMonthReport(input: Partial<MonthReport> & { year: number; month: number }): Promise<MonthReport> {
   const id = monthId(input.year, input.month);
   const existing = await getMonthReport(input.year, input.month);

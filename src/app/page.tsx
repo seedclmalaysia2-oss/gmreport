@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listMonthReports } from "@/lib/month-report";
+import { listMonthSummaries, type MonthSummary } from "@/lib/month-report";
 
 // Always re-fetch the months list. Without this, Next's router cache can
 // hand out a stale snapshot when the user navigates back from the editor
@@ -10,20 +10,22 @@ import { MONTH_NAMES, monthNameFull } from "@/lib/utils";
 import { NewMonthButton } from "@/components/new-month-button";
 import { RepairChainButton } from "@/components/repair-chain-button";
 import { DeleteMonthButton } from "@/components/delete-month-button";
-import { SECTION_KEYS, type MonthReport } from "@/lib/schema";
+import { SECTION_KEYS } from "@/lib/schema";
+
+const SECTION_COUNT = SECTION_KEYS.length;
 import { AlertTriangle, ArrowRight, FileDown, FileUp } from "lucide-react";
 
-function completion(m: MonthReport): number {
-  const filled = SECTION_KEYS.filter(k => (m as Record<string, unknown>)[k]).length;
-  return Math.round((filled / SECTION_KEYS.length) * 100);
+function completion(m: MonthSummary): number {
+  return Math.round((m.filledSections / SECTION_COUNT) * 100);
 }
 
-function missingCount(m: MonthReport): number {
-  return SECTION_KEYS.filter(k => !(m as Record<string, unknown>)[k]).length;
+function missingCount(m: MonthSummary): number {
+  return SECTION_COUNT - m.filledSections;
 }
 
 export default async function Home() {
-  const months = await listMonthReports();
+  // Lightweight summary query — no section JSON blobs, fast initial load.
+  const months = await listMonthSummaries();
   return (
     <div className="space-y-8">
       <section className="rounded-2xl bg-[var(--color-ink-800)] text-white p-8 flex items-center gap-8 shadow-sm">
@@ -45,7 +47,7 @@ export default async function Home() {
         <div className="hidden md:block h-32 w-px bg-white/20" />
         <dl className="hidden md:grid grid-cols-2 gap-6 min-w-[260px]">
           <Stat label="Months on file" value={months.length.toString()} />
-          <Stat label="Sections per month" value={SECTION_KEYS.length.toString()} />
+          <Stat label="Sections per month" value={SECTION_COUNT.toString()} />
           <Stat label="Default FX" value="30.73" />
           <Stat label="Templates" value="2" />
         </dl>
@@ -89,7 +91,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MonthCard({ report, completion, missing }: { report: MonthReport; completion: number; missing: number }) {
+function MonthCard({ report, completion, missing }: { report: MonthSummary; completion: number; missing: number }) {
   // Wrap in a `relative` so DeleteMonthButton can absolute-position itself
   // in the corner of the card without being trapped inside the Link's click
   // target.
@@ -104,7 +106,7 @@ function MonthCard({ report, completion, missing }: { report: MonthReport; compl
   );
 }
 
-function MonthCardLink({ report, completion, missing }: { report: MonthReport; completion: number; missing: number }) {
+function MonthCardLink({ report, completion, missing }: { report: MonthSummary; completion: number; missing: number }) {
   return (
     <Link
       href={`/report/${report.id}`}
