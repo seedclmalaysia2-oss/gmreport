@@ -5,6 +5,8 @@ import type { MonthReport, SectionKey } from "@/lib/schema";
 import { SECTION_KEYS, SECTION_META } from "@/lib/schema";
 import type { RawFileEntry } from "@/lib/month-report";
 import { SectionShellContext } from "./sections/shared";
+import { SectionFrontCover } from "./sections/front-cover";
+import { SectionAppendix } from "./sections/appendix";
 import { SectionSalesAchievement } from "./sections/sales-achievement";
 import { SectionOutlook } from "./sections/outlook";
 import { SectionDailySales } from "./sections/daily-sales";
@@ -42,7 +44,9 @@ export function ReportEditor({
     const q = sp?.get("section") as SectionKey | null;
     return q && (SECTION_KEYS as readonly string[]).includes(q) ? q : "salesAchievement";
   })();
-  const [active, setActive] = useState<SectionKey>(initialSection);
+  // "frontCover" is a nav tab that edits the cover (presenter / date) — it
+  // isn't a stored section, so the active key is the section keys plus it.
+  const [active, setActive] = useState<SectionKey | "frontCover">(initialSection);
   // Keep the tab in sync if the URL changes later (e.g. next-link navigation).
   useEffect(() => {
     const q = sp?.get("section") as SectionKey | null;
@@ -124,7 +128,10 @@ export function ReportEditor({
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Close the drawer when the active section changes (so tapping a slide returns to content).
   const closeDrawer = () => setDrawerOpen(false);
-  const activeMeta = SECTION_META[active];
+  // Mobile breadcrumb label — Front Cover is a virtual tab with no SECTION_META.
+  const activeMeta = active === "frontCover"
+    ? { no: "" as const, title: "Front Cover" }
+    : SECTION_META[active];
 
   return (
     <div className="md:grid md:grid-cols-[240px_1fr] md:gap-6">
@@ -140,7 +147,7 @@ export function ReportEditor({
         >
           <span className="inline-flex items-center gap-2 truncate">
             <Layers size={14} className="text-[var(--color-ink-700)]" />
-            <span className="opacity-70">{activeMeta.no}.</span>
+            {activeMeta.no !== "" && <span className="opacity-70">{activeMeta.no}.</span>}
             <span className="truncate">{activeMeta.title}</span>
           </span>
           <ChevronRight size={14} className="shrink-0 text-[var(--color-ink-600)]" />
@@ -248,6 +255,18 @@ export function ReportEditor({
               </span>
             )}
           </div>
+          {/* Front Cover — virtual tab at the top, edits presenter / date. */}
+          <button
+            onClick={() => { setActive("frontCover"); closeDrawer(); }}
+            className={[
+              "w-full flex items-center gap-2 rounded-lg px-2 py-2 md:py-1.5 text-left text-sm",
+              active === "frontCover" ? "bg-[var(--color-ink-800)] text-white" : "hover:bg-[var(--color-ice-100)] text-[var(--color-ink-900)]",
+            ].join(" ")}
+          >
+            <span className="h-2 w-2 rounded-full shrink-0 bg-[var(--color-ok)]" />
+            <span className="text-xs opacity-70 w-5">★</span>
+            <span className="truncate">Front Cover</span>
+          </button>
           {SECTION_KEYS.map(k => {
             const m = SECTION_META[k];
             const done = progress[k];
@@ -290,6 +309,7 @@ export function ReportEditor({
         monthFiles,
       }}>
         <section className="min-w-0">
+          {active === "frontCover"       && <SectionFrontCover report={report} update={update} />}
           {active === "salesAchievement" && <SectionSalesAchievement report={report} update={update} />}
           {active === "salesTrend"       && <SectionSalesTrend report={report} update={update} />}
           {active === "marketOutlook"    && <SectionOutlook report={report} update={update} />}
@@ -303,8 +323,10 @@ export function ReportEditor({
           {active === "expireWriteOff"   && <SectionExpireWriteOff report={report} update={update} siblings={siblings} />}
           {active === "financial"        && <SectionFinancial report={report} update={update} />}
           {active === "otherMarket"      && <SectionOtherMarket report={report} update={update} />}
+          {active === "appendix"         && <SectionAppendix report={report} update={update} />}
 
-          <SlidePreview section={active} report={report} siblings={siblings} />
+          {/* Front Cover previews the deck's cover slide. */}
+          <SlidePreview section={active === "frontCover" ? "cover" : active} report={report} siblings={siblings} />
         </section>
       </SectionShellContext.Provider>
     </div>

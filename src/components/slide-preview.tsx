@@ -217,7 +217,26 @@ function SlideBody({ section, report, template, scale, siblings, paletteOverride
     case "expireWriteOff":      return <SlideExpireWriteOff report={report} P={P} scale={scale} siblings={siblings} />;
     case "financial":           return <SlideFinancial report={report} P={P} scale={scale} />;
     case "otherMarket":         return <SlideOtherMarket report={report} P={P} scale={scale} />;
+    case "appendix":            return <SlideAppendix report={report} P={P} scale={scale} />;
   }
+}
+
+function SlideAppendix({ report, P, scale }: { report: MonthReport; P: Palette; scale: number }) {
+  const html = report.appendix?.body || "—";
+  return (
+    <>
+      <SlideTitle palette={P} scale={scale} text="Appendix" />
+      <div
+        style={{
+          position: "absolute", left: px(0.5, scale), top: px(0.9, scale),
+          width: px(12.3, scale), height: px(6.2, scale), fontSize: fs(11, scale),
+          color: P.text, overflow: "hidden", lineHeight: 1.5,
+        }}
+        // Rich text from our own editor — trusted source.
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </>
+  );
 }
 
 // -------- Building blocks --------

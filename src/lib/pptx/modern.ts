@@ -44,6 +44,7 @@ export async function generateModernPptx(input: PptxInput): Promise<Uint8Array> 
   expireWriteOff(pptx, input);
   financial(pptx, input);
   otherMarket(pptx, input);
+  appendix(pptx, input);
   thankYou(pptx);
 
   const out = await pptx.write({ outputType: "nodebuffer" });
@@ -685,6 +686,18 @@ function otherMarket(pptx: PptxGenJS, input: PptxInput) {
   sectionHeader(s, "13 • MARKET UPDATE", "Competitive intel & pipeline");
   const o = input.months[input.months.length - 1].otherMarket;
   const runs = htmlToPptxRuns(o?.body, 14);
+  s.addText(runs.length ? runs : [{ text: "", options: { fontSize: 14 } }], { x: 0.6, y: 1.5, w: 12.15, h: 5.5, fontFace: BODY_FONT, color: P.ink, valign: "top", paraSpaceAfter: 10, wrap: true });
+}
+
+// Appendix — closing reference page. Skipped when the body is empty.
+function appendix(pptx: PptxGenJS, input: PptxInput) {
+  const a = input.months[input.months.length - 1].appendix;
+  const plain = (a?.body ?? "").replace(/<[^>]*>/g, "").trim();
+  if (!plain) return;
+  const s = pptx.addSlide();
+  setLightBg(s);
+  sectionHeader(s, "APPENDIX", "Supporting reference");
+  const runs = htmlToPptxRuns(a?.body, 14);
   s.addText(runs.length ? runs : [{ text: "", options: { fontSize: 14 } }], { x: 0.6, y: 1.5, w: 12.15, h: 5.5, fontFace: BODY_FONT, color: P.ink, valign: "top", paraSpaceAfter: 10, wrap: true });
 }
 
