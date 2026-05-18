@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, FileText, Loader2, Trash2, Upload, X } from "lucide-react";
+import { Eye, FileText, Loader2, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import type { RawFileEntry } from "@/lib/month-report";
 
 /**
@@ -68,6 +68,42 @@ export function SectionSourceFiles({
     }
   }
 
+  /**
+   * Re-process the section's already-uploaded files. Pulls each file's stored
+   * bytes from /api/files/{id}, re-POSTs them through the same /api/import
+   * pipeline, then refreshes. This rebuilds the slide from the files on record
+   * — the one-click fix when a slide's figures look stale or empty.
+   */
+  async function onUpdate() {
+    const reusable = files.filter(f => f.hasBytes);
+    if (reusable.length === 0) {
+      alert("No stored file copies to re-process. Re-upload the POS file.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set("year", String(year));
+      fd.set("month", String(month));
+      for (const f of reusable) {
+        const res = await fetch(`/api/files/${f.id}`);
+        if (!res.ok) throw new Error(`Could not load ${f.originalName}`);
+        const blob = await res.blob();
+        fd.append("files", new File([blob], f.originalName));
+      }
+      const imp = await fetch("/api/import", { method: "POST", body: fd });
+      if (!imp.ok) {
+        const body = await imp.json().catch(() => ({}));
+        throw new Error(body.error || "Update failed");
+      }
+      startTransition(() => router.refresh());
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = [...(e.target.files ?? [])];
     e.target.value = ""; // allow re-picking the same file
@@ -107,6 +143,23 @@ export function SectionSourceFiles({
             disabled={isWorking}
           />
         ))}
+
+        {/* Update — re-process the files already on record for this slide. */}
+        {files.length > 0 && (
+          <button
+            type="button"
+            onClick={onUpdate}
+            disabled={isWorking}
+            title="Re-process this slide's uploaded file(s) and refresh the figures"
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ink-800)]
+                       bg-white text-[var(--color-ink-800)] px-2.5 py-1 font-semibold
+                       hover:bg-[var(--color-ice-100)] active:scale-95 transition
+                       disabled:opacity-50 dark:bg-[var(--surface-1)]"
+          >
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+            Update
+          </button>
+        )}
 
         {/* Upload button — same /api/import pipeline as the Files page. */}
         <button
