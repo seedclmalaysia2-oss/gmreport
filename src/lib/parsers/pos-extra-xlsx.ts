@@ -168,14 +168,13 @@ export function parseBocConsignmentXlsx(buf: ArrayBuffer): number {
 export function parseStockBalancesById(buf: ArrayBuffer): Map<string, number> {
   const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
+  // collectStockRows transparently handles both the clean-header layout and
+  // the "Stock Closing Value Listing (Group by Brand)" layout, so the HQ/HQ2
+  // warehouse split keeps working whichever export format HQ provides.
   const byId = new Map<string, number>();
-  for (const r of rows) {
-    const id = String(r["Stock ID"] ?? "").trim();
-    if (!id) continue; // skips the trailing "Total" row (blank Stock ID)
-    const bal = Number(r["Balance Quantity"] ?? 0);
-    if (!bal) continue;
-    byId.set(id, (byId.get(id) ?? 0) + bal);
+  for (const s of collectStockRows(ws, false)) {
+    if (!s.stockId) continue; // skips the trailing "Total" row (blank Stock ID)
+    byId.set(s.stockId, (byId.get(s.stockId) ?? 0) + s.balance);
   }
   return byId;
 }
@@ -235,6 +234,92 @@ function mapMcuvVariant(desc: string): "BLUE" | "ORANGE" | "PEGA" | null {
 }
 
 /**
+ * Read the per-Stock-ID rows from an SCLM stock export, supporting BOTH
+ * export layouts seen in 2026:
+ *
+ *  A. "Stock Balance Quantity Listing" — a clean table with a header row
+ *     (Stock ID, Stock Description, Power, Balance Quantity, Expiry Date,
+ *     Total Cost). Used by the Jan–Mar exports.
+ *
+ *  B. "Stock Closing Value Listing (Group by Brand)" — a paginated, brand-
+ *     grouped report with no clean header row. Each page repeats a banner,
+ *     an "As At Date" row, a column-label row and "Brand" sub-headers; the
+ *     item rows carry col 1 = Stock ID, col 3 = Description, col 6 =
+ *     Quantity, col 8 = Value. This layout has NO expiry column.
+ *
+ * Both produce the same StockRow[] so the downstream aggregation is
+ * identical — only near-expiry analysis is unavailable for layout B.
+ */
+function collectStockRows(
+  ws: XLSX.WorkSheet,
+  split: boolean,
+  warehouseById?: Map<string, number>,
+): StockRow[] {
+  const num = (v: unknown): number => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    if (typeof v === "string") {
+      const n = Number(v.replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+  // Warehouse portion for a Stock ID (HQ + HQ2 combined), never exceeding the
+  // master balance so consignment can't go negative.
+  const wh = (stockId: string, bal: number): number =>
+    split ? Math.min(bal, warehouseById!.get(stockId) ?? 0) : 0;
+
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
+  const isGroupByBrand = grid.some(
+    row => Array.isArray(row) &&
+      row.some(c => typeof c === "string" && /stock\s+closing\s+value\s+listing/i.test(c)),
+  );
+
+  if (isGroupByBrand) {
+    // Layout B — walk every page, keep only the item rows.
+    const stock: StockRow[] = [];
+    for (const row of grid) {
+      if (!Array.isArray(row)) continue;
+      const stockId = typeof row[1] === "string" ? row[1].trim() : "";
+      // Skip the repeating page banners, column headers and Brand sub-rows.
+      if (/^(brand|stock id|grand total|as at date|suppress zero)$/i.test(stockId)) continue;
+      const description = typeof row[3] === "string" ? row[3].trim() : "";
+      const balance = num(row[6]);
+      if (!description || balance <= 0) continue;
+      stock.push({
+        stockId,
+        description,
+        balance,
+        expiryYm: null,            // no expiry column in this layout
+        totalCost: num(row[8]),    // the "Value" column
+        warehouseBalance: wh(stockId, balance),
+      });
+    }
+    return stock;
+  }
+
+  // Layout A — clean header table.
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
+  const stock: StockRow[] = [];
+  for (const r of rows) {
+    const desc = String(r["Stock Description"] ?? r["Description"] ?? "").trim();
+    if (!desc || /^total$/i.test(desc)) continue;
+    const bal = Number(r["Balance Quantity"] ?? 0);
+    if (!bal) continue;
+    const exp = r["Expiry Date"] == null ? null : String(r["Expiry Date"]).trim();
+    const stockId = String(r["Stock ID"] ?? "").trim();
+    stock.push({
+      stockId,
+      description: desc,
+      balance: bal,
+      expiryYm: exp,
+      totalCost: Number(r["Total Cost"] ?? 0),
+      warehouseBalance: wh(stockId, bal),
+    });
+  }
+  return stock;
+}
+
+/**
  * Parse the master SCLM stock list. Pass `warehouseById` (Stock ID → balance,
  * built from the HQ + HQ2 exports via parseStockBalancesById) to also split
  * each product into its warehouse (actual) vs consignment portion:
@@ -252,29 +337,8 @@ export function parseStockListXlsx(
 ): StockParseResult {
   const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
-
   const split = warehouseById != null;
-  const stock: StockRow[] = [];
-  for (const r of rows) {
-    const desc = String(r["Stock Description"] ?? r["Description"] ?? "").trim();
-    if (!desc || /^total$/i.test(desc)) continue;
-    const bal = Number(r["Balance Quantity"] ?? 0);
-    if (!bal) continue;
-    const exp = r["Expiry Date"] == null ? null : String(r["Expiry Date"]).trim();
-    const stockId = String(r["Stock ID"] ?? "").trim();
-    // warehouse portion for this exact Stock ID (HQ + HQ2 combined), never
-    // exceeding the master balance so consignment can't go negative.
-    const warehouseBalance = split ? Math.min(bal, warehouseById!.get(stockId) ?? 0) : 0;
-    stock.push({
-      stockId,
-      description: desc,
-      balance: bal,
-      expiryYm: exp,
-      totalCost: Number(r["Total Cost"] ?? 0),
-      warehouseBalance,
-    });
-  }
+  const stock: StockRow[] = collectStockRows(ws, split, warehouseById);
 
   const byCanonical: Record<string, number> = {};
   const byMcuv = { BLUE: 0, ORANGE: 0, PEGA: 0 };
