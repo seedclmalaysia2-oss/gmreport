@@ -57,17 +57,40 @@ export function ReportEditor({
   const [recalcState, setRecalcState] = useState<"idle" | "running" | "done" | "error">("idle");
   const [recalcMessage, setRecalcMessage] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Only the fields the user has actually changed are sent on save. Sending
+  // the whole report would let a stale snapshot (e.g. after an external file
+  // import populated a section) overwrite freshly-imported data with null.
+  const pendingPatch = useRef<Partial<MonthReport>>({});
+
+  // Flush the accumulated patch to the server immediately (used before
+  // Recalculate and when the user navigates away mid-debounce).
+  const flushSave = useCallback(async (id: string) => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    const patch = pendingPatch.current;
+    if (Object.keys(patch).length === 0) return;
+    pendingPatch.current = {};
+    const res = await fetch(`/api/months/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (res.ok) setSavedAt(new Date());
+  }, []);
 
   const update = useCallback((patch: Partial<MonthReport>) => {
     setReport(prev => {
       const next = { ...prev, ...patch };
+      // Accumulate only the changed fields — never the whole report.
+      pendingPatch.current = { ...pendingPatch.current, ...patch };
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
+        const body = pendingPatch.current;
+        pendingPatch.current = {};
         startSaving(async () => {
           const res = await fetch(`/api/months/${next.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(next),
+            body: JSON.stringify(body),
           });
           if (res.ok) setSavedAt(new Date());
         });
@@ -76,18 +99,20 @@ export function ReportEditor({
     });
   }, []);
 
+  // Adopt a fresh server snapshot — e.g. when the user returns from the Files
+  // page after an import and router.refresh() hands down new `initial` data.
+  // Skipped while the user has unsaved edits so we don't trample them.
+  useEffect(() => {
+    if (Object.keys(pendingPatch.current).length === 0) setReport(initial);
+  }, [initial]);
+
   const onRecalculate = useCallback(async () => {
-    // Flush any pending auto-save so the server sees the latest edits before recomputing.
-    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
     setRecalcState("running");
     setRecalcMessage(null);
     try {
-      const putRes = await fetch(`/api/months/${report.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(report),
-      });
-      if (!putRes.ok) throw new Error("Failed to save pending edits before recalculating");
+      // Flush only the user's pending edits — never the whole (possibly stale)
+      // report — so recompute runs against the true server state.
+      await flushSave(report.id);
 
       const res = await fetch(`/api/months/repair`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
@@ -113,7 +138,7 @@ export function ReportEditor({
       setRecalcMessage(err instanceof Error ? err.message : "Recalculate failed");
       setRecalcState("error");
     }
-  }, [report]);
+  }, [report.id, flushSave]);
 
   const progress = useMemo(() =>
     SECTION_KEYS.reduce((acc, k) => {
