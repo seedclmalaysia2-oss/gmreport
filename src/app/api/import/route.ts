@@ -6,6 +6,7 @@ import { grandTotalMyr, priorYearQtyLookup, salesByECP, salesByQuantity, salesBy
 import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { expireByMonth } from "@/lib/aggregation/from-writeoff";
 import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month-report";
+import { monthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { applyYear2025ToReport, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
@@ -43,6 +44,21 @@ const KIND_TO_SECTIONS: Record<FileKind, SectionKey[]> = {
   ref_2025:       ["salesAchievement", "salesByQuantity"],
   unknown:        [],
 };
+
+/**
+ * Classify an SCLM stock-list filename into its Slide 10 role. Assumes the
+ * name already matched the stock-file guard `/stock\s*list|sclm/i`.
+ *
+ * The `(?!\d)` guard stops a plain HQ file whose name carries a date year —
+ * e.g. "SCLM-Stock List HQ 2026.04.30.xlsx" — from reading as HQ2 ("HQ" +
+ * space + the "2" of "2026").
+ */
+function classifyStockFile(name: string): "hq" | "hq2" | "boc" | "master" {
+  if (/(stock\s*list|sclm).*hq\s*2(?!\d)|hq\s*2(?!\d).*(stock\s*list|sclm)/i.test(name)) return "hq2";
+  if (/(stock\s*list|sclm).*hq|hq.*(stock\s*list|sclm)/i.test(name)) return "hq";
+  if (/(stock\s*list|sclm).*boc|boc.*(stock\s*list|sclm)/i.test(name)) return "boc";
+  return "master";
+}
 
 type ImportResult = {
   year: number;
@@ -140,16 +156,17 @@ export async function POST(req: Request): Promise<Response> {
         pushFile("pos_master", f, buf);
       }
       else if (/ecp\s*list/i.test(name)) { ecpListBuf = buf; pushFile("pos_ecp_list", f, buf); }
-      // SCLM stock files. HQ2 must be tested before HQ ("HQ2" also contains
-      // "HQ"); BOC is the dedicated consignment listing; the plain master is
-      // whatever's left. All feed Slide 10.
-      // The `(?!\d)` guard stops a plain "HQ" file whose name carries a
-      // date year — e.g. "SCLM-Stock List HQ 2026.04.30.xlsx" — from being
-      // misread as HQ2 ("HQ" + space + "2" of "2026").
-      else if (/(stock\s*list|sclm).*hq\s*2(?!\d)|hq\s*2(?!\d).*(stock\s*list|sclm)/i.test(name)) { stockHq2XlsxBuf = buf; pushFile("pos_inventory", f, buf); }
-      else if (/(stock\s*list|sclm).*hq|hq.*(stock\s*list|sclm)/i.test(name)) { stockHqXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
-      else if (/(stock\s*list|sclm).*boc|boc.*(stock\s*list|sclm)/i.test(name)) { stockBocXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
-      else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
+      // SCLM stock files all feed Slide 10. A single guard detects a stock
+      // file; classifyStockFile() routes it to master / HQ / HQ2 / BOC.
+      else if (/stock\s*list|sclm/i.test(name)) {
+        switch (classifyStockFile(name)) {
+          case "hq2": stockHq2XlsxBuf = buf; break;
+          case "hq":  stockHqXlsxBuf  = buf; break;
+          case "boc": stockBocXlsxBuf = buf; break;
+          default:    stockXlsxBuf    = buf; break;
+        }
+        pushFile("pos_inventory", f, buf);
+      }
       else if (/sales.*analysis.*region|sales.*by.*region/i.test(name)) { regionXlsxBuf = buf; pushFile("pos_region", f, buf); }
       else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f, buf); }
       else if (/daily\s*sales/i.test(name)) { dailySalesXlsxBuf = buf; pushFile("pos_daily", f, buf); }
@@ -217,6 +234,30 @@ export async function POST(req: Request): Promise<Response> {
     }
     sections.salesByRegion = salesByRegionFromStates(stateTotals, priorRegionSales);
     sectionsTouched.add("salesByRegion");
+  }
+
+  // Slide 10 needs four companion files — master SCLM + HQ + HQ2 + BOC — but
+  // users upload them in separate batches. An import carrying only some of
+  // them would recompute inventory with the missing roles zeroed out, wiping
+  // a good warehouse/consignment split. So whenever ANY stock file is in this
+  // request, top up the roles NOT present from the month's stored RawFile
+  // copies — re-importing just the master then still yields the full split.
+  if (stockXlsxBuf || stockHqXlsxBuf || stockHq2XlsxBuf || stockBocXlsxBuf) {
+    const storedStock = await prisma.rawFile.findMany({
+      where: { monthReportId: monthId(year, month), kind: "pos_inventory", deletedAt: null },
+      orderBy: { createdAt: "desc" }, // newest stored copy of each role wins
+      select: { originalName: true, bytes: true },
+    });
+    for (const row of storedStock) {
+      if (!row.bytes) continue;
+      const ab = new Uint8Array(row.bytes).buffer as ArrayBuffer;
+      switch (classifyStockFile(row.originalName)) {
+        case "hq2":    if (!stockHq2XlsxBuf) stockHq2XlsxBuf = ab; break;
+        case "hq":     if (!stockHqXlsxBuf)  stockHqXlsxBuf  = ab; break;
+        case "boc":    if (!stockBocXlsxBuf) stockBocXlsxBuf = ab; break;
+        default:       if (!stockXlsxBuf)    stockXlsxBuf    = ab; break;
+      }
+    }
   }
 
   if (stockXlsxBuf) {
