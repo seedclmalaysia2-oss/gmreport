@@ -143,7 +143,10 @@ export async function POST(req: Request): Promise<Response> {
       // SCLM stock files. HQ2 must be tested before HQ ("HQ2" also contains
       // "HQ"); BOC is the dedicated consignment listing; the plain master is
       // whatever's left. All feed Slide 10.
-      else if (/(stock\s*list|sclm).*hq\s*2|hq\s*2.*(stock\s*list|sclm)/i.test(name)) { stockHq2XlsxBuf = buf; pushFile("pos_inventory", f, buf); }
+      // The `(?!\d)` guard stops a plain "HQ" file whose name carries a
+      // date year — e.g. "SCLM-Stock List HQ 2026.04.30.xlsx" — from being
+      // misread as HQ2 ("HQ" + space + "2" of "2026").
+      else if (/(stock\s*list|sclm).*hq\s*2(?!\d)|hq\s*2(?!\d).*(stock\s*list|sclm)/i.test(name)) { stockHq2XlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/(stock\s*list|sclm).*hq|hq.*(stock\s*list|sclm)/i.test(name)) { stockHqXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/(stock\s*list|sclm).*boc|boc.*(stock\s*list|sclm)/i.test(name)) { stockBocXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
       else if (/stock\s*list|sclm/i.test(name)) { stockXlsxBuf = buf; pushFile("pos_inventory", f, buf); }
