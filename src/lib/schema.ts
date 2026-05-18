@@ -124,6 +124,7 @@ export const ProductRegistrationRowZ = z.object({
 });
 export const ProductRegistrationZ = z.object({
   rows: z.array(ProductRegistrationRowZ),
+  commentary: z.string().default(""),
 });
 export type ProductRegistration = z.infer<typeof ProductRegistrationZ>;
 

@@ -763,6 +763,8 @@ function SlideSalesByRegion({ report, P, scale }: { report: MonthReport; P: Pale
 function SlideProductRegistration({ report, P, scale }: { report: MonthReport; P: Palette; scale: number }) {
   const rows = report.productRegistration?.rows ?? [];
   const headers = ["Product","Class","Start","Doc OS","CAB","MDA Sub","MDA Proc","Completion","Approval No"];
+  const cmt = report.productRegistration?.commentary || "";
+  const hasCmt = cmt.replace(/<[^>]*>/g, "").trim().length > 0;
   return (
     <>
       <SlideTitle palette={P} scale={scale} text="9. Product Registration in Progress" />
@@ -789,6 +791,17 @@ function SlideProductRegistration({ report, P, scale }: { report: MonthReport; P
           </tbody>
         </table>
       </div>
+      {hasCmt && (
+        <div
+          style={{
+            position: "absolute", left: px(0.4, scale), bottom: px(0.3, scale),
+            width: px(12.6, scale), fontSize: fs(9, scale), fontStyle: "italic",
+            color: P.muted, lineHeight: 1.4,
+          }}
+          // Rich text from our own editor — trusted source.
+          dangerouslySetInnerHTML={{ __html: cmt }}
+        />
+      )}
     </>
   );
 }

@@ -642,7 +642,15 @@ function slideProductRegistration(pptx: PptxGenJS, input: PptxInput) {
       { text: r.mdaApprovalNo, options: { ...zebra } },
     ]);
   });
-  s.addTable(rows, { x: 0.36, y: 1.20, w: 12.62, h: 5.5, fontFace: FONT, fontSize: 13, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
+  s.addTable(rows, { x: 0.36, y: 1.20, w: 12.62, h: 5.2, fontFace: FONT, fontSize: 13, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
+
+  // Commentary line below the table — only when the user has written one.
+  const cmt = (last.productRegistration?.commentary ?? "").replace(/<[^>]*>/g, "").trim();
+  if (cmt) {
+    s.addText(htmlToPptxRuns(last.productRegistration?.commentary, 11), {
+      x: 0.36, y: 6.55, w: 12.62, h: 0.78, fontFace: FONT, color: C.muted, italic: true, valign: "top", wrap: true,
+    });
+  }
 }
 
 function slideInventory(pptx: PptxGenJS, input: PptxInput) {

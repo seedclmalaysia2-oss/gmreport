@@ -502,7 +502,15 @@ function productRegistration(pptx: PptxGenJS, input: PptxInput) {
       { text: r.mdaApprovalNo, options: { ...zebra, color: P.ink } },
     ]);
   });
-  s.addTable(rows, { x: 0.6, y: 1.5, w: 12.15, h: 5.5, fontFace: BODY_FONT, fontSize: 10, border: { type: "solid", pt: 0.5, color: P.ice } });
+  s.addTable(rows, { x: 0.6, y: 1.5, w: 12.15, h: 5.2, fontFace: BODY_FONT, fontSize: 10, border: { type: "solid", pt: 0.5, color: P.ice } });
+
+  // Commentary line below the table — only when the user has written one.
+  const cmt = (input.months[input.months.length - 1].productRegistration?.commentary ?? "").replace(/<[^>]*>/g, "").trim();
+  if (cmt) {
+    s.addText(htmlToPptxRuns(input.months[input.months.length - 1].productRegistration?.commentary, 11), {
+      x: 0.6, y: 6.8, w: 12.15, h: 0.6, fontFace: BODY_FONT, color: P.ink3, italic: true, valign: "top", wrap: true,
+    });
+  }
 }
 
 function inventory(pptx: PptxGenJS, input: PptxInput) {

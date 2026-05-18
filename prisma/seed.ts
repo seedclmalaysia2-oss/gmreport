@@ -234,6 +234,7 @@ const marchReport: Omit<MonthReport, "id" | "presentDate"> = {
       { product: "SEED Correct Clean (Progent)", class: "C", startDate: "1/6/2025", docOverseas: "Revised (24/10/25)", cabAssessment: "Submitted", mdaSubmission: "Work In Progress", mdaProcess: "", completionDate: "", mdaApprovalNo: "", category: "new", notes: "" },
       { product: "DISOP HIDRO HEALTH", class: "C", startDate: "1/11/2025", docOverseas: "Disop delay", cabAssessment: "Waiting doc", mdaSubmission: "", mdaProcess: "", completionDate: "Expire 12 Jun 2026", mdaApprovalNo: "", category: "renewal", notes: "" },
     ],
+    commentary: "",
   },
   inventory: marchInventory,
   expireWriteOff: marchExpire,

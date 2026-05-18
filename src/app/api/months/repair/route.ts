@@ -185,6 +185,7 @@ function carryForwardSections(curr: MonthReport, prior: MonthReport | undefined)
   if (!curr.productRegistration && prior.productRegistration) {
     next.productRegistration = {
       rows: prior.productRegistration.rows.map(r => ({ ...r })),
+      commentary: prior.productRegistration.commentary ?? "",
     };
     notes.push("carried forward: product registration rows");
   }
