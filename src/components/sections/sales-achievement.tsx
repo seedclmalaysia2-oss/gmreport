@@ -244,6 +244,22 @@ function KpiCards({ report, kpi, setKpi }: {
   kpi: KPINote;
   setKpi: (patch: Partial<KPINote>) => void;
 }) {
+  // Auto values from the table for the current month — same ratios as the
+  // ACC % / YoY % rows. The KPI cards fall back to these when the user hasn't
+  // typed an override (mirrors the "P/L JPY computed if blank" card).
+  const SA = report.salesAchievement;
+  const mi = report.month - 1;
+  const accAuto =
+    SA && SA.actual2026[mi] != null && SA.target2026[mi]
+      ? SA.actual2026[mi]! / SA.target2026[mi]!
+      : null;
+  const yoyAuto =
+    SA && SA.actual2026[mi] != null && SA.actual2025[mi]
+      ? SA.actual2026[mi]! / SA.actual2025[mi]!
+      : null;
+  const achievement = kpi.achievementPct ?? accAuto;
+  const yoy = kpi.yoyPct ?? yoyAuto;
+
   return (
     <div className="mt-7">
       <div className="flex items-baseline justify-between mb-3">
@@ -257,10 +273,10 @@ function KpiCards({ report, kpi, setKpi }: {
           icon={<TrendingUp size={15} />}
           title="Achievement"
           tone="accent"
-          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">(0.00–2.00)</span>}
+          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">auto = ACC %</span>}
         >
           <NumberCell
-            value={kpi.achievementPct}
+            value={achievement}
             onChange={n => setKpi({ achievementPct: n })}
             decimals={2}
           />
@@ -269,9 +285,9 @@ function KpiCards({ report, kpi, setKpi }: {
           icon={<CalendarClock size={15} />}
           title="Year on Year"
           tone="accent"
-          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">(0.00–2.00)</span>}
+          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">auto = YoY %</span>}
         >
-          <NumberCell value={kpi.yoyPct} onChange={n => setKpi({ yoyPct: n })} decimals={2} />
+          <NumberCell value={yoy} onChange={n => setKpi({ yoyPct: n })} decimals={2} />
         </KpiCard>
         <KpiCard icon={<Users size={15} />} title="New stores traded">
           <NumberCell value={kpi.newStores} onChange={n => setKpi({ newStores: n })} />
@@ -294,10 +310,10 @@ function KpiCards({ report, kpi, setKpi }: {
           />
         </KpiCard>
       </div>
-      {kpi.achievementPct != null && kpi.yoyPct != null && (
+      {achievement != null && yoy != null && (
         <div className="mt-3 rounded-lg border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] px-3 py-2 text-[13px] text-[var(--color-ink-900)]">
           <span className="font-medium">{MONTH_NAMES[report.month - 1]} {report.year}:</span>{" "}
-          achievement <strong>{fmtPct(kpi.achievementPct, 0)}</strong> · YoY <strong>{fmtPct(kpi.yoyPct, 0)}</strong>
+          achievement <strong>{fmtPct(achievement, 0)}</strong> · YoY <strong>{fmtPct(yoy, 0)}</strong>
           {kpi.plMyr != null && <> · P/L <strong>RM {fmtMYR(kpi.plMyr, 0)}</strong></>}
         </div>
       )}
