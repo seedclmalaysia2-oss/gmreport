@@ -14,31 +14,46 @@ const empty = (): SalesAchievement => ({
   kpi: [],
 });
 
-type RowDef = {
-  key: keyof Omit<SalesAchievement, "kpi">;
-  label: string;
-  /** 2026 rows are highlighted. */
-  year: 2026 | 2025;
-};
+type ValueKey = keyof Omit<SalesAchievement, "kpi">;
 
-const ROWS: RowDef[] = [
-  { key: "target2026",    label: "Sales Target",  year: 2026 },
-  { key: "actual2026",    label: "Sales Result",  year: 2026 },
-  { key: "actual2025",    label: "Sales Result",  year: 2025 },
-  { key: "netIncome2026", label: "Net Income",    year: 2026 },
-  { key: "netIncome2025", label: "Net Income",    year: 2025 },
+// Editable money rows + read-only computed % rows, in slide order.
+type DataRow = { kind: "data"; key: ValueKey; label: string; year: 2026 | 2025 };
+type CalcRow = { kind: "calc"; label: string; numer: ValueKey; denom: ValueKey };
+type DisplayRow = DataRow | CalcRow;
+
+const ROWS: DisplayRow[] = [
+  { kind: "data", key: "target2026",    label: "Sales Target", year: 2026 },
+  { kind: "data", key: "actual2026",    label: "Sales Result", year: 2026 },
+  // ACC % = Sales Result 2026 ÷ Sales Target 2026
+  { kind: "calc", label: "ACC %", numer: "actual2026", denom: "target2026" },
+  { kind: "data", key: "actual2025",    label: "Sales Result", year: 2025 },
+  // YoY % = Sales Result 2026 ÷ Sales Result 2025
+  { kind: "calc", label: "YoY %", numer: "actual2026", denom: "actual2025" },
+  { kind: "data", key: "netIncome2026", label: "Net Income",   year: 2026 },
+  { kind: "data", key: "netIncome2025", label: "Net Income",   year: 2025 },
 ];
 
 export function SectionSalesAchievement({ report, update }: SectionProps) {
   const SA = report.salesAchievement ?? empty();
   const set = (patch: Partial<SalesAchievement>) => update({ salesAchievement: { ...SA, ...patch } });
 
-  const setCell = (key: RowDef["key"], i: number, n: number | null) => {
+  const setCell = (key: ValueKey, i: number, n: number | null) => {
     const arr = [...SA[key]]; arr[i] = n;
     set({ [key]: arr } as Partial<SalesAchievement>);
   };
 
-  const rowTotal = (key: RowDef["key"]) => SA[key].reduce<number>((s, v) => s + (v ?? 0), 0);
+  const rowTotal = (key: ValueKey) => SA[key].reduce<number>((s, v) => s + (v ?? 0), 0);
+  // Per-month ratio for a computed row (e.g. ACC %, YoY %) — null when the
+  // denominator is missing/zero so the cell shows "—" instead of Infinity.
+  const ratioAt = (numer: ValueKey, denom: ValueKey, i: number): number | null => {
+    const n = SA[numer][i], d = SA[denom][i];
+    if (n == null || d == null || d === 0) return null;
+    return n / d;
+  };
+  const ratioTotal = (numer: ValueKey, denom: ValueKey): number | null => {
+    const n = rowTotal(numer), d = rowTotal(denom);
+    return d === 0 ? null : n / d;
+  };
   const monthIdx = report.month - 1;
 
   return (
@@ -82,11 +97,61 @@ export function SectionSalesAchievement({ report, update }: SectionProps) {
           </thead>
           <tbody>
             {ROWS.map((r, rowIdx) => {
+              const isLast = rowIdx === ROWS.length - 1;
+
+              // ---- Computed % row (ACC %, YoY %) — read-only, auto-filled ----
+              if (r.kind === "calc") {
+                const total = ratioTotal(r.numer, r.denom);
+                return (
+                  <tr key={r.label} className="group transition-colors hover:bg-[var(--color-ice-100)] bg-[var(--color-accent-2)]/15">
+                    <th
+                      scope="row"
+                      className={cn(
+                        "sticky left-0 z-10 text-left px-4 py-2 font-medium whitespace-nowrap border-r",
+                        "border-[var(--color-ice-200)] group-hover:bg-[var(--color-ice-100)] bg-[var(--color-accent-2)]/15",
+                        !isLast && "border-b border-[var(--color-ice-100)]",
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span aria-hidden className="inline-block h-5 w-[3px] rounded-sm bg-[var(--color-accent)]" />
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-[13px] font-semibold text-[var(--color-ink-900)]">{r.label}</span>
+                          <span className="text-[10px] uppercase tracking-widest text-[var(--color-ink-600)]">auto-computed</span>
+                        </div>
+                      </div>
+                    </th>
+                    {MONTH_NAMES.map((_, i) => {
+                      const v = ratioAt(r.numer, r.denom, i);
+                      return (
+                        <td
+                          key={i}
+                          className={cn(
+                            "px-2 py-1.5 text-right tabular-nums border-r border-[var(--color-ice-100)] last:border-r-0",
+                            !isLast && "border-b border-[var(--color-ice-100)]",
+                            i === monthIdx && "bg-[var(--color-ice-100)]/60",
+                            v != null && v < 1 ? "text-red-600" : "text-[var(--color-ink-900)]",
+                          )}
+                        >
+                          {v == null ? <span className="opacity-30">—</span> : fmtPct(v, 0)}
+                        </td>
+                      );
+                    })}
+                    <td
+                      className={cn(
+                        "px-3 py-1.5 text-right font-semibold tabular-nums text-[var(--color-ink-900)] bg-[var(--color-ice-100)]",
+                        !isLast && "border-b border-[var(--color-ice-100)]",
+                      )}
+                    >
+                      {total == null ? "—" : fmtPct(total, 0)}
+                    </td>
+                  </tr>
+                );
+              }
+
+              // ---- Editable money row ----
               const is2026 = r.year === 2026;
               const bgClass = is2026 ? "bg-[var(--color-ice-50)]" : "bg-white dark:bg-[var(--surface-1)]";
-              const stickyBg = is2026 ? "bg-[var(--color-ice-50)]" : "bg-white dark:bg-[var(--surface-1)]";
               const total = rowTotal(r.key);
-              const isLast = rowIdx === ROWS.length - 1;
               return (
                 <tr key={r.key} className={cn("group transition-colors hover:bg-[var(--color-ice-100)]", bgClass)}>
                   {/* Sticky row label */}
@@ -95,7 +160,7 @@ export function SectionSalesAchievement({ report, update }: SectionProps) {
                     className={cn(
                       "sticky left-0 z-10 text-left px-4 py-2.5 font-medium whitespace-nowrap border-r",
                       "border-[var(--color-ice-200)] group-hover:bg-[var(--color-ice-100)]",
-                      stickyBg,
+                      bgClass,
                       !isLast && "border-b border-[var(--color-ice-100)]",
                     )}
                   >
