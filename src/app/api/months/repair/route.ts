@@ -117,9 +117,13 @@ function recomputeInventoryTotals(curr: Inventory | null): { value: Inventory | 
  * Rules:
  *   - Full-year fields (target2026, actual2025, netIncome2025): pull
  *     every null slot from the prior month's healed snapshot.
- *   - Accruing fields (actual2026, netIncome2026): pull every null slot
- *     up to and including the current month index. Future months stay
- *     null — they haven't been reported yet.
+ *   - Accruing fields (actual2026, netIncome2026): the prior month's
+ *     healed chain is authoritative for every *past* month — each slot
+ *     there is that month's own POS figure. We take it even when this
+ *     report already carries a value, so a stale number (e.g. a
+ *     pre-Sales-adj total carried forward before the parser was fixed)
+ *     is refreshed instead of frozen. The current month's own slot stays
+ *     authoritative; future months stay untouched (not yet reported).
  *   - KPI commentary: copy from prior month only if the current month
  *     has no entries.
  *
@@ -148,11 +152,18 @@ function mergeSalesAchievementChain(
   const mergeFull = (cu: (number | null)[], pr: (number | null)[]): (number | null)[] =>
     Array.from({ length: 12 }, (_, i) => (cu[i] != null ? cu[i] : (pr[i] ?? null)));
 
-  // Accruing merge: only up to monthIdx (don't leak future-month forecasts).
+  // Accruing merge.
+  //   - Future months (i > monthIdx): keep current — nothing reported yet.
+  //   - Current month (i === monthIdx): this report's own POS import is
+  //     authoritative; fall back to prior only if the slot is still empty.
+  //   - Past months (i < monthIdx): the prior month's healed chain wins —
+  //     it holds each month's own authoritative figure, so a stale value
+  //     carried forward before a parser fix gets corrected, not frozen.
   const mergeAccrual = (cu: (number | null)[], pr: (number | null)[]): (number | null)[] =>
     Array.from({ length: 12 }, (_, i) => {
       if (i > monthIdx) return cu[i] ?? null;
-      return cu[i] != null ? cu[i] : (pr[i] ?? null);
+      if (i === monthIdx) return cu[i] != null ? cu[i] : (pr[i] ?? null);
+      return pr[i] != null ? pr[i] : (cu[i] ?? null);
     });
 
   const next: SalesAchievement = {
@@ -323,7 +334,7 @@ export async function POST() {
     let filled: MonthReport = m;
     if (chain.changed) {
       filled = { ...filled, salesAchievement: chain.value };
-      notes.push("sales-achievement: merged null slots from prior month chain");
+      notes.push("sales-achievement: re-synced month chain from prior month (authoritative past-month figures)");
       changed = true;
     }
 
