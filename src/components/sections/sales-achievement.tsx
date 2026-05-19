@@ -244,21 +244,20 @@ function KpiCards({ report, kpi, setKpi }: {
   kpi: KPINote;
   setKpi: (patch: Partial<KPINote>) => void;
 }) {
-  // Auto values from the table for the current month — same ratios as the
-  // ACC % / YoY % rows. The KPI cards fall back to these when the user hasn't
-  // typed an override (mirrors the "P/L JPY computed if blank" card).
+  // Achievement and Year-on-Year mirror the ACC % / YoY % table rows exactly:
+  // auto-computed from this month's figures, shown as a whole-number percent.
+  // They are not separately editable, so the card, the table and the exported
+  // deck always show the identical percentage — no decimals, no scale drift.
   const SA = report.salesAchievement;
   const mi = report.month - 1;
-  const accAuto =
+  const achievement =
     SA && SA.actual2026[mi] != null && SA.target2026[mi]
       ? SA.actual2026[mi]! / SA.target2026[mi]!
       : null;
-  const yoyAuto =
+  const yoy =
     SA && SA.actual2026[mi] != null && SA.actual2025[mi]
       ? SA.actual2026[mi]! / SA.actual2025[mi]!
       : null;
-  const achievement = kpi.achievementPct ?? accAuto;
-  const yoy = kpi.yoyPct ?? yoyAuto;
 
   return (
     <div className="mt-7">
@@ -273,21 +272,21 @@ function KpiCards({ report, kpi, setKpi }: {
           icon={<TrendingUp size={15} />}
           title="Achievement"
           tone="accent"
-          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">auto = ACC %</span>}
+          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">= ACC %</span>}
         >
-          <NumberCell
-            value={achievement}
-            onChange={n => setKpi({ achievementPct: n })}
-            decimals={2}
-          />
+          <div className="px-1.5 py-1 text-lg font-semibold tabular-nums text-[var(--color-ink-900)]">
+            {achievement == null ? "—" : fmtPct(achievement, 0)}
+          </div>
         </KpiCard>
         <KpiCard
           icon={<CalendarClock size={15} />}
           title="Year on Year"
           tone="accent"
-          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">auto = YoY %</span>}
+          trailing={<span className="text-[11px] text-[var(--color-ink-600)]">= YoY %</span>}
         >
-          <NumberCell value={yoy} onChange={n => setKpi({ yoyPct: n })} decimals={2} />
+          <div className="px-1.5 py-1 text-lg font-semibold tabular-nums text-[var(--color-ink-900)]">
+            {yoy == null ? "—" : fmtPct(yoy, 0)}
+          </div>
         </KpiCard>
         <KpiCard icon={<Users size={15} />} title="New stores traded">
           <NumberCell value={kpi.newStores} onChange={n => setKpi({ newStores: n })} />

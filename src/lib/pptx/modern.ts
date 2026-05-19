@@ -97,7 +97,6 @@ function salesAchievement(pptx: PptxGenJS, input: PptxInput) {
   sectionHeader(s, "01 • SALES ACHIEVEMENT", titleFor(input.months));
 
   const last = input.months[input.months.length - 1];
-  const kpi = last.salesAchievement?.kpi.find(k => k.month === last.month);
   const SA = last.salesAchievement;
 
   // Big stat callouts across the top
@@ -113,10 +112,14 @@ function salesAchievement(pptx: PptxGenJS, input: PptxInput) {
   const actual = SA?.actual2026[idx] ?? 0;
   const prior = SA?.actual2025[idx] ?? 0;
   const ni = SA?.netIncome2026[idx] ?? 0;
+  // Achievement / YoY are derived straight from the figures so they always
+  // match the ACC % / YoY % table rows — no separately stored percentage.
+  const achievementRate = target ? actual / target : null;
+  const yoyRate = prior ? actual / prior : null;
 
   callout(0.60, "TARGET",    `RM ${fmtMYR(target, 0)}`, `${monthShort(last.month)} ${last.year}`, P.ice);
-  callout(3.70, "ACTUAL",    `RM ${fmtMYR(actual, 0)}`, `${fmtPct(kpi?.achievementPct, 0)} of target`, P.accent);
-  callout(6.80, "YoY",       `${fmtPct(kpi?.yoyPct, 0)}`, `vs RM ${fmtMYR(prior, 0)} in ${last.year - 1}`, P.accent2);
+  callout(3.70, "ACTUAL",    `RM ${fmtMYR(actual, 0)}`, `${fmtPct(achievementRate, 0)} of target`, P.accent);
+  callout(6.80, "YoY",       `${fmtPct(yoyRate, 0)}`, `vs RM ${fmtMYR(prior, 0)} in ${last.year - 1}`, P.accent2);
   callout(9.90, "NET INCOME",`RM ${fmtMYR(ni, 0)}`, `≈ ${((ni * last.fxRate) / 1_000_000).toFixed(2)} mil JPY`, P.ink2);
 
   // YTD mini-table underneath

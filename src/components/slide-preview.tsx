@@ -257,6 +257,11 @@ function SlideSalesAchievement({ report, P, scale, template }: { report: MonthRe
     { label: "Net Income 2025", arr: SA.netIncome2025 },
   ] : [];
   const kpi = SA?.kpi.find(k => k.month === report.month);
+  // Achievement / YoY derived from the figures so they match the ACC % / YoY %
+  // table rows exactly — a whole-number percent, no separately stored value.
+  const mi = report.month - 1;
+  const accRate = SA && SA.target2026[mi] && SA.actual2026[mi] != null ? SA.actual2026[mi]! / SA.target2026[mi]! : null;
+  const yoyRate = SA && SA.actual2025[mi] && SA.actual2026[mi] != null ? SA.actual2026[mi]! / SA.actual2025[mi]! : null;
   return (
     <>
       <SlideTitle palette={P} scale={scale} text={`1. Sales Achievement (${MONTH_NAMES[report.month - 1]} ${report.year})`} size={20} />
@@ -294,8 +299,8 @@ function SlideSalesAchievement({ report, P, scale, template }: { report: MonthRe
           width: px(12.7, scale), fontSize: fs(11, scale), color: P.text, lineHeight: 1.45,
         }}>
           <ul style={{ paddingLeft: px(0.22, scale), margin: 0 }}>
-            <li>Monthly achievement rate of {fmtPct(kpi.achievementPct)}</li>
-            <li>YoY achievement rate for same month {fmtPct(kpi.yoyPct)}</li>
+            <li>Monthly achievement rate of {fmtPct(accRate, 0)}</li>
+            <li>YoY achievement rate for same month {fmtPct(yoyRate, 0)}</li>
             <li>{kpi.newStores ?? 0} newly developed stores, {MONTH_NAMES[report.month - 1]} {report.year} = {kpi.ecpThis ?? 0} ECP vs {MONTH_NAMES[report.month - 1]} {report.year - 1} = {kpi.ecpPrior ?? 0} ECP</li>
             <li>{MONTH_NAMES[report.month - 1]} P/L: RM {fmtMYR(kpi.plMyr, 0)} (≈ {(((kpi.plJpy ?? (kpi.plMyr ?? 0) * report.fxRate)) / 1_000_000).toFixed(2)} mil yen)</li>
           </ul>

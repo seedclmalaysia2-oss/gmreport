@@ -150,9 +150,14 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
   if (months.length === 1) {
     const kpi = lastMonth.salesAchievement?.kpi.find(k => k.month === lastMonth.month);
     if (kpi) {
+      // Achievement / YoY derived from the figures so they match the table.
+      const lsa = lastMonth.salesAchievement;
+      const li = lastMonth.month - 1;
+      const accRate = lsa && lsa.target2026[li] && lsa.actual2026[li] != null ? lsa.actual2026[li]! / lsa.target2026[li]! : null;
+      const yoyRate = lsa && lsa.actual2025[li] && lsa.actual2026[li] != null ? lsa.actual2026[li]! / lsa.actual2025[li]! : null;
       const lines = [
-        `Monthly achievement rate of ${fmtPct(kpi.achievementPct)}`,
-        `Year on Year achievement rate for same month ${fmtPct(kpi.yoyPct)}`,
+        `Monthly achievement rate of ${fmtPct(accRate)}`,
+        `Year on Year achievement rate for same month ${fmtPct(yoyRate)}`,
         `${kpi.newStores ?? 0} newly developed stores, traded in ${monthShort(lastMonth.month)} ${lastMonth.year} = ${kpi.ecpThis ?? 0} ECP vs ${monthShort(lastMonth.month)} ${lastMonth.year - 1} = ${kpi.ecpPrior ?? 0} ECP`,
         `${monthShort(lastMonth.month)} P/L: RM ${fmtMYR(kpi.plMyr, 0)} (approximately ${((kpi.plJpy ?? 0) / 1_000_000).toFixed(2)} mil yen)`,
         ...kpi.extraLines,
@@ -170,9 +175,13 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
         x, y: 5.95, w: colW, h: 0.35, fontFace: FONT, fontSize: 18, bold: true, color: C.header,
       });
       if (!kpi) return;
+      const msa = m.salesAchievement;
+      const mIdx = m.month - 1;
+      const accRate = msa && msa.target2026[mIdx] && msa.actual2026[mIdx] != null ? msa.actual2026[mIdx]! / msa.target2026[mIdx]! : null;
+      const yoyRate = msa && msa.actual2025[mIdx] && msa.actual2026[mIdx] != null ? msa.actual2026[mIdx]! / msa.actual2025[mIdx]! : null;
       const lines = [
-        `Monthly achievement rate of ${fmtPct(kpi.achievementPct)}`,
-        `YoY achievement rate for same month ${fmtPct(kpi.yoyPct)}`,
+        `Monthly achievement rate of ${fmtPct(accRate)}`,
+        `YoY achievement rate for same month ${fmtPct(yoyRate)}`,
         `${kpi.newStores ?? 0} new stores traded in ${monthShort(m.month)} ${m.year} = ${kpi.ecpThis ?? 0} ECP vs ${monthShort(m.month)} ${m.year - 1} = ${kpi.ecpPrior ?? 0} ECP`,
         `${monthShort(m.month)} P/L: RM ${fmtMYR(kpi.plMyr, 0)} (approx ${((kpi.plJpy ?? 0) / 1_000_000).toFixed(2)} mil yen)`,
       ];
