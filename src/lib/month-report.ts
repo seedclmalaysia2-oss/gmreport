@@ -7,7 +7,7 @@ import {
   emptyMonthReport,
 } from "./schema";
 import { monthId } from "./utils";
-import { LEGACY_REGION_REMAP } from "./catalog/mappings";
+import { LEGACY_REGION_REMAP, LEGACY_ECP_REMAP } from "./catalog/mappings";
 
 type DbRow = Awaited<ReturnType<typeof prisma.monthReport.findUnique>>;
 
@@ -24,6 +24,26 @@ function migrateSalesByRegion(raw: unknown): unknown {
     return remapped ? { ...row, region: remapped } : row;
   });
   return { ...sbr, rows: nextRows };
+}
+
+type LooseEcpRow = { category?: unknown } & Record<string, unknown>;
+type LooseSalesByECP = { rows?: unknown; commentary?: unknown };
+
+/**
+ * Remap legacy ECP category labels (e.g. "Overseas" → "Overseas / Cash
+ * Sales") on read, so a report saved before the rename still satisfies the
+ * Zod enum when it's written back. Mirrors migrateSalesByRegion.
+ */
+function migrateSalesByECP(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const sbe = raw as LooseSalesByECP;
+  if (!Array.isArray(sbe.rows)) return raw;
+  const nextRows = (sbe.rows as LooseEcpRow[]).map(row => {
+    const current = typeof row.category === "string" ? row.category : "";
+    const remapped = LEGACY_ECP_REMAP[current];
+    return remapped ? { ...row, category: remapped } : row;
+  });
+  return { ...sbe, rows: nextRows };
 }
 
 function rowToReport(row: NonNullable<DbRow>): MonthReport {
@@ -44,7 +64,7 @@ function rowToReport(row: NonNullable<DbRow>): MonthReport {
     dailySales:          parse(row.dailySales),
     salesByQuantity:     parse(row.salesByQuantity),
     topProducts:         parse(row.topProducts),
-    salesByECP:          parse(row.salesByECP),
+    salesByECP:          migrateSalesByECP(parse(row.salesByECP)) as MonthReport["salesByECP"],
     salesByRegion:       migrateSalesByRegion(parse(row.salesByRegion)) as MonthReport["salesByRegion"],
     productRegistration: parse(row.productRegistration),
     inventory:           parse(row.inventory),

@@ -4,7 +4,10 @@ export const ECP_CATEGORIES = [
   "Key Chain Store (KCS)",
   "Key Individual Outlet (KIO)",
   "Hospital & University Clinic",
-  "Overseas",
+  // Catch-all bucket: overseas/export accounts AND walk-in CASH SALES rows
+  // (account type "CASH"). Previously cash sales fell through to SIO, which
+  // hid them; they belong in this dedicated line.
+  "Overseas / Cash Sales",
 ] as const;
 export type ECPCategory = (typeof ECP_CATEGORIES)[number];
 
@@ -14,9 +17,16 @@ export function classifyECP(accountType: string | null | undefined): ECPCategory
   if (t.startsWith("KCS")) return "Key Chain Store (KCS)";
   if (t.startsWith("KIO")) return "Key Individual Outlet (KIO)";
   if (t.startsWith("HOS") || t.startsWith("UNI") || t.startsWith("SPE")) return "Hospital & University Clinic";
-  if (t.startsWith("OVE") || t.startsWith("EXPORT") || t === "") return "Overseas";
+  // CASH = walk-in cash sales; OVE/EXPORT = overseas accounts; blank = unknown.
+  if (t.startsWith("CASH") || t.startsWith("OVE") || t.startsWith("EXPORT") || t === "") return "Overseas / Cash Sales";
   return "Single Independent Outlet (SIO)";
 }
+
+// Old ECP category labels -> current. Applied on read so a report saved
+// before "Overseas" was renamed still validates against the Zod enum.
+export const LEGACY_ECP_REMAP: Record<string, ECPCategory> = {
+  "Overseas": "Overseas / Cash Sales",
+};
 
 // State -> Region (Slide 10)
 export const REGIONS = [
