@@ -118,7 +118,7 @@ export function NumberCell({
   value, onChange, placeholder, suffix, className,
   decimals = 0, variant = "card",
   align = "right", size = "sm",
-  bold = false,
+  bold = false, readOnly = false,
 }: {
   value: number | null | undefined;
   onChange: (n: number | null) => void;
@@ -135,6 +135,9 @@ export function NumberCell({
   size?: "xs" | "sm" | "base" | "lg" | "xl";
   /** Render in semibold. */
   bold?: boolean;
+  /** When true the input is locked — value still shows, but it can't be
+   *  edited or focused. Used by section-level Edit/Save toggles. */
+  readOnly?: boolean;
 }) {
   const factor = Math.pow(10, decimals);
   const round = (n: number) => Math.round(n * factor) / factor;
@@ -185,13 +188,18 @@ export function NumberCell({
         inputMode={decimals === 0 ? "numeric" : "decimal"}
         value={display}
         size={htmlSize}
-        placeholder={placeholder}
+        placeholder={readOnly ? "" : placeholder}
+        readOnly={readOnly}
+        // tabIndex -1 when locked so keyboard tabbing skips locked cells.
+        tabIndex={readOnly ? -1 : undefined}
         onFocus={() => {
+          if (readOnly) return;
           setFocused(true);
           setDraft(value == null ? "" : String(round(value)));
         }}
         onBlur={() => setFocused(false)}
         onChange={e => {
+          if (readOnly) return;
           // Keep digits, dots and a single leading minus (so a negative such
           // as "-148327" can be typed in full). The minus is forced to the
           // front; any others are dropped.
@@ -217,6 +225,9 @@ export function NumberCell({
           variant === "card"
             ? "rounded-md border border-[var(--color-ice-200)] focus:ring-2 focus:ring-[var(--color-ink-700)]"
             : "bg-transparent border-0 focus:ring-1 focus:ring-[var(--color-ink-700)] focus:bg-white dark:focus:bg-[var(--surface-2)]",
+          // Locked: drop the border/ring affordances and the text cursor so it
+          // reads as a value, not an input.
+          readOnly && "cursor-default border-transparent focus:ring-0",
         )}
       />
       {suffix && <span className="text-xs text-[var(--color-ink-600)]">{suffix}</span>}

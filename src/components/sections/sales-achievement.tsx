@@ -1,9 +1,10 @@
 "use client";
+import { useState } from "react";
 import type { SectionProps } from "../report-editor";
 import { SectionShell, NumberCell } from "./shared";
 import { MONTH_NAMES, cn, fmtMYR, fmtPct } from "@/lib/utils";
 import type { SalesAchievement, KPINote } from "@/lib/schema";
-import { CalendarClock, TrendingUp, Users, Wallet } from "lucide-react";
+import { CalendarClock, Check, Lock, Pencil, TrendingUp, Users, Wallet } from "lucide-react";
 
 const empty = (): SalesAchievement => ({
   target2026: Array(12).fill(null),
@@ -37,6 +38,10 @@ export function SectionSalesAchievement({ report, update }: SectionProps) {
   const SA = report.salesAchievement ?? empty();
   const set = (patch: Partial<SalesAchievement>) => update({ salesAchievement: { ...SA, ...patch } });
 
+  // Keyed-in figures (the table + KPI cards) are LOCKED by default so they
+  // can't be nudged or wiped by accident. Edit unlocks, Save re-locks.
+  const [editing, setEditing] = useState(false);
+
   const setCell = (key: ValueKey, i: number, n: number | null) => {
     const arr = [...SA[key]]; arr[i] = n;
     set({ [key]: arr } as Partial<SalesAchievement>);
@@ -62,6 +67,35 @@ export function SectionSalesAchievement({ report, update }: SectionProps) {
       subtitle="Monthly target vs actual, YoY, and Net Income. Current year rows are highlighted."
       isMissing={!report.salesAchievement || report.salesAchievement.actual2026[monthIdx] == null}
     >
+      {/* Lock toolbar — keeps the keyed-in figures + KPI cards read-only until
+          the user explicitly clicks Edit. Save re-locks. */}
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] px-3 py-2">
+        <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--color-ink-700)]">
+          {editing ? (
+            <><Pencil size={13} /> Editing — figures unlocked. Click Save when done.</>
+          ) : (
+            <><Lock size={13} className="text-[var(--color-ink-600)]" /> Locked — figures &amp; KPI are read-only. Click Edit to change them.</>
+          )}
+        </span>
+        {editing ? (
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-ok)] text-white px-3 py-1.5 text-sm font-semibold hover:opacity-90 active:scale-95 transition"
+          >
+            <Check size={14} /> Save
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-ink-800)] text-[var(--color-ink-800)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ice-100)] active:scale-95 transition"
+          >
+            <Pencil size={14} /> Edit
+          </button>
+        )}
+      </div>
+
       {/* Polished data grid */}
       <div className="overflow-x-auto rounded-xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] shadow-sm">
         <table className="w-max min-w-full border-separate border-spacing-0 text-sm tabular-nums">
@@ -199,6 +233,7 @@ export function SectionSalesAchievement({ report, update }: SectionProps) {
                         variant="plain"
                         value={SA[r.key][i]}
                         onChange={n => setCell(r.key, i, n)}
+                        readOnly={!editing}
                       />
                     </td>
                   ))}
@@ -221,6 +256,7 @@ export function SectionSalesAchievement({ report, update }: SectionProps) {
       {/* KPI commentary cards */}
       <KpiCards
         report={report}
+        readOnly={!editing}
         kpi={SA.kpi.find(k => k.month === report.month) ?? emptyKpi(report.month)}
         setKpi={patch => {
           const others = SA.kpi.filter(k => k.month !== report.month);
@@ -239,10 +275,12 @@ function emptyKpi(month: number): KPINote {
   };
 }
 
-function KpiCards({ report, kpi, setKpi }: {
+function KpiCards({ report, kpi, setKpi, readOnly = false }: {
   report: SectionProps["report"];
   kpi: KPINote;
   setKpi: (patch: Partial<KPINote>) => void;
+  /** Mirrors the section-level Edit/Save lock — locks the keyed KPI inputs. */
+  readOnly?: boolean;
 }) {
   // Achievement and Year-on-Year mirror the ACC % / YoY % table rows exactly:
   // auto-computed from this month's figures, shown as a whole-number percent.
@@ -289,23 +327,24 @@ function KpiCards({ report, kpi, setKpi }: {
           </div>
         </KpiCard>
         <KpiCard icon={<Users size={15} />} title="New stores traded">
-          <NumberCell value={kpi.newStores} onChange={n => setKpi({ newStores: n })} />
+          <NumberCell value={kpi.newStores} onChange={n => setKpi({ newStores: n })} readOnly={readOnly} />
         </KpiCard>
         <KpiCard icon={<Users size={15} />} title={`ECP in ${MONTH_NAMES[report.month - 1]}`}>
           <div className="flex items-end gap-2">
-            <NumberCell value={kpi.ecpThis} onChange={n => setKpi({ ecpThis: n })} />
+            <NumberCell value={kpi.ecpThis} onChange={n => setKpi({ ecpThis: n })} readOnly={readOnly} />
             <span className="text-[11px] text-[var(--color-ink-600)] pb-1.5">vs</span>
-            <NumberCell value={kpi.ecpPrior} onChange={n => setKpi({ ecpPrior: n })} />
+            <NumberCell value={kpi.ecpPrior} onChange={n => setKpi({ ecpPrior: n })} readOnly={readOnly} />
             <span className="text-[11px] text-[var(--color-ink-600)] pb-1.5">{report.year - 1}</span>
           </div>
         </KpiCard>
         <KpiCard icon={<Wallet size={15} />} title={`${MONTH_NAMES[report.month - 1]} P/L (MYR)`} tone="accent">
-          <NumberCell value={kpi.plMyr} onChange={n => setKpi({ plMyr: n })} />
+          <NumberCell value={kpi.plMyr} onChange={n => setKpi({ plMyr: n })} readOnly={readOnly} />
         </KpiCard>
         <KpiCard icon={<Wallet size={15} />} title="P/L JPY (computed if blank)">
           <NumberCell
             value={kpi.plJpy ?? (kpi.plMyr != null ? kpi.plMyr * report.fxRate : null)}
             onChange={n => setKpi({ plJpy: n })}
+            readOnly={readOnly}
           />
         </KpiCard>
       </div>
