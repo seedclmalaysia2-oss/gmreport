@@ -295,14 +295,25 @@ export async function POST(req: Request): Promise<Response> {
     const collectionFromSalesman = salesmanCollection ?? 0;
     const collectionFromListing = collectionXlsxBuf ? parseCollectionXlsx(collectionXlsxBuf).totalCollectionMyr : 0;
     const existing = await getMonthReport(year, month);
+    // Prefer the Collection Listing total when it actually parsed to a real
+    // figure (it's the authoritative receipt-level register). But a file
+    // mis-named "Collection Listing" that's really a salesman-format export
+    // parses to 0 here — in that case fall back to the salesman roll-up, and
+    // failing that keep whatever was already saved, so a bad upload can't
+    // zero out a good Collection figure.
+    const collectionMyr =
+      collectionFromListing > 0 ? collectionFromListing
+      : collectionFromSalesman > 0 ? collectionFromSalesman
+      : (existing?.financial?.collectionMyr ?? 0);
+    if (collectionXlsxBuf && collectionFromListing === 0 && collectionFromSalesman === 0) {
+      warnings.push("Collection: the uploaded Collection Listing didn't yield a total — check it's the receipt-level register, not a salesman sales export.");
+    }
     sections.financial = {
       arMyr: existing?.financial?.arMyr ?? 0,
       arLongTermMyr: existing?.financial?.arLongTermMyr ?? 0,
       apMyr: existing?.financial?.apMyr ?? 0,
       cashFlowMyr: existing?.financial?.cashFlowMyr ?? 0,
-      // Prefer the Collection Listing total when provided (it's the authoritative
-      // receipt-level register); otherwise fall back to the salesman roll-up.
-      collectionMyr: collectionXlsxBuf ? collectionFromListing : collectionFromSalesman,
+      collectionMyr,
     };
     sectionsTouched.add("financial");
   }
