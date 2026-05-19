@@ -139,15 +139,20 @@ export function NumberCell({
   const factor = Math.pow(10, decimals);
   const round = (n: number) => Math.round(n * factor) / factor;
 
-  // Focused state lets user type raw digits; blur reformats with commas.
+  // While focused the input is driven by a free-text `draft` so partial
+  // entries survive — a lone "-", a trailing "." — instead of being snapped
+  // back to the numeric value on every keystroke. Without this you cannot
+  // type a negative number: the leading "-" parses to null and clears the
+  // field before you can add digits. Blur reformats with commas.
   const [focused, setFocused] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
 
   const display = React.useMemo(() => {
+    if (focused) return draft;
     if (value == null) return "";
     const n = round(value);
-    if (focused) return String(n);
     return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  }, [value, decimals, focused]);
+  }, [value, decimals, focused, draft]);
 
   // Auto-size the input so each column shrinks to fit its widest value.
   // `htmlSize` is the HTML `size` attribute that sets width in character units.
@@ -181,12 +186,22 @@ export function NumberCell({
         value={display}
         size={htmlSize}
         placeholder={placeholder}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          setDraft(value == null ? "" : String(round(value)));
+        }}
         onBlur={() => setFocused(false)}
         onChange={e => {
-          // Strip everything except digits, dot, and sign.
-          const cleaned = e.target.value.replace(/[^0-9.\-]/g, "");
-          if (cleaned === "" || cleaned === "-") return onChange(null);
+          // Keep digits, dots and a single leading minus (so a negative such
+          // as "-148327" can be typed in full). The minus is forced to the
+          // front; any others are dropped.
+          const raw = e.target.value.replace(/[^0-9.\-]/g, "");
+          const cleaned = (raw.startsWith("-") ? "-" : "") + raw.replace(/-/g, "");
+          setDraft(cleaned);
+          // Partial / in-progress entries don't yet parse to a number.
+          if (cleaned === "" || cleaned === "-" || cleaned === "." || cleaned === "-.") {
+            return onChange(null);
+          }
           const n = Number(cleaned);
           if (Number.isNaN(n)) return;
           onChange(round(n));
