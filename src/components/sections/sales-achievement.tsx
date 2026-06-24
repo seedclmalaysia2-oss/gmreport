@@ -24,20 +24,21 @@ type CalcRow = { kind: "calc"; label: string; numer: ValueKey; denom: ValueKey }
 type DisplayRow = DataRow | CalcRow;
 
 const ROWS: DisplayRow[] = [
-  // 2026 current-year block
   { kind: "data", key: "target2026",    label: "Sales Target", year: 2026 },
   { kind: "data", key: "actual2026",    label: "Sales Result", year: 2026 },
   // ACC % = Sales Result 2026 ÷ Sales Target 2026
   { kind: "calc", label: "ACC %", numer: "actual2026", denom: "target2026" },
-  // 2025 history block — target + actual + historical ACC % for comparison
-  { kind: "data", key: "target2025",    label: "Sales Target", year: 2025 },
   { kind: "data", key: "actual2025",    label: "Sales Result", year: 2025 },
-  { kind: "calc", label: "ACC % (2025)", numer: "actual2025", denom: "target2025" },
   // YoY % = Sales Result 2026 ÷ Sales Result 2025
   { kind: "calc", label: "YoY %", numer: "actual2026", denom: "actual2025" },
   { kind: "data", key: "netIncome2026", label: "Net Income",   year: 2026 },
   { kind: "data", key: "netIncome2025", label: "Net Income",   year: 2025 },
 ];
+
+// Note: target2025 is still parsed from the 2025 Sales Summary file and
+// stored on the SalesAchievement record — it's just not displayed in the
+// editor table per the original HQ deck format. Available for future use
+// (e.g. PPTX templates, KPI computations).
 
 export function SectionSalesAchievement({ report, update }: SectionProps) {
   const SA = report.salesAchievement ?? empty();
