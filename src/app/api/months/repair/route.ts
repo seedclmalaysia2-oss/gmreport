@@ -33,21 +33,24 @@ function ensure12(arr: (number | null)[] | undefined | null): (number | null)[] 
 
 function healSalesAchievement(sa: SalesAchievement | null): { value: SalesAchievement | null; changed: boolean } {
   if (!sa) return { value: null, changed: false };
-  const nextTarget = ensure12(sa.target2026);
-  const nextActual = ensure12(sa.actual2026);
-  const nextPrior  = ensure12(sa.actual2025);
-  const nextNi26   = ensure12(sa.netIncome2026);
-  const nextNi25   = ensure12(sa.netIncome2025);
+  const nextTarget   = ensure12(sa.target2026);
+  const nextActual   = ensure12(sa.actual2026);
+  const nextPriorTgt = ensure12(sa.target2025);
+  const nextPrior    = ensure12(sa.actual2025);
+  const nextNi26     = ensure12(sa.netIncome2026);
+  const nextNi25     = ensure12(sa.netIncome2025);
   const changed =
-    nextTarget.length !== sa.target2026.length ||
-    nextActual.length !== sa.actual2026.length ||
-    nextPrior.length  !== sa.actual2025.length ||
-    nextNi26.length   !== sa.netIncome2026.length ||
-    nextNi25.length   !== sa.netIncome2025.length;
+    nextTarget.length   !== sa.target2026.length ||
+    nextActual.length   !== sa.actual2026.length ||
+    nextPriorTgt.length !== (sa.target2025?.length ?? 0) ||
+    nextPrior.length    !== sa.actual2025.length ||
+    nextNi26.length     !== sa.netIncome2026.length ||
+    nextNi25.length     !== sa.netIncome2025.length;
   return {
     value: {
       target2026: nextTarget,
       actual2026: nextActual,
+      target2025: nextPriorTgt,
       actual2025: nextPrior,
       netIncome2026: nextNi26,
       netIncome2025: nextNi25,
@@ -142,11 +145,18 @@ function mergeSalesAchievementChain(
   const cur: SalesAchievement = curr ?? {
     target2026: Array(12).fill(null),
     actual2026: Array(12).fill(null),
+    target2025: Array(12).fill(null),
     actual2025: Array(12).fill(null),
     netIncome2026: Array(12).fill(null),
     netIncome2025: Array(12).fill(null),
     kpi: [],
   };
+  // Defensive: a SA loaded before target2025 existed may be missing the field
+  // at runtime even though TS thinks it's there. Fill it in so mergeFull
+  // below doesn't read undefined.
+  if (!Array.isArray((cur as { target2025?: unknown }).target2025)) {
+    (cur as { target2025: (number | null)[] }).target2025 = Array(12).fill(null);
+  }
 
   // Full-year merge: take current's non-null, else prior's, else null.
   const mergeFull = (cu: (number | null)[], pr: (number | null)[]): (number | null)[] =>
@@ -169,6 +179,11 @@ function mergeSalesAchievementChain(
   const next: SalesAchievement = {
     target2026:    mergeFull   (cur.target2026,    prior.target2026),
     actual2026:    mergeAccrual(cur.actual2026,    prior.actual2026),
+    // Both 2025 series are full-year historical fields — propagate any null
+    // slot forward from prior. target2025 was added later, so prior may not
+    // carry it; fall through to a zero-fill in that case.
+    target2025:    mergeFull   (cur.target2025 ?? Array(12).fill(null),
+                                (prior as { target2025?: (number | null)[] }).target2025 ?? Array(12).fill(null)),
     actual2025:    mergeFull   (cur.actual2025,    prior.actual2025),
     netIncome2026: mergeAccrual(cur.netIncome2026, prior.netIncome2026),
     netIncome2025: mergeFull   (cur.netIncome2025, prior.netIncome2025),

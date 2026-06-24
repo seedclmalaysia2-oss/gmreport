@@ -2,7 +2,7 @@
 // Accepts 1 or 2 MonthReports (the 2-month case is the "combined" Jan+Feb variant).
 
 import PptxGenJS from "pptxgenjs";
-import { CLASSIC_PALETTE as C, applyThemeToClassic, brandImagePath, fmtJPY, fmtMYR, fmtPct, monthNameFull, monthShort, titleFor, type PptxInput, SLIDE_W, SLIDE_H, safeNum } from "./shared";
+import { CLASSIC_PALETTE as C, applyThemeToClassic, brandImagePath, brandImageDataUrl, fmtJPY, fmtMYR, fmtPct, monthNameFull, monthShort, titleFor, type PptxInput, SLIDE_W, SLIDE_H, safeNum } from "./shared";
 import { htmlToPptxRuns } from "./rich-text";
 import { MONTH_NAMES } from "@/lib/utils";
 import { AGENDA, ECP_CATEGORIES, REGIONS } from "@/lib/catalog/mappings";
@@ -54,7 +54,14 @@ export async function generateClassicPptx(input: PptxInput): Promise<Uint8Array>
 function slideCover(pptx: PptxGenJS, input: PptxInput) {
   const s = pptx.addSlide();
   s.background = { color: "FFFFFF" };
-  try { s.addImage({ path: brandImagePath("logo.jpg"), x: 0.45, y: 0.41, w: 2.82, h: 1.63 }); } catch { /* no-op */ }
+  // Embed the SEED logo via data URL — `addImage({ path })` reads the file
+  // at PPT-write time and silently fails on serverless runtimes where the
+  // public/ folder isn't co-located with the function. The data URL ships
+  // the bytes with the PPT so the cover always carries the brand mark.
+  {
+    const logo = brandImageDataUrl("logo.jpg");
+    if (logo) s.addImage({ data: logo, x: 0.45, y: 0.41, w: 2.82, h: 1.63 });
+  }
 
   s.addText("MALAYSIA REVIEW", {
     x: 1.67, y: 2.66, w: 10.0, h: 1.09,
@@ -856,7 +863,10 @@ function slideOtherMarket(pptx: PptxGenJS, input: PptxInput) {
 
 function slideThankYou(pptx: PptxGenJS) {
   const s = pptx.addSlide();
-  try { s.addImage({ path: brandImagePath("thankyou.jpg"), x: 0.47, y: 0.46, w: 3.31, h: 1.72 }); } catch { /* */ }
+  {
+    const ty = brandImageDataUrl("thankyou.jpg");
+    if (ty) s.addImage({ data: ty, x: 0.47, y: 0.46, w: 3.31, h: 1.72 });
+  }
   s.addText("Thank you!", {
     x: 3.57, y: 3.09, w: 6.19, h: 1.31,
     fontFace: FONT, fontSize: 72, bold: true, color: C.header, align: "center",

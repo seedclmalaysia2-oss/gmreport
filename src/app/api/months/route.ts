@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       prefill.salesAchievement = {
         target2026: mostRecent.salesAchievement.target2026,
         actual2026: Array(12).fill(null),
+        target2025: mostRecent.salesAchievement.target2025 ?? Array(12).fill(null),
         actual2025: mostRecent.salesAchievement.actual2025,
         netIncome2026: Array(12).fill(null),
         netIncome2025: mostRecent.salesAchievement.netIncome2025,

@@ -37,6 +37,10 @@ export type KPINote = z.infer<typeof KPINoteZ>;
 export const SalesAchievementZ = z.object({
   target2026: z.array(z.number().nullable()).length(12),
   actual2026: z.array(z.number().nullable()).length(12),
+  // Prior-year (history) target — filled from the 2025 Sales Summary file's
+  // "Jpn Sales Target" row. .default(...) means a SalesAchievement saved
+  // before this field existed still validates on write-back.
+  target2025: z.array(z.number().nullable()).length(12).default(() => Array(12).fill(null)),
   actual2025: z.array(z.number().nullable()).length(12),
   netIncome2026: z.array(z.number().nullable()).length(12),
   netIncome2025: z.array(z.number().nullable()).length(12),

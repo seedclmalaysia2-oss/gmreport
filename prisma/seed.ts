@@ -10,7 +10,9 @@ const ni2026 =     [47495.13, 38164.89, 45756.37, null, null, null, null, null, 
 const ni2025 =     [5899.24, 30089.16, 17112.73, 16103.66, 14518.04, 92598.2, 23327.66, 13059, 15770.76, 41849, 55110, -148327];
 
 const sa = {
-  target2026, actual2026, actual2025, netIncome2026: ni2026, netIncome2025: ni2025,
+  target2026, actual2026,
+  target2025: Array(12).fill(null) as (number | null)[],
+  actual2025, netIncome2026: ni2026, netIncome2025: ni2025,
   kpi: [
     { month: 1, achievementPct: 1.27, yoyPct: 1.37, newStores: 11, ecpThis: 365, ecpPrior: 303, plMyr: 47495, plJpy: 1459434, extraLines: [] },
     { month: 2, achievementPct: 1.14, yoyPct: 1.28, newStores: 2, ecpThis: 311, ecpPrior: 268, plMyr: 38165, plJpy: 1172911, extraLines: [] },

@@ -214,6 +214,7 @@ export function applyYear2025ToReport(
       next.salesAchievement = {
         target2026: wantedTarget,
         actual2026: Array(12).fill(null),
+        target2025: Array(12).fill(null),
         actual2025: Array(12).fill(null),
         netIncome2026: Array(12).fill(null),
         netIncome2025: Array(12).fill(null),
@@ -229,18 +230,36 @@ export function applyYear2025ToReport(
     return { changed: false, next: report };
   }
 
-  const wanted2025 = [...ref.monthlySales];
+  // The prior-year workbook carries BOTH:
+  //  • Msia Sales row  → actual2025 (history actuals)
+  //  • Jpn Sales Target → target2025 (history target — for ACC% comparison)
+  // Both are filled together so the user gets the full 2025 picture from one
+  // upload. They never touch target2026 or actual2026 — those are the
+  // current-year file's job (and POS imports', respectively).
+  const wantedActual = [...ref.monthlySales];
+  const wantedTarget = [...ref.monthlyTarget];
   const sa = report.salesAchievement;
   if (sa) {
-    if (JSON.stringify(sa.actual2025) !== JSON.stringify(wanted2025)) {
-      next.salesAchievement = { ...sa, actual2025: wanted2025 };
+    const actualChanged = JSON.stringify(sa.actual2025) !== JSON.stringify(wantedActual);
+    // target2025 may not exist on legacy SA objects (the schema field was
+    // added later); default it to a 12-null array for the comparison.
+    const existingTarget = (sa as { target2025?: (number | null)[] }).target2025
+      ?? Array(12).fill(null);
+    const targetChanged = JSON.stringify(existingTarget) !== JSON.stringify(wantedTarget);
+    if (actualChanged || targetChanged) {
+      next.salesAchievement = {
+        ...sa,
+        ...(actualChanged ? { actual2025: wantedActual } : {}),
+        ...(targetChanged ? { target2025: wantedTarget } : {}),
+      };
       changed = true;
     }
   } else {
     next.salesAchievement = {
       target2026: Array(12).fill(null),
       actual2026: Array(12).fill(null),
-      actual2025: wanted2025,
+      target2025: wantedTarget,
+      actual2025: wantedActual,
       netIncome2026: Array(12).fill(null),
       netIncome2025: Array(12).fill(null),
       kpi: [],

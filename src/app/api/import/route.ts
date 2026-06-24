@@ -358,6 +358,7 @@ export async function POST(req: Request): Promise<Response> {
     const salesAchievement = existing?.salesAchievement ?? {
       target2026: twelve(),
       actual2026: twelve(),
+      target2025: twelve(),
       actual2025: twelve(),
       netIncome2026: twelve(),
       netIncome2025: twelve(),

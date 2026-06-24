@@ -30,6 +30,20 @@ type LooseEcpRow = { category?: unknown } & Record<string, unknown>;
 type LooseSalesByECP = { rows?: unknown; commentary?: unknown };
 
 /**
+ * Fill in any SalesAchievement fields that didn't exist when the row was
+ * saved. Currently: target2025 (added when Sales Summary became dual-year).
+ * Without this, components that read sa.target2025 crash on legacy rows.
+ */
+function migrateSalesAchievement(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const sa = raw as Record<string, unknown>;
+  if (!Array.isArray(sa.target2025) || sa.target2025.length !== 12) {
+    sa.target2025 = Array(12).fill(null);
+  }
+  return sa;
+}
+
+/**
  * Remap legacy ECP category labels (e.g. "Overseas" → "Overseas / Cash
  * Sales") on read, so a report saved before the rename still satisfies the
  * Zod enum when it's written back. Mirrors migrateSalesByRegion.
@@ -58,7 +72,7 @@ function rowToReport(row: NonNullable<DbRow>): MonthReport {
     presenter: row.presenter,
     presentDate: row.presentDate ? row.presentDate.toISOString() : null,
     fxRate: row.fxRate,
-    salesAchievement:    parse(row.salesAchievement),
+    salesAchievement:    migrateSalesAchievement(parse(row.salesAchievement)) as MonthReport["salesAchievement"],
     salesTrend:          parse(row.salesTrend),
     marketOutlook:       parse(row.marketOutlook),
     dailySales:          parse(row.dailySales),

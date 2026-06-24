@@ -2,7 +2,7 @@
 // native pptxgenjs charts with navy fills. Same input shape as classic.ts.
 
 import PptxGenJS from "pptxgenjs";
-import { MODERN_PALETTE as P, applyThemeToModern, SLIDE_W, SLIDE_H, brandImagePath, fmtJPY, fmtMYR, fmtPct, monthNameFull, monthShort, titleFor, type PptxInput, safeNum } from "./shared";
+import { MODERN_PALETTE as P, applyThemeToModern, SLIDE_W, SLIDE_H, brandImagePath, brandImageDataUrl, fmtJPY, fmtMYR, fmtPct, monthNameFull, monthShort, titleFor, type PptxInput, safeNum } from "./shared";
 import { htmlToPptxRuns } from "./rich-text";
 import { MONTH_NAMES } from "@/lib/utils";
 import { AGENDA, ECP_CATEGORIES, REGIONS } from "@/lib/catalog/mappings";
@@ -55,7 +55,14 @@ function cover(pptx: PptxGenJS, input: PptxInput) {
   setDarkBg(s);
   // Big accent block on left
   s.addShape("rect", { x: 0, y: 0, w: 4.5, h: SLIDE_H, fill: { color: P.ink2 }, line: { color: P.ink2 } });
-  try { s.addImage({ path: brandImagePath("logo.jpg"), x: 0.6, y: 0.6, w: 2.4, h: 1.4, sizing: { type: "contain", w: 2.4, h: 1.4 } }); } catch {}
+  // Embed the SEED logo via data URL — `addImage({ path })` reads the file
+  // at PPT-write time and silently fails on serverless runtimes where the
+  // public/ folder isn't co-located with the function. The data URL ships
+  // the bytes with the PPT so the cover always carries the brand mark.
+  {
+    const logo = brandImageDataUrl("logo.jpg");
+    if (logo) s.addImage({ data: logo, x: 0.6, y: 0.6, w: 2.4, h: 1.4, sizing: { type: "contain", w: 2.4, h: 1.4 } });
+  }
 
   s.addText("MALAYSIA", { x: 0.6, y: 3.0, w: 3.8, h: 0.9, fontFace: DISPLAY_FONT, fontSize: 54, bold: true, color: P.white });
   s.addText("REVIEW", { x: 0.6, y: 3.9, w: 3.8, h: 0.9, fontFace: DISPLAY_FONT, fontSize: 54, bold: true, color: P.ice });
@@ -709,5 +716,8 @@ function thankYou(pptx: PptxGenJS) {
   s.addText("Questions welcome — let's discuss.", {
     x: 0, y: 3.6, w: SLIDE_W, h: 0.6, fontFace: BODY_FONT, fontSize: 18, color: P.ice, align: "center", italic: true,
   });
-  try { s.addImage({ path: brandImagePath("thankyou.jpg"), x: SLIDE_W / 2 - 1.5, y: 4.8, w: 3, h: 1.55 }); } catch {}
+  {
+    const ty = brandImageDataUrl("thankyou.jpg");
+    if (ty) s.addImage({ data: ty, x: SLIDE_W / 2 - 1.5, y: 4.8, w: 3, h: 1.55 });
+  }
 }

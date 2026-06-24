@@ -9,6 +9,7 @@ import { CalendarClock, Check, Lock, Pencil, TrendingUp, Users, Wallet } from "l
 const empty = (): SalesAchievement => ({
   target2026: Array(12).fill(null),
   actual2026: Array(12).fill(null),
+  target2025: Array(12).fill(null),
   actual2025: Array(12).fill(null),
   netIncome2026: Array(12).fill(null),
   netIncome2025: Array(12).fill(null),
@@ -23,11 +24,15 @@ type CalcRow = { kind: "calc"; label: string; numer: ValueKey; denom: ValueKey }
 type DisplayRow = DataRow | CalcRow;
 
 const ROWS: DisplayRow[] = [
+  // 2026 current-year block
   { kind: "data", key: "target2026",    label: "Sales Target", year: 2026 },
   { kind: "data", key: "actual2026",    label: "Sales Result", year: 2026 },
   // ACC % = Sales Result 2026 ÷ Sales Target 2026
   { kind: "calc", label: "ACC %", numer: "actual2026", denom: "target2026" },
+  // 2025 history block — target + actual + historical ACC % for comparison
+  { kind: "data", key: "target2025",    label: "Sales Target", year: 2025 },
   { kind: "data", key: "actual2025",    label: "Sales Result", year: 2025 },
+  { kind: "calc", label: "ACC % (2025)", numer: "actual2025", denom: "target2025" },
   // YoY % = Sales Result 2026 ÷ Sales Result 2025
   { kind: "calc", label: "YoY %", numer: "actual2026", denom: "actual2025" },
   { kind: "data", key: "netIncome2026", label: "Net Income",   year: 2026 },
