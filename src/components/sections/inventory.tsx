@@ -94,13 +94,11 @@ export function SectionInventory({ report, update }: SectionProps) {
         </h3>
       </div>
 
-      <div className="rounded-b-xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] shadow-sm">
-        {/* Fluid layout: `table-fixed` + percentage <colgroup> lets the grid
-            shrink to the viewport so there's no horizontal scrollbar. */}
-        <table className="w-full table-fixed border-separate border-spacing-0 text-sm tabular-nums">
-          <colgroup>{[
-            "9%", "11%", "12%", "12%", "12%", "12%", "12%", "12%", "8%",
-          ].map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+      <div className="overflow-x-auto rounded-b-xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] shadow-sm">
+        {/* table-auto lets each column size to its content so numbers stop
+            being crammed, and overflow-x-auto on the wrapper drops in a
+            horizontal scrollbar when the viewport can't fit all of it. */}
+        <table className="min-w-full table-auto border-separate border-spacing-0 text-xs tabular-nums">
           <tbody>
             {parentOrder.map((parent, parentIdx) => {
               const subgroups = parentMap.get(parent)!;
@@ -119,11 +117,11 @@ export function SectionInventory({ report, update }: SectionProps) {
                   <th
                     rowSpan={parentRowspan}
                     className={cn(
-                      "sticky left-0 z-10 align-middle text-center px-3 py-2 border-r border-[var(--color-ice-200)]",
-                      "bg-[var(--color-ice-100)] text-[var(--color-ink-900)] font-bold uppercase tracking-[0.15em] text-xs",
+                      "sticky left-0 z-10 align-middle text-center px-2 py-1.5 border-r border-[var(--color-ice-200)]",
+                      "bg-[var(--color-ice-100)] text-[var(--color-ink-900)] font-bold uppercase tracking-[0.12em] text-[10px]",
                       !isLastParent && "border-b border-[var(--color-ice-200)]",
                     )}
-                    style={{ minWidth: 96 }}
+                    style={{ minWidth: 80 }}
                   >
                     <div className="vertical-label">{parent}</div>
                   </th>
@@ -132,43 +130,44 @@ export function SectionInventory({ report, update }: SectionProps) {
                 const showTotals = isLastParent && isLastSubgroup;
 
                 return [
-                  /* Row 1: category (rowspan anchor) + empty "location" cell + 6 product names */
+                  /* Row 1: category (rowspan anchor) + empty "location" cell + product names */
                   <tr key={`${gIdx}-head`} className="bg-[var(--color-ice-50)]">
                     {categoryCell}
-                    <td className="px-3 py-1.5 text-xs text-[var(--color-ink-600)] italic border-b border-[var(--color-ice-100)] whitespace-nowrap">
+                    <td className="px-2 py-1 text-[10px] text-[var(--color-ink-600)] italic border-b border-[var(--color-ice-100)] whitespace-nowrap">
                       {sub.group.name !== parent && sub.group.name.replace(`${parent} `, "").replace(/^\(|\)$/g, "")}
                     </td>
                     {rows.map((r, i) => (
                       <td
                         key={i}
-                        className="p-0 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-800)] border-b border-l border-[var(--color-ice-100)]"
+                        className="p-0 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-800)] border-b border-l border-[var(--color-ice-100)]"
+                        style={{ minWidth: 80 }}
                       >
                         <TextCell
                           value={r.product}
                           onChange={v => updateProduct(gIdx, i, v)}
                           placeholder="SKU"
-                          className="!border-0 !rounded-none !bg-transparent !text-center !font-semibold !uppercase !tracking-wider text-[11px] focus:!bg-[var(--color-ice-50)]"
+                          className="!border-0 !rounded-none !bg-transparent !text-center !font-semibold !uppercase !tracking-wider text-[10px] focus:!bg-[var(--color-ice-50)]"
                         />
                       </td>
                     ))}
                     {/* Totals right-side slot */}
                     <td rowSpan={3} className={cn(
-                      "px-3 py-1 text-right align-middle",
+                      "px-2 py-1 text-right align-middle",
                       !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
                       "border-l border-[var(--color-ice-200)]",
                     )} />
                   </tr>,
                   /* Row 2: warehouse values */
                   <tr key={`${gIdx}-wh`}>
-                    <td className="px-3 py-1 text-xs font-semibold text-[var(--color-ink-800)] border-b border-[var(--color-ice-100)] bg-[var(--color-ice-50)] whitespace-nowrap">
+                    <td className="px-2 py-0.5 text-[10px] font-semibold text-[var(--color-ink-800)] border-b border-[var(--color-ice-100)] bg-[var(--color-ice-50)] whitespace-nowrap">
                       warehouse
                     </td>
                     {rows.map((r, i) => (
-                      <td key={i} className="px-1 py-1 text-center border-b border-l border-[var(--color-ice-100)]">
+                      <td key={i} className="px-0.5 py-0.5 text-center border-b border-l border-[var(--color-ice-100)]">
                         <NumberCell
                           variant="plain"
                           align="center"
-                          size="lg"
+                          size="sm"
                           bold
                           value={r.warehouse}
                           onChange={n => updateRow(gIdx, i, "warehouse", n)}
@@ -177,12 +176,12 @@ export function SectionInventory({ report, update }: SectionProps) {
                     ))}
                     {/* Totals column — rendered only on last parent's last subgroup */}
                     {showTotals && (
-                      <td className="px-3 text-center align-middle bg-[var(--color-ink-800)] text-white font-bold border-b border-l border-[var(--color-ice-200)]">
-                        <div className="text-[10px] uppercase tracking-widest opacity-80">Total</div>
+                      <td className="px-2 text-center align-middle bg-[var(--color-ink-800)] text-white font-bold border-b border-l border-[var(--color-ice-200)]">
+                        <div className="text-[9px] uppercase tracking-widest opacity-80">Total</div>
                         <NumberCell
                           variant="plain"
                           align="center"
-                          size="lg"
+                          size="sm"
                           bold
                           value={inv.totalWarehouse}
                           onChange={n => set({ totalWarehouse: n ?? 0 })}
@@ -194,20 +193,20 @@ export function SectionInventory({ report, update }: SectionProps) {
                   /* Row 3: Consignment values */
                   <tr key={`${gIdx}-co`} className="bg-[var(--color-ice-50)]/40">
                     <td className={cn(
-                      "px-3 py-1 text-xs font-semibold text-[var(--color-ink-800)] whitespace-nowrap bg-[var(--color-ice-50)]",
+                      "px-2 py-0.5 text-[10px] font-semibold text-[var(--color-ink-800)] whitespace-nowrap bg-[var(--color-ice-50)]",
                       !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
                     )}>
                       Consignment
                     </td>
                     {rows.map((r, i) => (
                       <td key={i} className={cn(
-                        "px-1 py-1 text-center border-l border-[var(--color-ice-100)]",
+                        "px-0.5 py-0.5 text-center border-l border-[var(--color-ice-100)]",
                         !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
                       )}>
                         <NumberCell
                           variant="plain"
                           align="center"
-                          size="lg"
+                          size="sm"
                           bold
                           value={r.consignment}
                           onChange={n => updateRow(gIdx, i, "consignment", n)}
@@ -215,12 +214,12 @@ export function SectionInventory({ report, update }: SectionProps) {
                       </td>
                     ))}
                     {showTotals && (
-                      <td className="px-3 text-center align-middle bg-[var(--color-ink-700)] text-white font-bold border-l border-[var(--color-ice-200)]">
-                        <div className="text-[10px] uppercase tracking-widest opacity-80">Total</div>
+                      <td className="px-2 text-center align-middle bg-[var(--color-ink-700)] text-white font-bold border-l border-[var(--color-ice-200)]">
+                        <div className="text-[9px] uppercase tracking-widest opacity-80">Total</div>
                         <NumberCell
                           variant="plain"
                           align="center"
-                          size="lg"
+                          size="sm"
                           bold
                           value={inv.totalConsignment}
                           onChange={n => set({ totalConsignment: n ?? 0 })}
