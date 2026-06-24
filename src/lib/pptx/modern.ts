@@ -2,7 +2,7 @@
 // native pptxgenjs charts with navy fills. Same input shape as classic.ts.
 
 import PptxGenJS from "pptxgenjs";
-import { MODERN_PALETTE as P, applyThemeToModern, SLIDE_W, SLIDE_H, brandImagePath, brandImageDataUrl, fmtJPY, fmtMYR, fmtPct, monthNameFull, monthShort, titleFor, type PptxInput, safeNum } from "./shared";
+import { MODERN_PALETTE as P, applyThemeToModern, SLIDE_W, SLIDE_H, brandImageDataUrl, fmtJPY, fmtMYR, fmtPct, monthNameFull, monthShort, titleFor, type PptxInput, safeNum } from "./shared";
 import { htmlToPptxRuns } from "./rich-text";
 import { MONTH_NAMES } from "@/lib/utils";
 import { AGENDA, ECP_CATEGORIES, REGIONS } from "@/lib/catalog/mappings";
