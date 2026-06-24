@@ -227,14 +227,19 @@ export function parseSalesByRegionXlsx(buf: ArrayBuffer, year: number, month: nu
   if (!ws) return [];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
 
-  // Locate the header column for the target month label (e.g. "Mar 26").
-  const label = `${SHORT_MONTH[month - 1]} ${String(year).slice(-2)}`;
+  // Locate the header column for the target month label. Tolerate the common
+  // variants we've seen in the wild: "May 26", "MAY-26", "May'26", "May 2026",
+  // " May 26 ". The regex anchors at start/end so we don't match "May 2026 ytd".
+  const monthAbbr = SHORT_MONTH[month - 1];
+  const yr2 = String(year).slice(-2);
+  const yr4 = String(year);
+  const headerRe = new RegExp(`^${monthAbbr}[\\s\\-'.]*(?:${yr4}|${yr2})$`, "i");
   let headerCol = -1;
   for (let r = 0; r < Math.min(rows.length, 30); r++) {
     const row = rows[r] || [];
     for (let c = 0; c < row.length; c++) {
       const v = row[c];
-      if (typeof v === "string" && v.trim().toLowerCase() === label.toLowerCase()) {
+      if (typeof v === "string" && headerRe.test(v.trim())) {
         headerCol = c; break;
       }
     }

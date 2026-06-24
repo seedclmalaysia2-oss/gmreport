@@ -232,11 +232,18 @@ export async function POST(req: Request): Promise<Response> {
 
   if (regionXlsxBuf) {
     const stateTotals = parseSalesByRegionXlsx(regionXlsxBuf, year, month);
+    const monthLabel = `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${String(year).slice(-2)}`;
     if (stateTotals.length === 0) {
-      warnings.push(`Sales Analysis By Region: could not find "${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${String(year).slice(-2)}" column — check the month/year matches the file.`);
+      // Don't overwrite existing rows with zeros — previously a header miss
+      // wiped Slide 10's salesThis column and left only the inherited
+      // salesPrev visible, which looked like a successful import.
+      warnings.push(`Sales Analysis By Region: could not find a "${monthLabel}" column in the file — Slide 10 was NOT changed. Open the file and confirm the month header text matches.`);
+    } else if (stateTotals.every(t => t.sales === 0)) {
+      warnings.push(`Sales Analysis By Region: matched the "${monthLabel}" column but every value parsed as 0 — Slide 10 was NOT changed. The file may be a blank template.`);
+    } else {
+      sections.salesByRegion = salesByRegionFromStates(stateTotals, priorRegionSales);
+      sectionsTouched.add("salesByRegion");
     }
-    sections.salesByRegion = salesByRegionFromStates(stateTotals, priorRegionSales);
-    sectionsTouched.add("salesByRegion");
   }
 
   // Slide 10 needs four companion files — master SCLM + HQ + HQ2 + BOC — but
