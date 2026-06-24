@@ -2,9 +2,32 @@
 import { useEffect, useRef, useState } from "react";
 import { MONTH_NAMES, monthId } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileText, UploadCloud } from "lucide-react";
+import { AlertCircle, ArrowLeft, FileText, UploadCloud, X } from "lucide-react";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { detectPeriod } from "@/lib/filename-period";
+
+/**
+ * Filename keyword hints surfaced in the "Some files need attention" popup.
+ * Mirrors the regex-based router in src/app/api/import/route.ts — when a file
+ * is tagged `unknown` (or parsing succeeded but produced no data), the dialog
+ * shows this table so the user can rename + re-upload.
+ */
+const FILENAME_HINTS: { label: string; keywords: string; example: string }[] = [
+  { label: "Stock Sales / POS master",            keywords: "Stock Sales Analysis Summary",       example: "Stock Sales Analysis Summary - By Group Apr26.xlsx" },
+  { label: "MCUV colour breakdown",               keywords: "MCUV-<COLOUR>",                       example: "MCUV-BLUE.pdf, MCUV-ORANGE.pdf, MCUV-PEGA.pdf" },
+  { label: "Stocks Write-Off",                    keywords: "Write Off",                           example: "Stocks Write Off Report Jan-Mar.pdf" },
+  { label: "Inventory master (SCLM)",             keywords: "Stock List or SCLM",                  example: "SCLM - Stock List 2026.04.30.xlsx" },
+  { label: "Inventory HQ split",                  keywords: "Stock List HQ or SCLM … HQ",          example: "SCLM Stock List HQ Apr26.xlsx" },
+  { label: "Inventory HQ2 split",                 keywords: "Stock List HQ2 or SCLM … HQ2",        example: "SCLM Stock List HQ2 Apr26.xlsx" },
+  { label: "Inventory BOC consignment",           keywords: "Stock List BOC or SCLM … BOC",        example: "SCLM Stock List BOC Apr26.xlsx" },
+  { label: "Daily Sales Quantity",                keywords: "Daily Sales",                          example: "Daily Sales Quantity Apr26.xlsx" },
+  { label: "Sales by Region",                     keywords: "Sales Analysis Region or Sales by Region", example: "Sales Analysis By Region Apr26.xlsx" },
+  { label: "Salesman Sales & Collection",         keywords: "Salesman + Sales/Collection, or Account Type", example: "Salesman Sales and Collection Listing By Account Type Apr26.xlsx" },
+  { label: "Collection Listing",                  keywords: "Collection Listing",                  example: "Collection Listing Apr26.xlsx" },
+  { label: "Monthly Sales Performance (outlets)", keywords: "Monthly Sales Performance",           example: "Monthly Sales Performance Apr26.xlsx" },
+  { label: "ECP List",                            keywords: "ECP List",                            example: "ECP List.xlsx" },
+  { label: "2025 prior-year reference",           keywords: "Sales Summary + 2025",                 example: "2025 Sales Summary.xlsx" },
+];
 
 /**
  * POS import page form.
@@ -44,6 +67,10 @@ export function ImportForm() {
     year2025Applied?: number;
   } | null>(null);
   const [err, setErr] = useState("");
+  // "Some files need attention" popup — opens automatically after an import
+  // that produced unrecognised filenames or parser warnings, so the user
+  // doesn't have to spot the silent "no update" by eye.
+  const [issuesOpen, setIssuesOpen] = useState(false);
 
   // Keep inputs in sync ONLY when the URL params themselves change.
   // Depending on the `sp` object reference would re-fire on every render
@@ -120,6 +147,33 @@ export function ImportForm() {
       return;
     }
     setResult(await res.json());
+  }
+
+  // Open the issues popup automatically when an import returns either an
+  // `unknown` file kind (filename didn't match any parser) or any parser
+  // warnings (e.g. "could not find May 26 column").
+  useEffect(() => {
+    if (!result) { setIssuesOpen(false); return; }
+    const hasUnknown = (result.result.filesByKind?.unknown?.length ?? 0) > 0;
+    const hasWarnings = result.warnings.length > 0;
+    if (hasUnknown || hasWarnings) setIssuesOpen(true);
+  }, [result]);
+
+  // ESC closes the popup.
+  useEffect(() => {
+    if (!issuesOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIssuesOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [issuesOpen]);
+
+  function reUpload() {
+    setIssuesOpen(false);
+    setFiles([]);
+    setResult(null);
+    setErr("");
+    // Defer until the dialog is unmounted so the click doesn't bubble.
+    setTimeout(() => document.getElementById("fileInput")?.click(), 50);
   }
 
   // After successful import the "Update" button routes back to the originating
@@ -289,6 +343,120 @@ export function ImportForm() {
             >
               Import another
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Issues popup — automatic when the import returned unknown files or warnings. */}
+      {issuesOpen && result && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIssuesOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="issues-title"
+            className="relative max-w-2xl w-full max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="flex items-start justify-between gap-3 p-5 border-b border-[var(--color-ice-200)] bg-amber-50">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-amber-700 mt-0.5 shrink-0" size={22} />
+                <div>
+                  <h2 id="issues-title" className="font-[var(--font-display)] text-lg font-semibold text-amber-900">
+                    Some files need attention
+                  </h2>
+                  <p className="text-sm text-amber-800 mt-0.5">
+                    A few uploads didn&rsquo;t update any slide. Rename them using the table below and re-upload so the report refreshes.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIssuesOpen(false)}
+                className="rounded-md p-1 hover:bg-amber-100 text-amber-800"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="overflow-y-auto p-5 space-y-4 text-sm">
+              {(result.result.filesByKind?.unknown?.length ?? 0) > 0 && (
+                <section>
+                  <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Unrecognised filenames</h3>
+                  <ul className="space-y-1">
+                    {result.result.filesByKind!.unknown!.map((name, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-red-800">
+                        <FileText size={14} className="mt-0.5 shrink-0" />
+                        <span className="break-all">{name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-[var(--color-ink-600)] mt-2">
+                    These didn&rsquo;t match any known POS file kind, so they fed no slide. Rename them using a keyword from the table below.
+                  </p>
+                </section>
+              )}
+
+              {result.warnings.length > 0 && (
+                <section>
+                  <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Parser warnings</h3>
+                  <ul className="space-y-1">
+                    {result.warnings.map((w, i) => (
+                      <li key={i} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900 text-xs leading-relaxed">
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              <section>
+                <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Expected filename keywords</h3>
+                <p className="text-xs text-[var(--color-ink-600)] mb-2">
+                  The parser identifies each file by keywords anywhere in its name (case-insensitive). Include the month/year (e.g. <code className="rounded bg-[var(--color-ice-100)] px-1">Apr26</code>) so the form auto-targets the right month.
+                </p>
+                <div className="overflow-x-auto rounded-lg border border-[var(--color-ice-200)]">
+                  <table className="w-full text-xs">
+                    <thead className="bg-[var(--color-ice-50)] text-[10px] uppercase tracking-wider text-[var(--color-ink-600)]">
+                      <tr>
+                        <th className="text-left px-3 py-2">If you&rsquo;re uploading…</th>
+                        <th className="text-left px-3 py-2">Filename must contain</th>
+                        <th className="text-left px-3 py-2">Example</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {FILENAME_HINTS.map(h => (
+                        <tr key={h.label} className="border-t border-[var(--color-ice-100)] align-top">
+                          <td className="px-3 py-1.5 font-medium text-[var(--color-ink-900)]">{h.label}</td>
+                          <td className="px-3 py-1.5 text-[var(--color-ink-800)]"><code className="font-mono text-[11px]">{h.keywords}</code></td>
+                          <td className="px-3 py-1.5 text-[var(--color-ink-600)] break-all">{h.example}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <footer className="flex items-center justify-end gap-2 p-4 border-t border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
+              <button
+                type="button"
+                onClick={() => setIssuesOpen(false)}
+                className="rounded-md border border-[var(--color-ice-200)] bg-white px-3 py-1.5 text-sm text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
+              >
+                Got it
+              </button>
+              <button
+                type="button"
+                onClick={reUpload}
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ink-700)]"
+              >
+                <UploadCloud size={14} /> Pick files again
+              </button>
+            </footer>
           </div>
         </div>
       )}
