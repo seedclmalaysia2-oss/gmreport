@@ -300,21 +300,28 @@ export async function POST() {
   const results: RepairReport[] = [];
   let priorHealed: MonthReport | undefined;
 
-  // If a prior-year "Sales Summary" workbook was ever uploaded (kind
-  // "ref_2025"), re-parse the most recent one so every month's 2025
-  // comparison columns can be re-synced below. Re-parsing a sub-100 KB
-  // xlsx is cheap; this keeps the reference authoritative without a
-  // separate table.
-  let year2025Ref: Year2025Reference | null = null;
+  // Load every Sales Summary workbook ever uploaded (kind "ref_2025" — the
+  // tag is historical; the file may be prior- or current-year). We re-parse
+  // each so the apply step below can re-sync target2026 / actual2025 /
+  // qty2025 from whichever workbooks are on file. If two refs exist for the
+  // same year, the most-recent one (sorted last) wins.
+  const summaryRefs: Year2025Reference[] = [];
   try {
-    const refRow = await prisma.rawFile.findFirst({
+    const refRows = await prisma.rawFile.findMany({
       where: { kind: "ref_2025", deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      select: { bytes: true },
+      orderBy: { createdAt: "asc" },
+      select: { bytes: true, originalName: true },
     });
-    if (refRow?.bytes) year2025Ref = parse2025Summary(new Uint8Array(refRow.bytes));
+    for (const r of refRows) {
+      if (!r.bytes) continue;
+      try {
+        summaryRefs.push(parse2025Summary(new Uint8Array(r.bytes)));
+      } catch (e) {
+        console.error(`[repair] failed to parse "${r.originalName}":`, e);
+      }
+    }
   } catch (e) {
-    console.error("[repair] failed to load 2025 reference:", e);
+    console.error("[repair] failed to load Sales Summary references:", e);
   }
 
   for (const m of ordered) {
@@ -347,14 +354,17 @@ export async function POST() {
       changed = true;
     }
 
-    // Step 0c — fill prior-year (2025) comparison columns from the uploaded
-    // "Sales Summary" reference, if one exists. Runs after the chain merge so
-    // the authoritative reference figures win over carried-forward guesses.
-    if (year2025Ref) {
-      const y25 = applyYear2025ToReport(filled, year2025Ref);
-      if (y25.changed) {
-        filled = y25.next;
-        notes.push("2025 comparison columns filled from Sales Summary reference");
+    // Step 0c — apply every Sales Summary reference on file. Each ref's year
+    // determines what it writes (prior-year file fills actual2025 + qty2025;
+    // current-year file fills target2026). Runs after the chain merge so the
+    // authoritative reference figures win over carried-forward guesses.
+    for (const ref of summaryRefs) {
+      const r = applyYear2025ToReport(filled, ref);
+      if (r.changed) {
+        filled = r.next;
+        notes.push(ref.year === m.year
+          ? `Slide 1 target${m.year} filled from ${ref.year} Sales Summary`
+          : "2025 comparison columns filled from Sales Summary reference");
         changed = true;
       }
     }

@@ -92,9 +92,11 @@ export async function POST(req: Request): Promise<Response> {
   let stockBocXlsxBuf: ArrayBuffer | null = null;    // BOC consignment listing
   let collectionXlsxBuf: ArrayBuffer | null = null;
   let dailySalesXlsxBuf: ArrayBuffer | null = null;
-  // Full-year prior-year (2025) reference, parsed from a "Sales Summary"
-  // workbook if one is in this upload. Applied to every month afterwards.
-  let year2025Ref: Year2025Reference | null = null;
+  // Sales Summary workbooks (one or more). The user can upload both the
+  // prior-year file (Dec_2025 → fills actual2025) and the current-year file
+  // (Jan_2026 → fills target2026) in the same import. We collect every
+  // detected ref and apply each one to every month after the main parse.
+  const summaryRefs: Year2025Reference[] = [];
   const warnings: string[] = [];
   // Track each uploaded file against a FileKind so we can surface the list,
   // map it back to the slide(s) it drove, AND keep the raw bytes so we can
@@ -128,12 +130,13 @@ export async function POST(req: Request): Promise<Response> {
       // Order matters — several patterns overlap (Region also contains "sales",
       // master also says "Stock Sales Analysis"). Most-specific first.
       if (is2025SummaryFile(name)) {
-        // Full-year prior-year reference workbook. Parsed once; applied to
-        // every month's 2025 comparison columns after the main import below.
+        // Sales Summary workbook (any year). Parsed once; the apply step
+        // below decides whether it feeds target2026 (current-year file) or
+        // actual2025 + qty2025 (prior-year file) based on the title's year.
         try {
-          year2025Ref = parse2025Summary(buf);
+          summaryRefs.push(parse2025Summary(buf));
         } catch (e) {
-          warnings.push(`Could not parse 2025 Sales Summary "${name}": ${e instanceof Error ? e.message : "unknown error"}`);
+          warnings.push(`Could not parse Sales Summary "${name}": ${e instanceof Error ? e.message : "unknown error"}`);
         }
         pushFile("ref_2025", f, buf);
       }
@@ -366,9 +369,9 @@ export async function POST(req: Request): Promise<Response> {
     sectionsTouched.add("salesAchievement");
   }
 
-  // A 2025 reference file feeds Slide 1 + Slide 5 — mark those touched so the
-  // file is recorded as their source and shows in the "Slides refreshed" line.
-  if (year2025Ref) {
+  // Sales Summary references feed Slide 1 (target/actual) + Slide 5 (qty).
+  // Mark those touched so the file shows in "Slides refreshed".
+  if (summaryRefs.length) {
     sectionsTouched.add("salesAchievement");
     sectionsTouched.add("salesByQuantity");
   }
@@ -436,18 +439,24 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  // ----- Apply the 2025 reference to EVERY month -----
-  // A "Sales Summary" workbook is a whole-year dataset, not a single month's
-  // POS dump. When one is uploaded we fan it out: every existing MonthReport
-  // gets its Slide 1 actual2025 row and Slide 5 qty2025 columns filled from
-  // the same reference, so YoY comparisons line up across the whole year.
+  // ----- Apply the Sales Summary references to EVERY month -----
+  // A Sales Summary workbook is a whole-year dataset, not a single month's
+  // POS dump. Each ref (prior-year or current-year) is fanned out across
+  // every existing MonthReport so the YoY comparison and target columns
+  // line up. Multiple refs in one upload are applied in order — each ref's
+  // year determines what gets written (target vs actual; see applyYear2025).
   let year2025Applied = 0;
-  if (year2025Ref) {
+  if (summaryRefs.length) {
     const allMonths = await listMonthReports();
     for (const mr of allMonths) {
-      const { changed, next } = applyYear2025ToReport(mr, year2025Ref);
-      if (changed) {
-        await upsertMonthReport(next);
+      let current = mr;
+      let monthChanged = false;
+      for (const ref of summaryRefs) {
+        const { changed, next } = applyYear2025ToReport(current, ref);
+        if (changed) { current = next; monthChanged = true; }
+      }
+      if (monthChanged) {
+        await upsertMonthReport(current);
         year2025Applied++;
         revalidatePath(`/report/${mr.id}`);
       }
@@ -475,6 +484,6 @@ export async function POST(req: Request): Promise<Response> {
     result,
     warnings,
     // Surfaced in the import-complete panel when a Sales Summary was uploaded.
-    year2025Applied: year2025Ref ? year2025Applied : undefined,
+    year2025Applied: summaryRefs.length ? year2025Applied : undefined,
   });
 }
