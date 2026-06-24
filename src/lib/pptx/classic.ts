@@ -111,7 +111,11 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
 
   const SA = lastMonth.salesAchievement;
   const headers = ["", ...MONTH_NAMES, "Total"];
-  const row = (label: string, data: (number | null)[], isPct = false) => {
+  // `totalOverride` lets percent rows ship a WEIGHTED total
+  // (sumNumer ÷ sumDenom) instead of an empty cell or a meaningless
+  // sum-of-percents. Matches the editor's ratioTotal so the deck no longer
+  // desyncs from what the user sees in the dashboard table.
+  const row = (label: string, data: (number | null)[], isPct = false, totalOverride: number | null = null) => {
     const cells: PptxGenJS.TableCell[] = [{ text: label, options: { bold: true, fill: { color: C.rowAlt } } }];
     let total = 0;
     for (const v of data) {
@@ -121,7 +125,11 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
         options: { align: "right" },
       });
     }
-    cells.push({ text: isPct ? "" : fmtMYR(total), options: { align: "right", bold: true } });
+    const effectiveTotal: number | null = isPct ? totalOverride : total;
+    cells.push({
+      text: effectiveTotal == null ? "" : isPct ? fmtPct(effectiveTotal) : fmtMYR(effectiveTotal),
+      options: { align: "right", bold: true },
+    });
     return cells;
   };
   const headerCells: PptxGenJS.TableCell[] = headers.map(h => ({
@@ -129,14 +137,19 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
   }));
   const rows: PptxGenJS.TableCell[][] = [headerCells];
   if (SA) {
+    const sumOf = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
+    const totalTarget = sumOf(SA.target2026);
+    const totalActual = sumOf(SA.actual2026);
+    const totalPrior  = sumOf(SA.actual2025);
+
     rows.push(row("Sales Target 2026",   SA.target2026));
     rows.push(row("Sales Result 2026",   SA.actual2026));
     // Accumulated % = actual/target per month
     const acc = SA.target2026.map((t, i) => (t && SA.actual2026[i] != null ? (SA.actual2026[i]! / t) : 0));
-    rows.push(row("ACC %",               acc, true));
+    rows.push(row("ACC %",               acc, true, totalTarget ? totalActual / totalTarget : null));
     rows.push(row("Sales Result 2025",   SA.actual2025));
     const yoy = SA.actual2025.map((p, i) => (p && SA.actual2026[i] != null ? (SA.actual2026[i]! / p) : 0));
-    rows.push(row("YoY %",               yoy, true));
+    rows.push(row("YoY %",               yoy, true, totalPrior ? totalActual / totalPrior : null));
     rows.push(row("Net Income 2026",     SA.netIncome2026));
     rows.push(row("Net Income 2025",     SA.netIncome2025));
   } else {

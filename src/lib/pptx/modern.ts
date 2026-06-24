@@ -135,22 +135,32 @@ function salesAchievement(pptx: PptxGenJS, input: PptxInput) {
     ...MONTH_NAMES.map(m => ({ text: m, options: { bold: true, align: "center" as const, color: P.white, fill: { color: P.ink } } })),
     { text: "Total", options: { bold: true, align: "center", color: P.white, fill: { color: P.ink } } },
   ]];
-  const row = (label: string, data: (number | null)[], pct = false): PptxGenJS.TableCell[] => {
+  // `totalOverride` carries the WEIGHTED ratio total for percent rows so
+  // the Total cell matches the editor (which does sumNumer ÷ sumDenom).
+  const row = (label: string, data: (number | null)[], pct = false, totalOverride: number | null = null): PptxGenJS.TableCell[] => {
     const r: PptxGenJS.TableCell[] = [{ text: label, options: { bold: true, fill: { color: P.ice2 }, color: P.ink } }];
     let total = 0;
     for (const v of data) {
       if (v != null && !pct) total += v;
       r.push({ text: v == null ? "" : pct ? fmtPct(v) : fmtMYR(v), options: { align: "right", color: P.ink } });
     }
-    r.push({ text: pct ? "" : fmtMYR(total), options: { bold: true, align: "right", color: P.ink } });
+    const effectiveTotal: number | null = pct ? totalOverride : total;
+    r.push({
+      text: effectiveTotal == null ? "" : pct ? fmtPct(effectiveTotal) : fmtMYR(effectiveTotal),
+      options: { bold: true, align: "right", color: P.ink },
+    });
     return r;
   };
   if (SA) {
+    const sumOf = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
+    const totalTarget = sumOf(SA.target2026);
+    const totalActual = sumOf(SA.actual2026);
+    const totalPrior  = sumOf(SA.actual2025);
     rows.push(row("Target 2026",  SA.target2026));
     rows.push(row("Actual 2026",  SA.actual2026));
-    rows.push(row("ACC %",        SA.target2026.map((t, i) => (t && SA.actual2026[i] != null ? SA.actual2026[i]! / t : 0)), true));
+    rows.push(row("ACC %",        SA.target2026.map((t, i) => (t && SA.actual2026[i] != null ? SA.actual2026[i]! / t : 0)), true, totalTarget ? totalActual / totalTarget : null));
     rows.push(row("Actual 2025",  SA.actual2025));
-    rows.push(row("YoY %",        SA.actual2025.map((p, i) => (p && SA.actual2026[i] != null ? SA.actual2026[i]! / p : 0)), true));
+    rows.push(row("YoY %",        SA.actual2025.map((p, i) => (p && SA.actual2026[i] != null ? SA.actual2026[i]! / p : 0)), true, totalPrior ? totalActual / totalPrior : null));
     rows.push(row("Net Income",   SA.netIncome2026));
   }
   s.addTable(rows, {
