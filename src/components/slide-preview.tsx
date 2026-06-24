@@ -1154,15 +1154,19 @@ function SlideOtherMarket({ report, P, scale }: { report: MonthReport; P: Palett
 function SlideCover({ report, P, scale }: { report: MonthReport; P: Palette; scale: number }) {
   return (
     <>
-      {/* Logo placeholder — real PPTX drops /public/brand/logo.jpg; here we use a
-          navy lockup to keep the preview self-contained. */}
-      <div style={{
-        position: "absolute", left: px(0.6, scale), top: px(0.5, scale),
-        width: px(3, scale), height: px(1.6, scale),
-        display: "grid", placeItems: "center",
-        background: P.header, borderRadius: px(0.1, scale), color: "#fff",
-        fontFamily: "Calibri", fontWeight: 800, fontSize: fs(22, scale), letterSpacing: "0.08em",
-      }}>SEED</div>
+      {/* SEED contact lens lockup — same position the PPTX cover uses, served
+          straight from public/brand/logo.jpg so the preview and the export
+          match. object-fit: contain preserves the logo's aspect ratio inside
+          the box. */}
+      <img
+        src="/brand/logo.jpg"
+        alt="SEED contact lens"
+        style={{
+          position: "absolute", left: px(0.45, scale), top: px(0.41, scale),
+          width: px(2.82, scale), height: px(1.63, scale),
+          objectFit: "contain",
+        }}
+      />
 
       <div style={{
         position: "absolute", left: px(1.67, scale), top: px(2.66, scale), width: px(10, scale),
