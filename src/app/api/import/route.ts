@@ -174,7 +174,17 @@ export async function POST(req: Request): Promise<Response> {
       else if (/salesman.*(sales|colle?c?tion)|account\s*type/i.test(name)) { salesmanXlsxBuf = buf; pushFile("pos_salesman", f, buf); }
       else if (/daily\s*sales/i.test(name)) { dailySalesXlsxBuf = buf; pushFile("pos_daily", f, buf); }
       else if (/colle?c?tion\s*listing/i.test(name)) { collectionXlsxBuf = buf; pushFile("pos_collection", f, buf); }
-      else { outletsXlsxBuf = buf; pushFile("pos_outlets", f, buf); }
+      // Outlet file ("Monthly Sales Performance"). The previous code used a
+      // blanket catch-all here, so any XLSX whose name didn't match any of the
+      // patterns above (e.g. "Sales Quantity By Brand …xlsx") silently became
+      // an outlet, parsed to zero rows, and OVERWROTE Slide 8 / Slide 7 with
+      // zeros. Requiring an explicit match means stray files now fall through
+      // to "unknown" and trigger the section-upload warnings popup instead.
+      else if (/monthly\s*sales\s*performance|customer\s*sales\s*performance/i.test(name)) {
+        outletsXlsxBuf = buf;
+        pushFile("pos_outlets", f, buf);
+      }
+      else { pushFile("unknown", f, buf); }
     }
   }
 
@@ -216,17 +226,27 @@ export async function POST(req: Request): Promise<Response> {
 
   if (outletsXlsxBuf || salesmanOutlets) {
     const ecpList = ecpListBuf ? parseEcpListXlsx(ecpListBuf) : [];
+    const parsedOutlets = outletsXlsxBuf ? parseOutletXlsx(outletsXlsxBuf) : [];
     const outletsForEcp = salesmanOutlets && salesmanOutlets.length > 0
       ? salesmanOutlets
-      : (outletsXlsxBuf ? parseOutletXlsx(outletsXlsxBuf) : []);
-    sections.salesByECP = salesByECP(outletsForEcp, ecpList);
-    sectionsTouched.add("salesByECP");
-    // Fall back to outlet-derived region only when neither the region file
-    // nor the salesman file is driving it. Salesman file carries no state info.
+      : parsedOutlets;
+    // Empty outlets used to slip through and zero out Slide 7 (ECP) — guard
+    // it so a file with no "Customer Name" rows leaves the slide alone.
+    if (outletsForEcp.length > 0) {
+      sections.salesByECP = salesByECP(outletsForEcp, ecpList);
+      sectionsTouched.add("salesByECP");
+    } else if (outletsXlsxBuf) {
+      warnings.push(`Outlet file: no "Customer Name" rows found — Slide 7 (Sales by ECP) was NOT changed. Confirm the file is "Monthly Sales Performance".`);
+    }
+    // Outlet-derived region: same guard. The previous code wrote a zero row
+    // per region for empty outlets, which wiped Slide 8 with -100% growth.
     if (outletsXlsxBuf && !regionXlsxBuf) {
-      const outlets = parseOutletXlsx(outletsXlsxBuf);
-      sections.salesByRegion = salesByRegion(outlets, ecpList, priorRegionSales);
-      sectionsTouched.add("salesByRegion");
+      if (parsedOutlets.length === 0) {
+        warnings.push(`Outlet file: no rows parsed — Slide 8 (Sales by Region) was NOT changed. Confirm the file is "Monthly Sales Performance" or upload a "Sales Analysis By Region" file.`);
+      } else {
+        sections.salesByRegion = salesByRegion(parsedOutlets, ecpList, priorRegionSales);
+        sectionsTouched.add("salesByRegion");
+      }
     }
   }
 
