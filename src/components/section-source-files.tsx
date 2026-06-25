@@ -74,6 +74,33 @@ export function SectionSourceFiles({
    * pipeline, then refreshes. This rebuilds the slide from the files on record
    * — the one-click fix when a slide's figures look stale or empty.
    */
+  /**
+   * Surface server-side parse warnings and unrecognised files so a silent
+   * "200 OK but nothing changed" import (e.g. Sales by Region with a missing
+   * month header) doesn't leave the user wondering why Recalculate had no
+   * effect. The Files-page import has its own dialog for this; per-section
+   * uploads use a plain alert to stay lightweight.
+   */
+  function reportImportIssues(body: {
+    warnings?: string[];
+    result?: { filesByKind?: Record<string, string[]> };
+  }, action: string) {
+    const warnings = body.warnings ?? [];
+    const unknown = body.result?.filesByKind?.unknown ?? [];
+    if (warnings.length === 0 && unknown.length === 0) return;
+    const lines: string[] = [`${action} finished — but some files did NOT update the slide:`];
+    if (unknown.length) {
+      lines.push("", "Filename not recognised:");
+      for (const n of unknown) lines.push("  • " + n);
+    }
+    if (warnings.length) {
+      lines.push("", "Parser warnings:");
+      for (const w of warnings) lines.push("  • " + w);
+    }
+    lines.push("", "The slide figures are unchanged. Check the filename / month header in the file and re-upload.");
+    alert(lines.join("\n"));
+  }
+
   async function onUpdate() {
     const reusable = files.filter(f => f.hasBytes);
     if (reusable.length === 0) {
@@ -92,10 +119,9 @@ export function SectionSourceFiles({
         fd.append("files", new File([blob], f.originalName));
       }
       const imp = await fetch("/api/import", { method: "POST", body: fd });
-      if (!imp.ok) {
-        const body = await imp.json().catch(() => ({}));
-        throw new Error(body.error || "Update failed");
-      }
+      const body = await imp.json().catch(() => ({}));
+      if (!imp.ok) throw new Error(body.error || "Update failed");
+      reportImportIssues(body, "Update");
       startTransition(() => router.refresh());
     } catch (err) {
       alert(err instanceof Error ? err.message : "Update failed");
@@ -115,10 +141,9 @@ export function SectionSourceFiles({
       fd.set("month", String(month));
       for (const f of picked) fd.append("files", f);
       const res = await fetch("/api/import", { method: "POST", body: fd });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Upload failed");
-      }
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Upload failed");
+      reportImportIssues(body, "Upload");
       startTransition(() => router.refresh());
     } catch (err) {
       alert(err instanceof Error ? err.message : "Upload failed");
