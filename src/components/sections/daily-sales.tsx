@@ -42,22 +42,11 @@ export function SectionDailySales({ report, update }: SectionProps) {
     };
   });
 
-  const totalQty = chartData.reduce((s, d) => s + d.qty, 0);
-  const avgQty = Math.round(totalQty / Math.max(1, chartData.filter(d => d.qty > 0).length));
-  const maxQty = chartData.reduce((m, d) => Math.max(m, d.qty), 0);
-  const peak = chartData.find(d => d.qty === maxQty && maxQty > 0);
-
   return (
     <SectionShell sectionKey="dailySales" subtitle="Slide 6 — daily sales quantity. Weekends and holidays marked in red to match the HQ format.">
-      {/* Top KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <KpiBox label="Month" value={`${MONTH_ABBR[report.month - 1]} ${report.year}`} />
-        <KpiBox label="Total units" value={totalQty.toLocaleString("en-US")} accent />
-        <KpiBox label="Avg / trading day" value={avgQty ? avgQty.toLocaleString("en-US") : "—"} />
-        <KpiBox label="Peak" value={peak ? `${peak.qty.toLocaleString("en-US")} (${peak.dateLabel})` : "—"} />
-      </div>
-
-      {/* Chart card — matches HQ slide 6 aesthetic */}
+      {/* Chart card — matches HQ slide 6 aesthetic. The Month / Total units /
+          Avg / Peak strip was dropped here per the user's request to give the
+          chart more vertical room. */}
       <div className="rounded-xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-600)]">
@@ -204,25 +193,6 @@ export function SectionDailySales({ report, update }: SectionProps) {
         rows={5}
       />
     </SectionShell>
-  );
-}
-
-function KpiBox({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className={cn(
-      "rounded-xl border px-4 py-3",
-      accent
-        ? "border-[var(--color-ink-700)] bg-[var(--color-ink-800)] text-white"
-        : "border-[var(--color-ice-200)] bg-[var(--color-ice-50)]",
-    )}>
-      <div className={cn(
-        "text-[10px] uppercase tracking-[0.2em] font-semibold",
-        accent ? "text-[var(--color-ice-200)]" : "text-[var(--color-ink-600)]",
-      )}>{label}</div>
-      <div className={cn("font-[var(--font-display)] text-xl font-semibold mt-0.5", accent ? "" : "text-[var(--color-ink-900)]")}>
-        {value}
-      </div>
-    </div>
   );
 }
 
