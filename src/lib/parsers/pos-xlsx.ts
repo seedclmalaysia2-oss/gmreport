@@ -265,27 +265,55 @@ export function parseSalesByRegionXlsx(buf: ArrayBuffer, year: number, month: nu
     return fallback;
   };
 
+  // We accept both layouts the POS has emitted in the wild:
+  //   • Old (Jan–Apr 2026): the label "Customer UD Group" sits in one cell
+  //     (typically col 3) and the state name "JOHOR (STATE)" in a later cell
+  //     (col 8). "Sub Total" sits in col 3 with the value on the row *below*.
+  //   • New (May 2026): everything is collapsed into one cell, e.g.
+  //     "Customer UD Group : JOHOR (STATE)" / "Sub Total", at any column
+  //     (col 1 in the file we saw), with the value on the SAME row.
+  // The regex `^Customer UD Group(:.*)?$` distinguishes a real group header
+  // from the page banner "Sales Analysis by Customer UD Group".
+  const groupRe = /^Customer\s+UD\s+Group(?:\s*:\s*(.+))?$/i;
+  const nameRe = /^(.+?)\s*\((STATE|COUNTRY)\)\s*$/i;
+
+  const findGroupName = (row: unknown[]): string | null => {
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (typeof cell !== "string") continue;
+      const m = cell.trim().match(groupRe);
+      if (!m) continue;
+      if (m[1]) return m[1].trim(); // inline name, new layout
+      // Old layout: name lives in a later non-empty string cell on the same row.
+      for (let cc = c + 1; cc < row.length; cc++) {
+        const nx = row[cc];
+        if (typeof nx === "string" && nx.trim()) return nx.trim();
+      }
+      return null;
+    }
+    return null;
+  };
+
   const out: RegionXlsxEntry[] = [];
   let currentGroup: { name: string; kind: "state" | "country" } | null = null;
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r] || [];
-    const labelCell = String(row[3] ?? "").trim();
-    // Group header: "Customer UD Group : JOHOR (STATE)"
-    if (labelCell === "Customer UD Group") {
-      const name = String(row[8] ?? "").trim();
-      if (name) {
-        const m = name.match(/^(.+?)\s*\((STATE|COUNTRY)\)\s*$/i);
-        if (m) {
-          currentGroup = { name: m[1].trim().toUpperCase(), kind: m[2].toUpperCase() === "COUNTRY" ? "country" : "state" };
-        } else {
-          currentGroup = { name: name.toUpperCase(), kind: "state" };
-        }
-      }
+
+    const groupName = findGroupName(row);
+    if (groupName) {
+      const m = groupName.match(nameRe);
+      currentGroup = m
+        ? { name: m[1].trim().toUpperCase(), kind: m[2].toUpperCase() === "COUNTRY" ? "country" : "state" }
+        : { name: groupName.toUpperCase(), kind: "state" };
       continue;
     }
-    // Sub Total row closes out the current group. The value sits in the row *after* the label.
-    if (labelCell === "Sub Total" && currentGroup) {
-      const amount = pickInBand(rows[r + 1] as unknown[] | undefined) ?? pickInBand(row) ?? 0;
+
+    // Sub Total at any column closes out the current group. The value may sit
+    // on the same row (new layout) or the row below (old layout) — try same
+    // row first, fall back to next.
+    const hasSubTotal = row.some(c => typeof c === "string" && c.trim().toLowerCase() === "sub total");
+    if (hasSubTotal && currentGroup) {
+      const amount = pickInBand(row) ?? pickInBand(rows[r + 1] as unknown[] | undefined) ?? 0;
       out.push({ state: currentGroup.name, kind: currentGroup.kind, sales: amount });
       currentGroup = null;
     }
