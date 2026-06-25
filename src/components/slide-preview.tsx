@@ -427,46 +427,15 @@ function SlideDailySales({ report, P, scale }: { report: MonthReport; P: Palette
       nonTrading: wd === 0 || wd === 6 || holidaySet.has(iso),
     };
   });
-  const totalQty = data.reduce((s, d) => s + d.qty, 0);
-  const tradingDays = data.filter(d => d.qty > 0).length;
-  const avgQty = tradingDays ? Math.round(totalQty / tradingDays) : 0;
-  const maxDay = data.reduce((m, d) => (d.qty > (m?.qty ?? -1) ? d : m), data[0]);
-
   return (
     <>
       <SlideTitle palette={P} scale={scale} text={`4. Daily Sales Quantity – ${monthNameFull(report.month).toUpperCase()} ${report.year}`} size={20} />
 
-      {/* KPI strip — mirrors the editor's top cards */}
+      {/* Chart — KPI strip was removed (matches the editor); chart starts
+          right under the title and uses the freed vertical space. */}
       <div style={{
         position: "absolute", left: px(0.3, scale), top: px(0.85, scale),
-        width: px(12.7, scale), height: px(0.82, scale),
-        display: "flex", gap: px(0.14, scale),
-      }}>
-        {[
-          { label: "Month", value: `${monthNameFull(report.month)} ${report.year}`, accent: false },
-          { label: "Total units", value: totalQty.toLocaleString("en-US"), accent: true },
-          { label: "Avg / trading day", value: avgQty ? avgQty.toLocaleString("en-US") : "—", accent: false },
-          { label: "Peak", value: maxDay && maxDay.qty ? `${maxDay.qty.toLocaleString("en-US")} (${maxDay.dateLabel})` : "—", accent: false },
-        ].map((kpi, i) => (
-          <div key={i} style={{
-            flex: 1, height: "100%",
-            background: kpi.accent ? P.header : "#F4F7FF",
-            color: kpi.accent ? "#fff" : P.text,
-            padding: px(0.10, scale),
-            borderRadius: Math.max(4, 0.06 * scale),
-            border: `1px solid ${kpi.accent ? P.header : P.border}`,
-            display: "flex", flexDirection: "column", justifyContent: "center",
-          }}>
-            <div style={{ fontSize: fs(9, scale), textTransform: "uppercase", letterSpacing: "0.12em", opacity: 0.85 }}>{kpi.label}</div>
-            <div style={{ fontSize: fs(14, scale), fontWeight: 700, marginTop: Math.max(1, 0.02 * scale) }}>{kpi.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Chart */}
-      <div style={{
-        position: "absolute", left: px(0.3, scale), top: px(1.85, scale),
-        width: px(12.7, scale), height: px(3.5, scale),
+        width: px(12.7, scale), height: px(4.5, scale),
         background: "#fff",
         border: `1px solid ${P.border}`,
         borderRadius: Math.max(4, 0.06 * scale),

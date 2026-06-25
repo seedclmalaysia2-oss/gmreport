@@ -256,8 +256,6 @@ function dailySales(pptx: PptxGenJS, input: PptxInput, m: typeof input.months[nu
   const labels: string[] = [];
   const values: number[] = [];
   const nonTradingIdx: number[] = [];
-  let totalQty = 0;
-  let peak = { qty: 0, dateLabel: "" };
   for (let day = 1; day <= daysInMonth; day++) {
     const iso = `${m.year}-${String(m.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const row = D.days.find(d => d.date === iso);
@@ -267,43 +265,13 @@ function dailySales(pptx: PptxGenJS, input: PptxInput, m: typeof input.months[nu
     labels.push(`${day}-${monthsAbbr[m.month - 1]}\n${wdShort[wd]}`);
     values.push(qty);
     if (nonTrading) nonTradingIdx.push(day - 1);
-    totalQty += qty;
-    if (qty > peak.qty) peak = { qty, dateLabel: `${day}-${monthsAbbr[m.month - 1]}` };
   }
-  const tradingDays = values.filter(v => v > 0).length;
-  const avg = tradingDays ? Math.round(totalQty / tradingDays) : 0;
-
-  // ---- KPI strip: 4 cards, accent on TOTAL UNITS ----
-  const kpis = [
-    { label: "MONTH",             value: `${monthNameFull(m.month)} ${m.year}`,    accent: false },
-    { label: "TOTAL UNITS",       value: totalQty.toLocaleString("en-US"),         accent: true  },
-    { label: "AVG / TRADING DAY", value: avg ? avg.toLocaleString("en-US") : "—",  accent: false },
-    { label: "PEAK",              value: peak.qty ? `${peak.qty.toLocaleString("en-US")} (${peak.dateLabel})` : "—", accent: false },
-  ];
-  const kpiY = 1.45, kpiH = 0.85, kpiGap = 0.16;
-  const kpiW = (12.15 - kpiGap * 3) / 4;
-  kpis.forEach((k, i) => {
-    const x = 0.6 + i * (kpiW + kpiGap);
-    s.addShape("roundRect", {
-      x, y: kpiY, w: kpiW, h: kpiH, rectRadius: 0.10,
-      fill: { color: k.accent ? P.ink2 : P.mutedBg },
-      line: { color: k.accent ? P.ink2 : P.ice, width: 0.75 },
-    });
-    s.addText(k.label, {
-      x: x + 0.14, y: kpiY + 0.08, w: kpiW - 0.28, h: 0.26,
-      fontFace: BODY_FONT, fontSize: 10, bold: true,
-      color: k.accent ? P.ice : P.ink3, charSpacing: 4,
-    });
-    s.addText(k.value, {
-      x: x + 0.14, y: kpiY + 0.36, w: kpiW - 0.28, h: 0.44,
-      fontFace: DISPLAY_FONT, fontSize: 18, bold: true,
-      color: k.accent ? P.white : P.ink,
-    });
-  });
 
   // ---- Chart card ----
-  const chartY = 2.50;
-  const chartH = 3.10;
+  // KPI strip removed (matches the editor). The chart now starts right
+  // under the section header and takes the freed vertical space.
+  const chartY = 1.45;
+  const chartH = 4.15;
   s.addShape("roundRect", {
     x: 0.6, y: chartY, w: 12.15, h: chartH, rectRadius: 0.10,
     fill: { color: P.white }, line: { color: P.ice, width: 0.75 },

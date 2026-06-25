@@ -309,7 +309,6 @@ function slideDailySales(pptx: PptxGenJS, input: PptxInput, m: typeof input.mont
   const labels: string[] = [];
   const values: number[] = [];
   const nonTradingIndexes: number[] = [];
-  let totalQty = 0; let peak = { qty: 0, dateLabel: "" };
   for (let day = 1; day <= daysInMonth; day++) {
     const iso = `${m.year}-${String(m.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const row = D.days.find(d => d.date === iso);
@@ -319,45 +318,13 @@ function slideDailySales(pptx: PptxGenJS, input: PptxInput, m: typeof input.mont
     labels.push(`${day}-${months[m.month - 1]}\n${wdShort[wd]}`);
     values.push(qty);
     if (nonTrading) nonTradingIndexes.push(day - 1);
-    totalQty += qty;
-    if (qty > peak.qty) peak = { qty, dateLabel: `${day}-${months[m.month - 1]}` };
   }
-  const tradingDays = values.filter(v => v > 0).length;
-  const avg = tradingDays ? Math.round(totalQty / tradingDays) : 0;
-
-  // ---- KPI strip (navy-on-white cards, one accent card) ----
-  const kpis = [
-    { label: "MONTH", value: `${monthNameFull(m.month)} ${m.year}`, accent: false },
-    { label: "TOTAL UNITS", value: totalQty.toLocaleString("en-US"), accent: true },
-    { label: "AVG / TRADING DAY", value: avg ? avg.toLocaleString("en-US") : "—", accent: false },
-    { label: "PEAK", value: peak.qty ? `${peak.qty.toLocaleString("en-US")} (${peak.dateLabel})` : "—", accent: false },
-  ];
-  const kpiY = 0.90;
-  const kpiH = 0.82;
-  const kpiGap = 0.14;
-  const kpiW = (13.33 - 0.5 - kpiGap * 3) / 4;
-  kpis.forEach((k, i) => {
-    const x = 0.25 + i * (kpiW + kpiGap);
-    s.addShape("roundRect", {
-      x, y: kpiY, w: kpiW, h: kpiH, rectRadius: 0.08,
-      fill: { color: k.accent ? C.header : "F4F7FF" },
-      line: { color: k.accent ? C.header : "CADCFC", width: 0.75 },
-    });
-    s.addText(k.label, {
-      x: x + 0.12, y: kpiY + 0.06, w: kpiW - 0.24, h: 0.25,
-      fontFace: FONT, fontSize: 10, bold: true,
-      color: k.accent ? "CADCFC" : C.muted, charSpacing: 4,
-    });
-    s.addText(k.value, {
-      x: x + 0.12, y: kpiY + 0.34, w: kpiW - 0.24, h: 0.42,
-      fontFace: FONT, fontSize: 18, bold: true,
-      color: k.accent ? "FFFFFF" : C.text,
-    });
-  });
 
   // ---- Chart card ----
-  const chartY = 1.90;
-  const chartH = 3.55;
+  // KPI strip removed (matches the editor). The chart now starts right
+  // under the title bar and takes the full body height.
+  const chartY = 0.90;
+  const chartH = 4.55;
   s.addShape("roundRect", {
     x: 0.25, y: chartY, w: 12.85, h: chartH, rectRadius: 0.08,
     fill: { color: "FFFFFF" }, line: { color: "CADCFC", width: 0.75 },
