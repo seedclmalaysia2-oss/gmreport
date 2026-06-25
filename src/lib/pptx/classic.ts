@@ -594,6 +594,20 @@ function slideSalesByECP(pptx: PptxGenJS, input: PptxInput) {
         { text: `MYR ${fmtMYR(r.salesMyr, 0)}`, options: { ...zebra, align: "right" } },
       ]);
     });
+    // Total row — matches the editor's Slide 7 footer. Percent reads 100%
+    // by construction (every outlet falls into one of the 5 buckets); any
+    // rounding noise away from 100% is cosmetic only. Styled like the header
+    // row so the "this is the totals" intent is unambiguous.
+    const totalOutlets = data.reduce((s, r) => s + (r.outlets || 0), 0);
+    const totalSalesMyr = data.reduce((s, r) => s + (r.salesMyr || 0), 0);
+    const totalCell = { bold: true, fill: headerFill(), color: C.headerText };
+    rows.push([
+      { text: "Total",                                       options: { ...totalCell } },
+      { text: String(totalOutlets),                          options: { ...totalCell, align: "right" } },
+      { text: fmtPct(1, 0),                                  options: { ...totalCell, align: "right" } },
+      { text: fmtJPY(totalSalesMyr * month.fxRate),          options: { ...totalCell, align: "right" } },
+      { text: `MYR ${fmtMYR(totalSalesMyr, 0)}`,             options: { ...totalCell, align: "right" } },
+    ]);
     s.addTable(rows, { x: 0.96, y, w: 11.11, h: 2.9, fontFace: FONT, fontSize: 16, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
   };
   if (input.months.length === 2) {

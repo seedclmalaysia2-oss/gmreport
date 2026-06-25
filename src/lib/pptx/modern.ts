@@ -460,6 +460,18 @@ function salesByECP(pptx: PptxGenJS, input: PptxInput) {
       { text: fmtJPY(r.salesMyr * last.fxRate), options: { ...zebra, align: "right", color: P.ink3 } },
     ]);
   });
+  // Total row — sums Outlets and MYR/JPY across the 5 categories. Styled
+  // like the dark header so it reads as the footer.
+  const totalOutlets   = data.reduce((s, r) => s + (r.outlets || 0), 0);
+  const totalSalesMyr  = data.reduce((s, r) => s + (r.salesMyr || 0), 0);
+  const totalCell = { bold: true, color: P.white, fill: { color: P.ink } };
+  rows.push([
+    { text: "Total",                                  options: { ...totalCell } },
+    { text: String(totalOutlets),                     options: { ...totalCell, align: "right" } },
+    { text: fmtPct(1),                                options: { ...totalCell, align: "right" } },
+    { text: fmtMYR(totalSalesMyr),                    options: { ...totalCell, align: "right" } },
+    { text: fmtJPY(totalSalesMyr * last.fxRate),      options: { ...totalCell, align: "right" } },
+  ]);
   s.addTable(rows, { x: 6.3, y: 1.7, w: 6.5, h: 4.5, fontFace: BODY_FONT, fontSize: 11, border: { type: "solid", pt: 0.5, color: P.ice } });
 }
 
