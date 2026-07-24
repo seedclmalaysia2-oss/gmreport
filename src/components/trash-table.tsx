@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { FileTrashActions } from "./file-trash-actions";
@@ -80,6 +80,18 @@ export function TrashTable({
       setBusy("");
     }
   }
+
+  // Guard against tab close mid-bulk — a mid-purge close would leave the
+  // list in a mixed state. Native prompt lets Simon stay to see it finish.
+  useEffect(() => {
+    if (!isWorking) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isWorking]);
 
   return (
     <div className="space-y-3">

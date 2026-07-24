@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -57,6 +57,19 @@ export function FileTrashActions({
       setBusy("");
     }
   }
+
+  // Guard against tab close mid-request — a mid-purge close would leave
+  // Simon unsure whether the row actually died. Native prompt gives him the
+  // chance to stay put.
+  useEffect(() => {
+    if (!isWorking) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isWorking]);
 
   return (
     <>

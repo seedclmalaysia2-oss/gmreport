@@ -53,6 +53,26 @@ const FILENAME_HINTS: { label: string; keywords: string; example: string }[] = [
 ];
 
 /**
+ * Year window for the target-month picker. Widened to three years back +
+ * one year forward so Simon can backfill 2023/24 data if a historical POS
+ * file surfaces, while still blocking typos like 3025.
+ *
+ * Recomputed at module load; if the app runs across a year boundary the
+ * bounds shift with it. In practice the page is a monthly workflow so a
+ * fresh mount happens every session.
+ */
+const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = CURRENT_YEAR - 3;
+const MAX_YEAR = CURRENT_YEAR + 1;
+
+function clampYear(y: number): number {
+  if (!Number.isFinite(y)) return CURRENT_YEAR;
+  if (y < MIN_YEAR) return MIN_YEAR;
+  if (y > MAX_YEAR) return MAX_YEAR;
+  return Math.trunc(y);
+}
+
+/**
  * POS import page form.
  *
  * URL params:
@@ -65,11 +85,10 @@ export function ImportForm() {
   const sp = useSearchParams();
 
   // Prefer the URL params over today's date so re-opening the page keeps context.
-  const now = new Date();
   const urlYearStr  = sp?.get("year")  ?? null;
   const urlMonthStr = sp?.get("month") ?? null;
-  const urlYear  = Number(urlYearStr)  || now.getFullYear();
-  const urlMonth = Number(urlMonthStr) || (now.getMonth() + 1);
+  const urlYear  = clampYear(Number(urlYearStr)  || CURRENT_YEAR);
+  const urlMonth = Number(urlMonthStr) || (new Date().getMonth() + 1);
   const section  = (sp?.get("section") as SectionKey | null) ?? null;
   const from     = sp?.get("from") ?? null;
 
@@ -101,7 +120,7 @@ export function ImportForm() {
   // clobber whatever the user just picked in the dropdown — that was the
   // "month keeps snapping back to MAY" bug.
   useEffect(() => {
-    if (urlYearStr)  setYear(Number(urlYearStr));
+    if (urlYearStr)  setYear(clampYear(Number(urlYearStr)));
     if (urlMonthStr) setMonth(Number(urlMonthStr));
   }, [urlYearStr, urlMonthStr]);
 
@@ -119,6 +138,14 @@ export function ImportForm() {
   // Last detected period — surfaced as an inline note so the user knows the
   // form auto-updated and didn't silently mis-target the wrong month.
   const [autoDetected, setAutoDetected] = useState<{ year: number; month: number } | null>(null);
+  // Set when a second drop hints a DIFFERENT month than the current queue.
+  // We retarget + clear the queue (safer than silently absorbing files into
+  // the wrong month), then show a warn banner so Simon can't miss the
+  // switch. Cleared on the next successful add or when the user dismisses.
+  const [retargeted, setRetargeted] = useState<
+    | { from: { year: number; month: number }; to: { year: number; month: number } }
+    | null
+  >(null);
   useEffect(() => {
     if (isInitialMount.current) { isInitialMount.current = false; return; }
     if (skipNextReset.current) { skipNextReset.current = false; return; }
@@ -129,27 +156,58 @@ export function ImportForm() {
   }, [year, month]);
 
   // Centralised "add these files" path. Used by the drop handler and the
-  // hidden file input's onChange. When the queue was empty, scans the new
-  // files for a month/year hint (e.g. "Apr26") and retargets the form
-  // automatically so users don't accidentally upload April files into a
-  // May report just because today is May.
+  // hidden file input's onChange. Two retarget flows:
+  //
+  //   Empty queue → new drop hinting a different month
+  //     Retarget silently + green "auto-set" banner. This is the happy
+  //     path — Simon dropped files whose names encode the period.
+  //
+  //   Non-empty queue → new drop hinting a DIFFERENT month than the queue
+  //     Retarget + CLEAR the previous queue + warn banner. Silently
+  //     absorbing would let Simon send March files into a February
+  //     report; refusing the drop would lose the file. Retargeting to
+  //     the new drop's month is the honest middle ground: the latest
+  //     drop wins, and the banner tells him what happened so he can
+  //     override.
   function addFiles(added: File[]) {
-    if (files.length === 0 && added.length > 0) {
-      for (const f of added) {
-        const hint = detectPeriod(f.name);
-        if (!hint) continue;
-        if (hint.year === year && hint.month === month) {
-          // Already on the right month — no need to retarget OR show a banner.
-          break;
-        }
-        // Retarget WITHOUT triggering the queue-clearing effect.
-        skipNextReset.current = true;
-        setYear(hint.year);
-        setMonth(hint.month);
-        setAutoDetected(hint);
-        break;
-      }
+    if (added.length === 0) return;
+
+    // First hint present in the new drop (usually the first file, but skip
+    // untitled/unhinted files until we find one).
+    let hint: { year: number; month: number } | null = null;
+    for (const f of added) {
+      const h = detectPeriod(f.name);
+      if (h) { hint = h; break; }
     }
+
+    const isEmptyQueue = files.length === 0;
+    const hintDiffers = hint !== null && (hint.year !== year || hint.month !== month);
+
+    if (isEmptyQueue && hint && hintDiffers) {
+      // Fresh queue with an auto-detectable period — retarget quietly.
+      skipNextReset.current = true;
+      setYear(hint.year);
+      setMonth(hint.month);
+      setAutoDetected(hint);
+      setRetargeted(null);
+      setFiles([...added]);
+      return;
+    }
+
+    if (!isEmptyQueue && hint && hintDiffers) {
+      // Non-empty queue AND a cross-month drop — retarget noisily.
+      skipNextReset.current = true;
+      const from = { year, month };
+      setYear(hint.year);
+      setMonth(hint.month);
+      setAutoDetected(null);
+      setRetargeted({ from, to: hint });
+      setFiles([...added]);
+      return;
+    }
+
+    // Normal path: same month (or no detectable hint) → just append.
+    setRetargeted(null);
     setFiles(prev => [...prev, ...added]);
   }
 
@@ -157,20 +215,50 @@ export function ImportForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // Belt-and-braces validation — the input has min/max attrs and clamps
+    // on change, but a hostile paste + submit still needs a bouncer.
+    const yr = clampYear(year);
+    if (yr !== year) {
+      setYear(yr);
+    }
+    if (month < 1 || month > 12) {
+      setErr("Month must be between January and December.");
+      return;
+    }
     setBusy(true); setErr(""); setResult(null);
     const fd = new FormData();
-    fd.set("year", String(year));
+    fd.set("year", String(yr));
     fd.set("month", String(month));
     for (const f of files) fd.append("files", f);
-    const res = await fetch("/api/import", { method: "POST", body: fd });
+    let res: Response;
+    try {
+      res = await fetch("/api/import", { method: "POST", body: fd });
+    } catch (netErr) {
+      setBusy(false);
+      setErr(netErr instanceof Error ? `Network error: ${netErr.message}` : "Network error");
+      return;
+    }
     setBusy(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setErr(body.error || "Import failed");
+      setErr(body.error || `Import failed (${res.status})`);
       return;
     }
     setResult(await res.json());
   }
+
+  // Guard against tab close mid-parse. Chrome shows a generic prompt (the
+  // returnValue string is ignored for security reasons), but that's enough
+  // to let Simon cancel a stray Cmd-W and finish uploading a slow XLSX.
+  useEffect(() => {
+    if (!busy) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [busy]);
 
   // Open the issues popup automatically when an import returns either an
   // `unknown` file kind (filename didn't match any parser) or any parser
@@ -216,7 +304,27 @@ export function ImportForm() {
         <div className="flex gap-3">
           <label className="text-sm">
             <span className="block text-xs text-[var(--color-ink-600)] mb-1">Year</span>
-            <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="w-28 rounded-md border border-[var(--color-ice-200)] px-3 py-2" />
+            <input
+              type="number"
+              value={year}
+              min={MIN_YEAR}
+              max={MAX_YEAR}
+              step={1}
+              inputMode="numeric"
+              onChange={e => {
+                const raw = Number(e.target.value);
+                // Let intermediate values through so typing "202" while
+                // heading to "2027" doesn't fight the user, but clamp any
+                // value that's clearly out of range.
+                if (raw >= 1000 && raw <= 9999) setYear(clampYear(raw));
+              }}
+              onBlur={() => setYear(clampYear(year))}
+              className="w-28 rounded-md border border-[var(--color-ice-200)] px-3 py-2 tabular-nums"
+              aria-describedby="year-range-hint"
+            />
+            <span id="year-range-hint" className="sr-only">
+              Between {MIN_YEAR} and {MAX_YEAR}.
+            </span>
           </label>
           <label className="text-sm">
             <span className="block text-xs text-[var(--color-ink-600)] mb-1">Month</span>
@@ -256,6 +364,28 @@ export function ImportForm() {
             <strong>Month auto-set</strong> to{" "}
             <span className="tabular-nums">{MONTH_NAMES[autoDetected.month - 1]} {autoDetected.year}</span>{" "}
             from the file name. Override above if that&rsquo;s wrong.
+          </div>
+        )}
+
+        {retargeted && (
+          <div className="rounded-md border border-[var(--color-warn-200)] bg-[var(--color-warn-50)] px-3 py-2 text-xs text-[var(--color-warn-900)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <strong>Switched to a different month.</strong>{" "}
+                The new files look like{" "}
+                <span className="tabular-nums font-semibold">{MONTH_NAMES[retargeted.to.month - 1]} {retargeted.to.year}</span>, so the previous queue targeting{" "}
+                <span className="tabular-nums">{MONTH_NAMES[retargeted.from.month - 1]} {retargeted.from.year}</span>{" "}
+                was cleared. Change the year/month above if this is wrong.
+              </div>
+              <button
+                type="button"
+                onClick={() => setRetargeted(null)}
+                aria-label="Dismiss month-change notice"
+                className="shrink-0 rounded-md p-0.5 text-[var(--color-warn-800)] hover:bg-[var(--color-warn-100)]"
+              >
+                ×
+              </button>
+            </div>
           </div>
         )}
 

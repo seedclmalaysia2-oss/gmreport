@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye, Loader2, RotateCw, Trash2, Upload } from "lucide-react";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -85,8 +85,25 @@ export function FileRowActions({
       // Replace, not append: HARD-delete the old audit row (?purge=1) so
       // the new one cleanly takes its place. Without purge=1 the old row
       // would soft-delete into the trash, which would be confusing — the
-      // user clicked Replace, not Remove. Failures here are non-fatal.
-      await fetch(`/api/files/${fileId}?purge=1`, { method: "DELETE" }).catch(() => {});
+      // user clicked Replace, not Remove.
+      //
+      // Purge failure isn't fatal (the new row is already saved), but we
+      // surface it via the error strip so Simon knows the audit list may
+      // temporarily show two entries — silent .catch(()=>{}) hid this and
+      // let the list diverge from reality.
+      let purgeFailed = false;
+      try {
+        const purgeRes = await fetch(`/api/files/${fileId}?purge=1`, { method: "DELETE" });
+        if (!purgeRes.ok) purgeFailed = true;
+      } catch {
+        purgeFailed = true;
+      }
+      if (purgeFailed) {
+        setError(
+          "Replaced successfully, but couldn't clear the previous audit row. " +
+          "Refresh the page — if you see two entries, remove the older one manually."
+        );
+      }
       startTransition(() => router.refresh());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Replace failed");
@@ -94,6 +111,19 @@ export function FileRowActions({
       setBusy("");
     }
   }
+
+  // Guard against tab close mid-request. Simon on a slow XLSX Replace can
+  // reflex-Cmd-W the tab and lose track of whether the upload finished; the
+  // native prompt gives him a bail-out.
+  useEffect(() => {
+    if (!isWorking) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isWorking]);
 
   // View = the in-app viewer page (`/files/<id>`). It renders XLSX as HTML
   // tables and PDFs in an iframe, so the file is previewed online instead of
