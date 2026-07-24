@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listDeletedRawFiles, listMonthReports, listRawFiles, type RawFileEntry } from "@/lib/month-report";
 import { SECTION_KEYS, SECTION_META, type MonthReport, type SectionKey } from "@/lib/schema";
 import { monthNameFull } from "@/lib/utils";
+import { fmtBytes, fmtTimestamp } from "@/lib/format";
 import { ArrowRight, FileText, FileUp, Info, Trash2 } from "lucide-react";
 import { ImportForm } from "@/components/import-form";
 import { FileRowActions } from "@/components/file-row-actions";
@@ -29,22 +30,6 @@ const KIND_LABELS: Record<string, string> = {
   ref_2025:       "2025 Sales Summary (prior-year reference)",
   unknown:        "Unrecognised file",
 };
-
-function fmtBytes(size: number | null | undefined): string {
-  if (!size) return "";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(0)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function fmtTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-GB", {
-    year: "numeric", month: "short", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
 
 type GroupedFiles = {
   monthReportId: string;
@@ -95,9 +80,8 @@ export default async function FilesPage() {
   return (
     <main className="mx-auto max-w-[1100px] px-3 sm:px-6 py-4 sm:py-8 space-y-6">
       <header>
-        <p className="text-xs text-[var(--color-ink-600)] uppercase tracking-[0.2em]">Files</p>
-        <h1 className="font-[var(--font-display)] text-2xl sm:text-3xl font-semibold mt-1">Upload &amp; history</h1>
-        <p className="text-sm text-[var(--color-ink-600)] mt-1">
+        <h1 className="font-[var(--font-display)] text-2xl sm:text-3xl font-semibold">Upload &amp; history</h1>
+        <p className="text-sm text-[var(--color-ink-600)] mt-2">
           One place to drop POS files and see everything that&rsquo;s already on record.
           Files you import here are saved to Supabase and grouped by month below.
         </p>
@@ -348,7 +332,7 @@ function EmptyMonthRow({ month }: { month: MonthReport }) {
         className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-2 text-xs font-semibold hover:bg-[var(--color-ink-700)]"
       >
         <FileUp size={14} />
-        Upload here
+        Import
       </Link>
     </div>
   );

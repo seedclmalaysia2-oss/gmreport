@@ -17,6 +17,25 @@
   --color-warn:    #d97706;
   --color-bad:     #b91c1c;
 
+  /* Tinted variants of the semantic ok/warn/bad tokens. Anywhere a background
+     or a subtly-coloured chip is needed, hit these instead of raw amber/red/
+     emerald Tailwind classes — that's what makes the 12-palette theme picker
+     work end-to-end (palettes remap these to their own hues under html.theme-*). */
+  --color-ok-50:   #ecfdf5;
+  --color-ok-100:  #d1fae5;
+  --color-ok-200:  #a7f3d0;
+  --color-ok-800:  #166534;
+  --color-warn-50: #fffbeb;
+  --color-warn-100:#fef3c7;
+  --color-warn-200:#fde68a;
+  --color-warn-800:#92400e;
+  --color-warn-900:#78350f;
+  --color-bad-50:  #fef2f2;
+  --color-bad-100: #fee2e2;
+  --color-bad-200: #fecaca;
+  --color-bad-700: #b91c1c;
+  --color-bad-800: #991b1b;
+
   --font-display: "Cambria", "Georgia", serif;
   --font-sans: "Calibri", "Inter", system-ui, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", Menlo, monospace;
@@ -55,6 +74,24 @@ html.dark {
   --color-ink-900: #f4f7ff;
   --color-ink-600: #cadcfc;
   /* Keep ink-800/700 (branded accents) dark — they're used as button backgrounds */
+
+  /* Darken the tinted semantic variants so ok/warn/bad chips stay readable on
+     the dark surface ladder. The dark text tokens flip to light so they stand
+     out against the deeper fills. */
+  --color-ok-50:   #0f2b1e;
+  --color-ok-100:  #16371f;
+  --color-ok-200:  #1c5030;
+  --color-ok-800:  #a7f3d0;
+  --color-warn-50: #2a1a06;
+  --color-warn-100:#3d2308;
+  --color-warn-200:#5c3610;
+  --color-warn-800:#fde68a;
+  --color-warn-900:#fef3c7;
+  --color-bad-50:  #2a0d0d;
+  --color-bad-100: #3d1414;
+  --color-bad-200: #571818;
+  --color-bad-700: #fecaca;
+  --color-bad-800: #fee2e2;
 }
 
 html, body {

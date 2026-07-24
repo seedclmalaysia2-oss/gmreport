@@ -7,6 +7,27 @@ import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { detectPeriod } from "@/lib/filename-period";
 
 /**
+ * Friendly labels for the parser's internal file-kind identifiers. Kept in
+ * sync with the KIND_LABELS map on the Files page so "Files recognised" in
+ * the import summary reads in Simon's own vocabulary rather than raw snake
+ * case (`pos_master`, `pos_ecp_list`).
+ */
+const KIND_LABELS: Record<string, string> = {
+  pos_master:     "POS Master (Stock Sales Analysis)",
+  pos_mcuv:       "MCUV breakdown",
+  pos_writeoff:   "Stocks Write-Off",
+  pos_outlets:    "Monthly Sales Performance",
+  pos_ecp_list:   "ECP List",
+  pos_region:     "Sales Analysis By Region",
+  pos_salesman:   "Salesman Sales & Collection",
+  pos_inventory:  "Stock List (SCLM)",
+  pos_collection: "Collection Listing",
+  pos_daily:      "Daily Sales Quantity",
+  ref_2025:       "2025 Sales Summary (prior-year reference)",
+  unknown:        "Unrecognised file",
+};
+
+/**
  * Filename keyword hints surfaced in the "Some files need attention" popup.
  * Mirrors the regex-based router in src/app/api/import/route.ts — when a file
  * is tagged `unknown` (or parsing succeeded but produced no data), the dialog
@@ -237,7 +258,7 @@ export function ImportForm() {
         </div>
 
         {autoDetected && (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 flex items-center gap-2">
+          <div className="rounded-md border border-[var(--color-ok-200)] bg-[var(--color-ok-50)] px-3 py-2 text-xs text-[var(--color-ok-800)] flex items-center gap-2">
             <strong>Month auto-set</strong> to{" "}
             <span className="tabular-nums">{MONTH_NAMES[autoDetected.month - 1]} {autoDetected.year}</span>{" "}
             from the file name. Override above if that&rsquo;s wrong.
@@ -250,18 +271,24 @@ export function ImportForm() {
               <li key={i} className="flex items-center gap-2 rounded-md bg-[var(--color-ice-50)] px-3 py-1.5">
                 <FileText size={14} />
                 <span className="flex-1 truncate">{f.name}</span>
-                <span className="text-xs text-[var(--color-ink-600)]">{(f.size / 1024).toFixed(0)} KB</span>
-                <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-xs text-red-600">Remove</button>
+                <span className="text-xs text-[var(--color-ink-600)] tabular-nums">{(f.size / 1024).toFixed(0)} KB</span>
+                <button
+                  type="button"
+                  onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                  className="text-xs text-[var(--color-bad)] hover:underline"
+                >
+                  Remove
+                </button>
               </li>
             ))}
           </ul>
         )}
 
         <div className="flex items-center justify-between">
-          {err && <p className="text-sm text-red-600">{err}</p>}
+          {err && <p className="text-sm text-[var(--color-bad)]">{err}</p>}
           <button
             disabled={busy || files.length === 0}
-            className="ml-auto rounded-md bg-[var(--color-ink-800)] text-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
+            className="ml-auto rounded-md bg-[var(--color-ink-800)] text-white px-4 py-2 text-sm font-semibold hover:bg-[var(--color-ink-700)] disabled:opacity-60"
           >
             {busy ? "Parsing…" : "Import"}
           </button>
@@ -285,7 +312,11 @@ export function ImportForm() {
               <p className="font-semibold text-[var(--color-ink-800)] mb-1">Files recognised</p>
               <ul className="space-y-0.5 text-[var(--color-ink-600)]">
                 {Object.entries(result.result.filesByKind).map(([kind, names]) => (
-                  <li key={kind}><span className="font-mono">{kind}</span> → {names.join(", ")}</li>
+                  <li key={kind}>
+                    <span className="text-[var(--color-ink-800)]">{KIND_LABELS[kind] ?? kind}</span>
+                    {" → "}
+                    {names.join(", ")}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -299,7 +330,7 @@ export function ImportForm() {
 
           {/* Prior-year reference confirmation. */}
           {typeof result.year2025Applied === "number" && (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+            <div className="rounded-md border border-[var(--color-ok-200)] bg-[var(--color-ok-50)] px-3 py-2 text-xs text-[var(--color-ok-800)]">
               <strong>2025 reference applied.</strong> Prior-year sales &amp; quantity
               comparison columns filled across{" "}
               <strong>{result.year2025Applied}</strong> month{result.year2025Applied === 1 ? "" : "s"}.
@@ -308,7 +339,7 @@ export function ImportForm() {
 
           {result.result.unmapped.length > 0 && (
             <div>
-              <p className="text-sm font-semibold text-amber-700">Unmapped SKUs (counted in Grand Total, not broken out per product):</p>
+              <p className="text-sm font-semibold text-[var(--color-warn-800)]">Unmapped SKUs (counted in Grand Total, not broken out per product):</p>
               <p className="text-[11px] text-[var(--color-ink-600)] mb-1">
                 Add these codes to <code>catalog/sku-map.ts</code> if you want them to appear on Slide 5 / 6 next month.
               </p>
@@ -317,14 +348,14 @@ export function ImportForm() {
                   <li key={u.code} className="flex gap-2">
                     <code className="bg-[var(--color-ice-50)] px-1 rounded">{u.code}</code>
                     <span className="flex-1 truncate">{u.desc}</span>
-                    <span className="text-[var(--color-ink-600)]">qty {u.qty} / MYR {u.netSales.toFixed(0)}</span>
+                    <span className="text-[var(--color-ink-600)] tabular-nums">qty {u.qty} / MYR {u.netSales.toFixed(0)}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
           {result.warnings.length > 0 && (
-            <ul className="text-sm text-amber-700">
+            <ul className="text-sm text-[var(--color-warn-800)]">
               {result.warnings.map((w, i) => <li key={i}>• {w}</li>)}
             </ul>
           )}
@@ -357,17 +388,17 @@ export function ImportForm() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="issues-title"
-            className="relative max-w-2xl w-full max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col"
+            className="relative max-w-2xl w-full max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-lg flex flex-col"
             onClick={e => e.stopPropagation()}
           >
-            <header className="flex items-start justify-between gap-3 p-5 border-b border-[var(--color-ice-200)] bg-amber-50">
+            <header className="flex items-start justify-between gap-3 p-5 border-b border-[var(--color-ice-200)] bg-[var(--color-warn-50)]">
               <div className="flex items-start gap-3">
-                <AlertCircle className="text-amber-700 mt-0.5 shrink-0" size={22} />
+                <AlertCircle className="text-[var(--color-warn)] mt-0.5 shrink-0" size={22} />
                 <div>
-                  <h2 id="issues-title" className="font-[var(--font-display)] text-lg font-semibold text-amber-900">
+                  <h2 id="issues-title" className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-warn-900)]">
                     Some files need attention
                   </h2>
-                  <p className="text-sm text-amber-800 mt-0.5">
+                  <p className="text-sm text-[var(--color-warn-800)] mt-0.5">
                     A few uploads didn&rsquo;t update any slide. Rename them using the table below and re-upload so the report refreshes.
                   </p>
                 </div>
@@ -375,7 +406,7 @@ export function ImportForm() {
               <button
                 type="button"
                 onClick={() => setIssuesOpen(false)}
-                className="rounded-md p-1 hover:bg-amber-100 text-amber-800"
+                className="rounded-md p-1 hover:bg-[var(--color-warn-100)] text-[var(--color-warn-800)]"
                 aria-label="Close"
               >
                 <X size={18} />
@@ -388,7 +419,7 @@ export function ImportForm() {
                   <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Unrecognised filenames</h3>
                   <ul className="space-y-1">
                     {result.result.filesByKind!.unknown!.map((name, i) => (
-                      <li key={i} className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-red-800">
+                      <li key={i} className="flex items-start gap-2 rounded-md border border-[var(--color-bad-200)] bg-[var(--color-bad-50)] px-3 py-1.5 text-[var(--color-bad-800)]">
                         <FileText size={14} className="mt-0.5 shrink-0" />
                         <span className="break-all">{name}</span>
                       </li>
@@ -405,7 +436,7 @@ export function ImportForm() {
                   <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Parser warnings</h3>
                   <ul className="space-y-1">
                     {result.warnings.map((w, i) => (
-                      <li key={i} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900 text-xs leading-relaxed">
+                      <li key={i} className="rounded-md border border-[var(--color-warn-200)] bg-[var(--color-warn-50)] px-3 py-1.5 text-[var(--color-warn-900)] text-xs leading-relaxed">
                         {w}
                       </li>
                     ))}
@@ -420,7 +451,7 @@ export function ImportForm() {
                 </p>
                 <div className="overflow-x-auto rounded-lg border border-[var(--color-ice-200)]">
                   <table className="w-full text-xs">
-                    <thead className="bg-[var(--color-ice-50)] text-[10px] uppercase tracking-wider text-[var(--color-ink-600)]">
+                    <thead className="bg-[var(--color-ice-50)] text-[11px] uppercase tracking-wider text-[var(--color-ink-600)]">
                       <tr>
                         <th className="text-left px-3 py-2">If you&rsquo;re uploading…</th>
                         <th className="text-left px-3 py-2">Filename must contain</th>

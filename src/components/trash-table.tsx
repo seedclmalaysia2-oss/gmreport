@@ -4,7 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { FileTrashActions } from "./file-trash-actions";
+import { ConfirmDialog } from "./confirm-dialog";
 import { monthNameFull } from "@/lib/utils";
+import { fmtBytes, fmtTimestamp } from "@/lib/format";
 import type { RawFileEntry } from "@/lib/month-report";
 
 /**
@@ -27,6 +29,7 @@ export function TrashTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<"" | "purge" | "restore">("");
   const [error, setError] = useState<string | null>(null);
+  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
 
   const allIds = useMemo(() => files.map(f => f.id), [files]);
   const allSelected = selected.size > 0 && selected.size === allIds.length;
@@ -46,16 +49,18 @@ export function TrashTable({
     setSelected(prev => (prev.size === allIds.length ? new Set() : new Set(allIds)));
   }
 
-  async function bulk(action: "purge" | "restore") {
+  async function bulkRestore() {
     if (selected.size === 0) return;
-    if (action === "purge") {
-      const ok = confirm(
-        `Permanently delete ${selected.size} file${selected.size === 1 ? "" : "s"}?\n\n` +
-        "The file content and audit rows will be removed from Supabase and " +
-        "cannot be recovered. (Slide numbers produced by these files are not affected.)"
-      );
-      if (!ok) return;
-    }
+    await runBulk("restore");
+  }
+
+  async function bulkPurge() {
+    if (selected.size === 0) return;
+    await runBulk("purge");
+    setPurgeConfirmOpen(false);
+  }
+
+  async function runBulk(action: "purge" | "restore") {
     setBusy(action);
     setError(null);
     try {
@@ -75,12 +80,21 @@ export function TrashTable({
     }
   }
 
+  const secondary =
+    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold " +
+    "bg-white border border-[var(--color-ice-200)] text-[var(--color-ink-800)] " +
+    "hover:bg-[var(--color-ice-50)] active:scale-95 transition disabled:opacity-50";
+  const destructivePrimary =
+    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold " +
+    "bg-[var(--color-bad)] text-white hover:bg-[var(--color-bad-800)] " +
+    "active:scale-95 transition disabled:opacity-50";
+
   return (
     <div className="space-y-3">
       {/* Selection toolbar — appears whenever ≥1 row is checked. Sticky so it
           stays visible as the user scrolls through a long trash list. */}
       {selected.size > 0 && (
-        <div className="sticky top-16 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--color-ink-200)] bg-white shadow-sm px-3 sm:px-4 py-2">
+        <div className="sticky top-14 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--color-ice-200)] bg-white shadow-sm px-3 sm:px-4 py-2">
           <span className="text-sm font-semibold text-[var(--color-ink-900)]">
             {selected.size} selected
           </span>
@@ -95,22 +109,18 @@ export function TrashTable({
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => bulk("restore")}
+              onClick={bulkRestore}
               disabled={isWorking}
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold
-                         bg-emerald-100 text-emerald-800 hover:bg-emerald-200
-                         active:scale-95 transition disabled:opacity-50"
+              className={secondary}
             >
               {busy === "restore" ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
               Restore selected
             </button>
             <button
               type="button"
-              onClick={() => bulk("purge")}
+              onClick={() => setPurgeConfirmOpen(true)}
               disabled={isWorking}
-              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold
-                         bg-red-600 text-white hover:bg-red-700
-                         active:scale-95 transition disabled:opacity-50"
+              className={destructivePrimary}
             >
               {busy === "purge" ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
               Delete {selected.size} forever
@@ -120,7 +130,10 @@ export function TrashTable({
       )}
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div
+          role="alert"
+          className="rounded-md border border-[var(--color-bad-200)] bg-[var(--color-bad-50)] px-3 py-2 text-xs text-[var(--color-bad-800)]"
+        >
           {error}
         </div>
       )}
@@ -166,24 +179,30 @@ export function TrashTable({
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={purgeConfirmOpen}
+        tone="danger"
+        title={`Delete ${selected.size} file${selected.size === 1 ? "" : "s"} permanently?`}
+        confirmLabel={`Delete ${selected.size} forever`}
+        cancelLabel="Keep in trash"
+        busy={busy === "purge"}
+        onCancel={() => (busy === "purge" ? undefined : setPurgeConfirmOpen(false))}
+        onConfirm={bulkPurge}
+        body={
+          <>
+            <p>
+              The file bytes and audit rows will be removed from Supabase and cannot
+              be recovered.
+            </p>
+            <p className="text-[var(--color-ink-600)]">
+              Slide numbers produced by these files are not affected.
+            </p>
+          </>
+        }
+      />
     </div>
   );
-}
-
-function fmtBytes(size: number | null | undefined): string {
-  if (!size) return "";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(0)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function fmtTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-GB", {
-    year: "numeric", month: "short", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
 }
 
 function TrashRow({
@@ -221,8 +240,8 @@ function TrashRow({
             <div className="break-all font-medium text-[var(--color-ink-900)]">{file.originalName}</div>
             <div className="sm:hidden text-[11px] text-[var(--color-ink-600)] mt-0.5 space-y-0.5">
               <div>{monthNameFull(file.month)} {file.year}</div>
-              <div>{fmtBytes(file.byteSize)}</div>
-              <div>Deleted {fmtTimestamp(file.deletedAt)}</div>
+              <div className="tabular-nums">{fmtBytes(file.byteSize)}</div>
+              <div className="tabular-nums">Deleted {fmtTimestamp(file.deletedAt)}</div>
             </div>
             <div className="sm:hidden mt-2">
               <FileTrashActions fileId={file.id} fileName={file.originalName} />
