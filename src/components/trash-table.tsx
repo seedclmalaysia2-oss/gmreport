@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { FileTrashActions } from "./file-trash-actions";
 import { ConfirmDialog } from "./confirm-dialog";
+import { Button } from "./ui/button";
 import { monthNameFull } from "@/lib/utils";
 import { fmtBytes, fmtTimestamp } from "@/lib/format";
 import type { RawFileEntry } from "@/lib/month-report";
@@ -80,15 +81,6 @@ export function TrashTable({
     }
   }
 
-  const secondary =
-    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold " +
-    "bg-white border border-[var(--color-ice-200)] text-[var(--color-ink-800)] " +
-    "hover:bg-[var(--color-ice-50)] active:scale-95 transition disabled:opacity-50";
-  const destructivePrimary =
-    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold " +
-    "bg-[var(--color-bad)] text-white hover:bg-[var(--color-bad-800)] " +
-    "active:scale-95 transition disabled:opacity-50";
-
   return (
     <div className="space-y-3">
       {/* Selection toolbar — appears whenever ≥1 row is checked. Sticky so it
@@ -107,24 +99,24 @@ export function TrashTable({
             Clear selection
           </button>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="md"
               onClick={bulkRestore}
               disabled={isWorking}
-              className={secondary}
             >
               {busy === "restore" ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
               Restore selected
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="destructive-solid"
+              size="md"
               onClick={() => setPurgeConfirmOpen(true)}
               disabled={isWorking}
-              className={destructivePrimary}
             >
               {busy === "purge" ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
               Delete {selected.size} forever
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "./confirm-dialog";
+import { Button } from "./ui/button";
 
 /**
  * Action buttons for rows in the "Recently deleted" section.
@@ -57,15 +58,6 @@ export function FileTrashActions({
     }
   }
 
-  const secondary =
-    "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold " +
-    "bg-white border border-[var(--color-ice-200)] text-[var(--color-ink-800)] " +
-    "hover:bg-[var(--color-ice-50)] active:scale-95 transition disabled:opacity-50";
-  const destructive =
-    "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold " +
-    "text-[var(--color-bad)] hover:bg-[var(--color-bad-50)] " +
-    "active:scale-95 transition disabled:opacity-50";
-
   return (
     <>
       <div className="flex flex-col items-start sm:items-end gap-1 sm:gap-1.5 w-full sm:w-auto">
@@ -78,26 +70,26 @@ export function FileTrashActions({
           </div>
         )}
         <div className="flex flex-wrap items-center gap-1.5 justify-start sm:justify-end sm:flex-nowrap sm:whitespace-nowrap">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={restore}
             disabled={isWorking}
             title="Restore to the active list"
-            className={secondary}
           >
             {busy === "restore" ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
             Restore
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
             onClick={() => setConfirmOpen(true)}
             disabled={isWorking}
             title="Delete permanently — cannot be undone"
-            className={destructive}
           >
             {busy === "purge" ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
             Delete forever
-          </button>
+          </Button>
         </div>
       </div>
 

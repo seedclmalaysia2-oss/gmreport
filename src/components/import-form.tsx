@@ -2,9 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { MONTH_NAMES, monthId } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, FileText, UploadCloud, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, FileText, UploadCloud } from "lucide-react";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { detectPeriod } from "@/lib/filename-period";
+import { Modal } from "./ui/modal";
+import { Button } from "./ui/button";
 
 /**
  * Friendly labels for the parser's internal file-kind identifiers. Kept in
@@ -180,14 +182,6 @@ export function ImportForm() {
     if (hasUnknown || hasWarnings) setIssuesOpen(true);
   }, [result]);
 
-  // ESC closes the popup.
-  useEffect(() => {
-    if (!issuesOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIssuesOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [issuesOpen]);
-
   function reUpload() {
     setIssuesOpen(false);
     setFiles([]);
@@ -286,12 +280,15 @@ export function ImportForm() {
 
         <div className="flex items-center justify-between">
           {err && <p className="text-sm text-[var(--color-bad)]">{err}</p>}
-          <button
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
             disabled={busy || files.length === 0}
-            className="ml-auto rounded-md bg-[var(--color-ink-800)] text-white px-4 py-2 text-sm font-semibold hover:bg-[var(--color-ink-700)] disabled:opacity-60"
+            className="ml-auto"
           >
             {busy ? "Parsing…" : "Import"}
-          </button>
+          </Button>
         </div>
       </form>
 
@@ -361,135 +358,99 @@ export function ImportForm() {
           )}
 
           <div className="flex gap-2 pt-2">
-            <button
-              onClick={goBack}
-              className="rounded-md bg-[var(--color-ink-800)] text-white px-4 py-1.5 text-sm font-semibold inline-flex items-center gap-2 hover:bg-[var(--color-ink-700)]"
-            >
+            <Button variant="primary" size="md" onClick={goBack}>
               <ArrowLeft size={14} />
               Update {sectionLabel ? `— back to Slide ${sectionLabel}` : "— back to report"}
-            </button>
-            <button
-              onClick={() => { setResult(null); setFiles([]); }}
-              className="rounded-md border border-[var(--color-ice-200)] px-3 py-1.5 text-sm"
-            >
+            </Button>
+            <Button variant="secondary" size="md" onClick={() => { setResult(null); setFiles([]); }}>
               Import another
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Issues popup — automatic when the import returned unknown files or warnings. */}
-      {issuesOpen && result && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => setIssuesOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="issues-title"
-            className="relative max-w-2xl w-full max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-lg flex flex-col"
-            onClick={e => e.stopPropagation()}
-          >
-            <header className="flex items-start justify-between gap-3 p-5 border-b border-[var(--color-ice-200)] bg-[var(--color-warn-50)]">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="text-[var(--color-warn)] mt-0.5 shrink-0" size={22} />
-                <div>
-                  <h2 id="issues-title" className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-warn-900)]">
-                    Some files need attention
-                  </h2>
-                  <p className="text-sm text-[var(--color-warn-800)] mt-0.5">
-                    A few uploads didn&rsquo;t update any slide. Rename them using the table below and re-upload so the report refreshes.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIssuesOpen(false)}
-                className="rounded-md p-1 hover:bg-[var(--color-warn-100)] text-[var(--color-warn-800)]"
-                aria-label="Close"
-              >
-                <X size={18} />
-              </button>
-            </header>
-
-            <div className="overflow-y-auto p-5 space-y-4 text-sm">
-              {(result.result.filesByKind?.unknown?.length ?? 0) > 0 && (
-                <section>
-                  <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Unrecognised filenames</h3>
-                  <ul className="space-y-1">
-                    {result.result.filesByKind!.unknown!.map((name, i) => (
-                      <li key={i} className="flex items-start gap-2 rounded-md border border-[var(--color-bad-200)] bg-[var(--color-bad-50)] px-3 py-1.5 text-[var(--color-bad-800)]">
-                        <FileText size={14} className="mt-0.5 shrink-0" />
-                        <span className="break-all">{name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-xs text-[var(--color-ink-600)] mt-2">
-                    These didn&rsquo;t match any known POS file kind, so they fed no slide. Rename them using a keyword from the table below.
-                  </p>
-                </section>
-              )}
-
-              {result.warnings.length > 0 && (
-                <section>
-                  <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Parser warnings</h3>
-                  <ul className="space-y-1">
-                    {result.warnings.map((w, i) => (
-                      <li key={i} className="rounded-md border border-[var(--color-warn-200)] bg-[var(--color-warn-50)] px-3 py-1.5 text-[var(--color-warn-900)] text-xs leading-relaxed">
-                        {w}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              <section>
-                <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Expected filename keywords</h3>
-                <p className="text-xs text-[var(--color-ink-600)] mb-2">
-                  The parser identifies each file by keywords anywhere in its name (case-insensitive). Include the month/year (e.g. <code className="rounded bg-[var(--color-ice-100)] px-1">Apr26</code>) so the form auto-targets the right month.
-                </p>
-                <div className="overflow-x-auto rounded-lg border border-[var(--color-ice-200)]">
-                  <table className="w-full text-xs">
-                    <thead className="bg-[var(--color-ice-50)] text-[11px] uppercase tracking-wider text-[var(--color-ink-600)]">
-                      <tr>
-                        <th className="text-left px-3 py-2">If you&rsquo;re uploading…</th>
-                        <th className="text-left px-3 py-2">Filename must contain</th>
-                        <th className="text-left px-3 py-2">Example</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {FILENAME_HINTS.map(h => (
-                        <tr key={h.label} className="border-t border-[var(--color-ice-100)] align-top">
-                          <td className="px-3 py-1.5 font-medium text-[var(--color-ink-900)]">{h.label}</td>
-                          <td className="px-3 py-1.5 text-[var(--color-ink-800)]"><code className="font-mono text-[11px]">{h.keywords}</code></td>
-                          <td className="px-3 py-1.5 text-[var(--color-ink-600)] break-all">{h.example}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-
-            <footer className="flex items-center justify-end gap-2 p-4 border-t border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
-              <button
-                type="button"
-                onClick={() => setIssuesOpen(false)}
-                className="rounded-md border border-[var(--color-ice-200)] bg-white px-3 py-1.5 text-sm text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
-              >
+      {/* Issues popup — automatic when the import returned unknown files or
+          warnings. Uses the shared <Modal> shell so it inherits the focus
+          trap, ESC dismiss, and same-vocabulary rendering as ConfirmDialog. */}
+      {result && (
+        <Modal
+          open={issuesOpen}
+          onClose={() => setIssuesOpen(false)}
+          tone="warn"
+          size="lg"
+          icon={<AlertCircle size={22} />}
+          title="Some files need attention"
+          subtitle="A few uploads didn't update any slide. Rename them using the table below and re-upload so the report refreshes."
+          labelledById="issues-title"
+          describedById="issues-body"
+          footer={
+            <>
+              <Button variant="secondary" size="md" onClick={() => setIssuesOpen(false)}>
                 Got it
-              </button>
-              <button
-                type="button"
-                onClick={reUpload}
-                className="inline-flex items-center gap-2 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ink-700)]"
-              >
+              </Button>
+              <Button variant="primary" size="md" onClick={reUpload}>
                 <UploadCloud size={14} /> Pick files again
-              </button>
-            </footer>
-          </div>
-        </div>
+              </Button>
+            </>
+          }
+        >
+          {(result.result.filesByKind?.unknown?.length ?? 0) > 0 && (
+            <section>
+              <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Unrecognised filenames</h3>
+              <ul className="space-y-1">
+                {result.result.filesByKind!.unknown!.map((name, i) => (
+                  <li key={i} className="flex items-start gap-2 rounded-md border border-[var(--color-bad-200)] bg-[var(--color-bad-50)] px-3 py-1.5 text-[var(--color-bad-800)]">
+                    <FileText size={14} className="mt-0.5 shrink-0" />
+                    <span className="break-all">{name}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-[var(--color-ink-600)] mt-2">
+                These didn&rsquo;t match any known POS file kind, so they fed no slide. Rename them using a keyword from the table below.
+              </p>
+            </section>
+          )}
+
+          {result.warnings.length > 0 && (
+            <section>
+              <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Parser warnings</h3>
+              <ul className="space-y-1">
+                {result.warnings.map((w, i) => (
+                  <li key={i} className="rounded-md border border-[var(--color-warn-200)] bg-[var(--color-warn-50)] px-3 py-1.5 text-[var(--color-warn-900)] text-xs leading-relaxed">
+                    {w}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section>
+            <h3 className="font-semibold text-[var(--color-ink-900)] mb-2">Expected filename keywords</h3>
+            <p className="text-xs text-[var(--color-ink-600)] mb-2">
+              The parser identifies each file by keywords anywhere in its name (case-insensitive). Include the month/year (e.g. <code className="rounded bg-[var(--color-ice-100)] px-1">Apr26</code>) so the form auto-targets the right month.
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-ice-200)]">
+              <table className="w-full text-xs">
+                <thead className="bg-[var(--color-ice-50)] text-[11px] uppercase tracking-[0.12em] text-[var(--color-ink-600)]">
+                  <tr>
+                    <th className="text-left px-3 py-2">If you&rsquo;re uploading…</th>
+                    <th className="text-left px-3 py-2">Filename must contain</th>
+                    <th className="text-left px-3 py-2">Example</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {FILENAME_HINTS.map(h => (
+                    <tr key={h.label} className="border-t border-[var(--color-ice-100)] align-top">
+                      <td className="px-3 py-1.5 font-medium text-[var(--color-ink-900)]">{h.label}</td>
+                      <td className="px-3 py-1.5 text-[var(--color-ink-800)]"><code className="font-mono text-[11px]">{h.keywords}</code></td>
+                      <td className="px-3 py-1.5 text-[var(--color-ink-600)] break-all">{h.example}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </Modal>
       )}
     </div>
   );

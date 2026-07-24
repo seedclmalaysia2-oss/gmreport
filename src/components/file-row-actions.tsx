@@ -3,18 +3,22 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye, Loader2, RotateCw, Trash2, Upload } from "lucide-react";
 import { ConfirmDialog } from "./confirm-dialog";
+import { Button } from "./ui/button";
 
 /**
  * Per-row action buttons for the Files page upload-history table.
  *
- *   Update — opens a hidden file input. The chosen file is POSTed to
- *            /api/import with the row's year/month, runs through the same
- *            parsing pipeline as a fresh import, and on success the OLD
- *            RawFile audit row is deleted so the new one replaces it
- *            visually.
- *   Remove — DELETEs the RawFile audit row. We surface an in-vocabulary
- *            confirmation because the slide data the file produced is NOT
- *            reverted (we don't track per-row provenance back to numbers).
+ *   Replace — opens a hidden file input. The chosen file is POSTed to
+ *             /api/import with the row's year/month, runs through the same
+ *             parsing pipeline as a fresh import, and on success the OLD
+ *             RawFile audit row is deleted so the new one replaces it
+ *             visually. (Named "Replace" so it doesn't collide with the
+ *             "Update — back to Slide" return CTA in the import-success
+ *             card.)
+ *   Remove  — DELETEs the RawFile audit row (soft-delete via /api/files).
+ *             Surfaced in-vocabulary via <ConfirmDialog> because the slide
+ *             data the file produced isn't reverted (we don't track per-row
+ *             provenance back to numbers).
  *
  * Both end with router.refresh() so the server component re-renders the
  * list with the updated set of rows.
@@ -36,7 +40,7 @@ export function FileRowActions({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
-  const [busy, setBusy] = useState<"" | "remove" | "update">("");
+  const [busy, setBusy] = useState<"" | "remove" | "replace">("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isWorking = busy !== "" || pending;
@@ -66,7 +70,7 @@ export function FileRowActions({
     if (e.target) e.target.value = "";
     if (!file) return;
 
-    setBusy("update");
+    setBusy("replace");
     setError(null);
     try {
       const fd = new FormData();
@@ -76,16 +80,16 @@ export function FileRowActions({
       const res = await fetch("/api/import", { method: "POST", body: fd });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Update failed");
+        throw new Error(body.error || "Replace failed");
       }
       // Replace, not append: HARD-delete the old audit row (?purge=1) so
       // the new one cleanly takes its place. Without purge=1 the old row
       // would soft-delete into the trash, which would be confusing — the
-      // user clicked Update, not Remove. Failures here are non-fatal.
+      // user clicked Replace, not Remove. Failures here are non-fatal.
       await fetch(`/api/files/${fileId}?purge=1`, { method: "DELETE" }).catch(() => {});
       startTransition(() => router.refresh());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
+      setError(err instanceof Error ? err.message : "Replace failed");
     } finally {
       setBusy("");
     }
@@ -99,26 +103,6 @@ export function FileRowActions({
   const viewHref = `/files/${fileId}`;
   const downloadHref = `/api/files/${fileId}?disposition=attachment`;
 
-  // Three button roles across the row: primary (ink-solid, one per row), the
-  // remaining verbs share the secondary shell, destructive is text-only. Same
-  // vocabulary as file-trash-actions.tsx so the two rows read as one system.
-  const primary =
-    "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold " +
-    "bg-[var(--color-ink-800)] text-white hover:bg-[var(--color-ink-700)] " +
-    "active:scale-95 transition disabled:opacity-50";
-  const secondary =
-    "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold " +
-    "bg-white border border-[var(--color-ice-200)] text-[var(--color-ink-800)] " +
-    "hover:bg-[var(--color-ice-50)] active:scale-95 transition disabled:opacity-50";
-  const destructive =
-    "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold " +
-    "text-[var(--color-bad)] hover:bg-[var(--color-bad-50)] " +
-    "disabled:opacity-50 disabled:cursor-not-allowed transition";
-  const warnPrimary =
-    "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold " +
-    "bg-[var(--color-warn-100)] text-[var(--color-warn-800)] hover:bg-[var(--color-warn-200)] " +
-    "active:scale-95 transition disabled:opacity-50";
-
   return (
     <>
       <div className="flex flex-col items-start sm:items-end gap-1 sm:gap-1.5 w-full sm:w-auto">
@@ -131,11 +115,11 @@ export function FileRowActions({
           </div>
         )}
         {/* flex-wrap on mobile (row sits under filename) — straight line on
-            desktop. justify-start on mobile, justify-end on desktop (column is
-            right-aligned). gap-1.5 leaves enough air between buttons that a
-            thumb won't mistarget on a touch screen. */}
+            desktop. justify-start on mobile, justify-end on desktop (column
+            is right-aligned). gap-1.5 leaves enough air between buttons that
+            a thumb won't mistarget on a touch screen. */}
         <div className="flex flex-wrap items-center gap-1.5 justify-start sm:justify-end sm:flex-nowrap sm:whitespace-nowrap">
-          {/* Hidden picker the Update button drives. */}
+          {/* Hidden picker the Replace button drives. */}
           <input
             ref={fileInputRef}
             type="file"
@@ -146,62 +130,67 @@ export function FileRowActions({
 
           {hasBytes ? (
             <>
-              <a
+              <Button
+                as="a"
+                variant="primary"
+                size="sm"
                 href={viewHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Preview the file online in a new tab"
-                className={primary}
               >
                 <Eye size={12} /> View
-              </a>
-              <a
+              </Button>
+              <Button
+                as="a"
+                variant="secondary"
+                size="sm"
                 href={downloadHref}
                 download={fileName}
-                title="Download a copy"
                 rel="noopener noreferrer"
-                className={secondary}
+                title="Download a copy"
               >
                 <Download size={12} /> Save
-              </a>
+              </Button>
             </>
           ) : (
-            // Legacy row — uploaded before we started persisting bytea content.
-            // Warn-tinted so the row visibly flags "needs attention" and the
-            // one-click CTA opens the same picker as Update.
-            <button
-              type="button"
+            // Legacy row — uploaded before we started persisting bytea
+            // content. Warn-tinted so the row visibly flags "needs
+            // attention" and the one-click CTA opens the same picker as
+            // Replace.
+            <Button
+              variant="warn"
+              size="sm"
               onClick={pickFile}
               disabled={isWorking}
               title="This file was uploaded before previews were supported — re-attach it to enable View + Save"
-              className={warnPrimary}
             >
-              {busy === "update" ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              {busy === "replace" ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Re-upload to enable preview
-            </button>
+            </Button>
           )}
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={pickFile}
             disabled={isWorking}
-            title="Upload a new version of this file"
-            className={secondary}
+            title="Upload a new version of this file, replacing the current one"
           >
-            {busy === "update" ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
-            Update
-          </button>
+            {busy === "replace" ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+            Replace
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="destructive"
+            size="sm"
             onClick={() => setConfirmOpen(true)}
             disabled={isWorking}
             title="Move this file to the trash"
-            className={destructive}
           >
             {busy === "remove" ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
             Remove
-          </button>
+          </Button>
         </div>
       </div>
 
