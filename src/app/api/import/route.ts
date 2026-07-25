@@ -261,8 +261,19 @@ export async function POST(req: Request): Promise<Response> {
     } else if (stateTotals.every(t => t.sales === 0)) {
       warnings.push(`Sales Analysis By Region: matched the "${monthLabel}" column but every value parsed as 0 — Slide 10 was NOT changed. The file may be a blank template.`);
     } else {
-      sections.salesByRegion = salesByRegionFromStates(stateTotals, priorRegionSales);
-      sectionsTouched.add("salesByRegion");
+      const computedRegion = salesByRegionFromStates(stateTotals, priorRegionSales);
+      const mappedTotal = computedRegion.rows.reduce((s, r) => s + r.salesThis, 0);
+      if (mappedTotal === 0) {
+        // We read real sub-totals but NONE mapped to a Malaysian region — the
+        // file's "Customer UD Group : <STATE>" labels didn't resolve (e.g. a
+        // POS layout change that garbles the state name). Refuse to overwrite
+        // Slide 10 with an all-zero split, which is what silently zeroed a
+        // month's region column before the multi-cell-header parser fix.
+        warnings.push(`Sales Analysis By Region: matched the "${monthLabel}" column and read ${stateTotals.length} group totals, but none mapped to a Malaysian region — Slide 10 was NOT changed. The file's "Customer UD Group : <STATE>" labels may be in a new format.`);
+      } else {
+        sections.salesByRegion = computedRegion;
+        sectionsTouched.add("salesByRegion");
+      }
     }
   }
 

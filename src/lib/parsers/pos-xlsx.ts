@@ -283,11 +283,18 @@ export function parseSalesByRegionXlsx(buf: ArrayBuffer, year: number, month: nu
       if (typeof cell !== "string") continue;
       const m = cell.trim().match(groupRe);
       if (!m) continue;
-      if (m[1]) return m[1].trim(); // inline name, new layout
-      // Old layout: name lives in a later non-empty string cell on the same row.
+      if (m[1]) return m[1].trim(); // inline name, single-cell layout
+      // Multi-cell layout: the name lives in a later cell on the same row.
+      // The POS's newer export splits the header across THREE cells —
+      // "Customer UD Group", a bare ":" separator, then "JOHOR (STATE)" — so
+      // we must skip the separator. Requiring a letter does that cleanly: the
+      // ":" (and any blank/punctuation spacer) is skipped, and the first cell
+      // carrying an actual name wins. The old code returned the ":" cell, so
+      // every group came out named ":", mapped to no region, and collapsed
+      // the entire Sales-by-Region split to zero.
       for (let cc = c + 1; cc < row.length; cc++) {
         const nx = row[cc];
-        if (typeof nx === "string" && nx.trim()) return nx.trim();
+        if (typeof nx === "string" && /[A-Za-z]/.test(nx)) return nx.trim();
       }
       return null;
     }
