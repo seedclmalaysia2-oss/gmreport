@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, FileText, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, FileText, X } from "lucide-react";
 import { SECTION_KEYS, SECTION_META, type SectionKey } from "@/lib/schema";
 import type { RawFileEntry } from "@/lib/month-report";
 import { monthNameFull } from "@/lib/utils";
@@ -23,8 +23,12 @@ export type MonthGroup = {
  * A single month's file table with a coverage-chip header. Owns the
  * "filter to files feeding uncovered slides" client-side toggle so the
  * server component (page.tsx) stays a pure fetch-and-render.
+ *
+ * The whole block collapses to just its header — the page opens only the
+ * current (most recent) month by default (`defaultOpen`) and leaves the rest
+ * folded so the history doesn't become one endless scroll.
  */
-export function MonthBlock({ group }: { group: MonthGroup }) {
+export function MonthBlock({ group, defaultOpen = false }: { group: MonthGroup; defaultOpen?: boolean }) {
   const { year, month, monthReportId, files } = group;
   const total = files.length;
 
@@ -35,22 +39,40 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
   // uncovered slide" is provably empty. The chip is a "show me what's
   // missing" affordance, not a "hide what's already there" one.
   const [missingOpen, setMissingOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
 
   return (
     <section className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-5 py-3 border-b border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
-        <div className="min-w-0">
-          <h3 className="font-[var(--font-display)] text-lg sm:text-xl font-semibold truncate">{monthNameFull(month)} {year}</h3>
-          <p className="text-xs text-[var(--color-ink-600)] mt-0.5">
-            {total} file{total === 1 ? "" : "s"} uploaded
-          </p>
-        </div>
+        {/* Title doubles as the collapse toggle. Coverage chips + Open-report
+            stay as their own interactive elements outside the button so we
+            never nest a link/button inside a button. */}
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          className="flex items-center gap-2 min-w-0 text-left rounded-lg -ml-1 pl-1 pr-2 py-1 hover:bg-[var(--color-ice-100)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink-800)]"
+        >
+          <ChevronDown
+            size={18}
+            className={`shrink-0 text-[var(--color-ink-600)] transition-transform ${open ? "" : "-rotate-90"}`}
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <h3 className="font-[var(--font-display)] text-lg sm:text-xl font-semibold truncate">{monthNameFull(month)} {year}</h3>
+            <p className="text-xs text-[var(--color-ink-600)] mt-0.5">
+              {total} file{total === 1 ? "" : "s"} uploaded{open ? "" : " · click to expand"}
+            </p>
+          </div>
+        </button>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <CoverageChips
             coverage={coverage}
             revealActive={missingOpen}
-            onToggleReveal={() => setMissingOpen(v => !v)}
+            onToggleReveal={() => { setOpen(true); setMissingOpen(v => !v); }}
             hasFiles={total > 0}
           />
           <Link
@@ -62,6 +84,8 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
         </div>
       </header>
 
+      {open && (
+      <div id={bodyId}>
       {missingOpen && coverage.uncoveredInputs.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-5 py-2.5 border-b border-[var(--color-ice-200)] bg-[var(--color-warn-50)]">
           <UncoveredSlideList
@@ -110,6 +134,22 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
           </tbody>
         </table>
       </div>
+
+      {/* Minimize control at the end of the section — after scrolling a long
+          table the user can fold it back up without hunting for the header. */}
+      <div className="flex justify-end px-3 sm:px-5 py-2.5 border-t border-[var(--color-ice-100)] bg-[var(--color-ice-50)]">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-controls={bodyId}
+          aria-expanded
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)] hover:underline"
+        >
+          <ChevronUp size={13} /> Minimize
+        </button>
+      </div>
+      </div>
+      )}
     </section>
   );
 }

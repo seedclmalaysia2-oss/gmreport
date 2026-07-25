@@ -114,8 +114,11 @@ export default async function FilesPage() {
           </div>
         )}
 
+        {/* Only the current (most recent) month opens by default — groups are
+            sorted newest-first, so index 0 is it. The rest start folded so the
+            history is a scannable stack of headers, not one endless scroll. */}
         <div className="space-y-5">
-          {groups.map(g => <MonthBlock key={g.monthReportId} group={g} />)}
+          {groups.map((g, i) => <MonthBlock key={g.monthReportId} group={g} defaultOpen={i === 0} />)}
         </div>
       </section>
 
