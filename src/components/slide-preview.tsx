@@ -2,6 +2,12 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MonthReport, SectionKey } from "@/lib/schema";
 import { MONTH_NAMES, fmtMYR, fmtJPY, fmtPct, monthNameFull } from "@/lib/utils";
+import {
+  salesAchievementRows,
+  totalForSalesAchievementRow,
+  salesAchievementRates,
+  trimActualToLastFilled,
+} from "@/lib/slide-math";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
 
@@ -247,34 +253,14 @@ function SlideTitle({ text, palette, scale, x = 0.3, y = 0.22, w = 12.7, size = 
 
 function SlideSalesAchievement({ report, P, scale, template }: { report: MonthReport; P: Palette; scale: number; template: Template }) {
   const SA = report.salesAchievement;
-  // For the percent rows we precompute the WEIGHTED total (sum-of-numerator
-  // ÷ sum-of-denominator) so the Total column matches the editor's ratioTotal
-  // — summing percentages directly would be meaningless. `totalOverride` is
-  // used by the render loop below in place of the default arr-sum.
-  const sumOf = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
-  const rows = SA ? [
-    { label: "Sales Target 2026", arr: SA.target2026 },
-    { label: "Sales Result 2026", arr: SA.actual2026 },
-    {
-      label: "ACC %", pct: true,
-      arr: SA.target2026.map((t, i) => (t && SA.actual2026[i] != null ? SA.actual2026[i]! / t : null)),
-      totalOverride: sumOf(SA.target2026) ? sumOf(SA.actual2026) / sumOf(SA.target2026) : null,
-    },
-    { label: "Sales Result 2025", arr: SA.actual2025 },
-    {
-      label: "YoY %", pct: true,
-      arr: SA.actual2025.map((p, i) => (p && SA.actual2026[i] != null ? SA.actual2026[i]! / p : null)),
-      totalOverride: sumOf(SA.actual2025) ? sumOf(SA.actual2026) / sumOf(SA.actual2025) : null,
-    },
-    { label: "Net Income 2026", arr: SA.netIncome2026 },
-    { label: "Net Income 2025", arr: SA.netIncome2025 },
-  ] as Array<{ label: string; arr: (number | null)[]; pct?: boolean; totalOverride?: number | null }> : [];
+  // Row values + weighted-ratio totals come from lib/slide-math so the
+  // preview and the server PPTX generator can't drift on this math. Any
+  // edit here must land in one place.
+  const rows = salesAchievementRows(SA);
   const kpi = SA?.kpi.find(k => k.month === report.month);
   // Achievement / YoY derived from the figures so they match the ACC % / YoY %
   // table rows exactly — a whole-number percent, no separately stored value.
-  const mi = report.month - 1;
-  const accRate = SA && SA.target2026[mi] && SA.actual2026[mi] != null ? SA.actual2026[mi]! / SA.target2026[mi]! : null;
-  const yoyRate = SA && SA.actual2025[mi] && SA.actual2026[mi] != null ? SA.actual2026[mi]! / SA.actual2025[mi]! : null;
+  const { accRate, yoyRate } = salesAchievementRates(SA, report.month);
   return (
     <>
       <SlideTitle palette={P} scale={scale} text={`1. Sales Achievement (${MONTH_NAMES[report.month - 1]} ${report.year})`} size={20} />
@@ -290,22 +276,17 @@ function SlideSalesAchievement({ report, P, scale, template }: { report: MonthRe
           <tbody>
             {rows.length === 0 && <tr><td colSpan={14} style={{ padding: 12, textAlign: "center", color: P.muted }}>No data yet</td></tr>}
             {rows.map((r, i) => {
-              // Money rows: sum all 12 months. Percent rows: use the
-              // precomputed weighted ratio override so the Total matches the
-              // editor (the editor's ratioTotal does sumNumer / sumDenom).
-              const total = r.pct
-                ? (r.totalOverride ?? null)
-                : r.arr.reduce<number>((s, v) => s + (v ?? 0), 0);
+              const total = totalForSalesAchievementRow(r);
               return (
                 <tr key={r.label} style={{ background: i % 2 === 0 ? P.rowAlt : "transparent" }}>
                   <td style={{ ...tdStyle(P, scale), fontWeight: 600 }}>{r.label}</td>
-                  {r.arr.map((v, j) => (
+                  {r.values.map((v, j) => (
                     <td key={j} style={{ ...tdStyle(P, scale, "right") }}>
-                      {v == null ? "" : r.pct ? fmtPct(v, 0) : fmtMYR(v, 0)}
+                      {v == null ? "" : r.isPct ? fmtPct(v, 0) : fmtMYR(v, 0)}
                     </td>
                   ))}
                   <td style={{ ...tdStyle(P, scale, "right"), fontWeight: 600 }}>
-                    {total == null ? "" : r.pct ? fmtPct(total, 0) : fmtMYR(total, 0)}
+                    {total == null ? "" : r.isPct ? fmtPct(total, 0) : fmtMYR(total, 0)}
                   </td>
                 </tr>
               );
@@ -332,12 +313,14 @@ function SlideSalesAchievement({ report, P, scale, template }: { report: MonthRe
 
 function SlideSalesTrend({ report, P, scale }: { report: MonthReport; P: Palette; scale: number }) {
   const SA = report.salesAchievement;
-  // Clip Actual 2026 to the last month with data so the line doesn't dive to zero.
-  const lastFilled = (SA?.actual2026 ?? []).reduce<number>((acc, v, i) => v != null ? i : acc, -1);
+  // Trim Actual 2026 to the last month with data via the shared helper —
+  // the server PPTX generator uses the same function so the chart clip
+  // point can't drift between preview and export.
+  const actual2026Trimmed = trimActualToLastFilled(SA?.actual2026 ?? Array(12).fill(null));
   const data = MONTH_NAMES.map((m, i) => ({
     month: m,
     "Target 2026": SA?.target2026[i] ?? null,
-    "Actual 2026": i <= lastFilled ? (SA?.actual2026[i] ?? null) : null,
+    "Actual 2026": actual2026Trimmed[i],
     "Actual 2025": SA?.actual2025[i] ?? null,
   }));
   // Commentary: when present, the chart shrinks to make room for a card below.

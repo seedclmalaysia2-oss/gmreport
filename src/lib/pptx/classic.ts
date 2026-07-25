@@ -7,6 +7,12 @@ import { htmlToPptxRuns } from "./rich-text";
 import { MONTH_NAMES } from "@/lib/utils";
 import { AGENDA, ECP_CATEGORIES, REGIONS } from "@/lib/catalog/mappings";
 import { INVENTORY_GROUPS } from "@/lib/catalog/products";
+import {
+  salesAchievementRows,
+  totalForSalesAchievementRow,
+  salesAchievementRates,
+  trimActualToLastFilled,
+} from "@/lib/slide-math";
 
 type Slide = PptxGenJS.Slide;
 
@@ -111,23 +117,22 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
 
   const SA = lastMonth.salesAchievement;
   const headers = ["", ...MONTH_NAMES, "Total"];
-  // `totalOverride` lets percent rows ship a WEIGHTED total
-  // (sumNumer ÷ sumDenom) instead of an empty cell or a meaningless
-  // sum-of-percents. Matches the editor's ratioTotal so the deck no longer
-  // desyncs from what the user sees in the dashboard table.
-  const row = (label: string, data: (number | null)[], isPct = false, totalOverride: number | null = null) => {
+  // Row values + weighted-ratio totals come from lib/slide-math so the
+  // exported deck and the on-screen preview can't drift on this math.
+  // Any change here must land in one place.
+  const buildRow = (label: string, values: (number | null)[], isPct: boolean, total: number | null): PptxGenJS.TableCell[] => {
     const cells: PptxGenJS.TableCell[] = [{ text: label, options: { bold: true, fill: { color: C.rowAlt } } }];
-    let total = 0;
-    for (const v of data) {
-      if (v != null && !isPct) total += v;
+    for (const v of values) {
+      // Percent rows fed by slide-math use nulls where the ratio is undefined;
+      // the classic renderer historically zeroed them (blank cell). Keep that.
+      const cellValue = v ?? (isPct ? 0 : null);
       cells.push({
-        text: v == null ? "" : isPct ? fmtPct(v) : fmtMYR(v),
+        text: cellValue == null ? "" : isPct ? fmtPct(cellValue) : fmtMYR(cellValue),
         options: { align: "right" },
       });
     }
-    const effectiveTotal: number | null = isPct ? totalOverride : total;
     cells.push({
-      text: effectiveTotal == null ? "" : isPct ? fmtPct(effectiveTotal) : fmtMYR(effectiveTotal),
+      text: total == null ? "" : isPct ? fmtPct(total) : fmtMYR(total),
       options: { align: "right", bold: true },
     });
     return cells;
@@ -136,22 +141,11 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
     text: h, options: { bold: true, align: "center", fill: headerFill(), color: C.headerText },
   }));
   const rows: PptxGenJS.TableCell[][] = [headerCells];
-  if (SA) {
-    const sumOf = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
-    const totalTarget = sumOf(SA.target2026);
-    const totalActual = sumOf(SA.actual2026);
-    const totalPrior  = sumOf(SA.actual2025);
-
-    rows.push(row("Sales Target 2026",   SA.target2026));
-    rows.push(row("Sales Result 2026",   SA.actual2026));
-    // Accumulated % = actual/target per month
-    const acc = SA.target2026.map((t, i) => (t && SA.actual2026[i] != null ? (SA.actual2026[i]! / t) : 0));
-    rows.push(row("ACC %",               acc, true, totalTarget ? totalActual / totalTarget : null));
-    rows.push(row("Sales Result 2025",   SA.actual2025));
-    const yoy = SA.actual2025.map((p, i) => (p && SA.actual2026[i] != null ? (SA.actual2026[i]! / p) : 0));
-    rows.push(row("YoY %",               yoy, true, totalPrior ? totalActual / totalPrior : null));
-    rows.push(row("Net Income 2026",     SA.netIncome2026));
-    rows.push(row("Net Income 2025",     SA.netIncome2025));
+  const saRows = salesAchievementRows(SA);
+  if (saRows.length > 0) {
+    for (const r of saRows) {
+      rows.push(buildRow(r.label, r.values, r.isPct, totalForSalesAchievementRow(r)));
+    }
   } else {
     rows.push([{ text: "No data", options: { colspan: headers.length, align: "center" } }]);
   }
@@ -170,11 +164,9 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
   if (months.length === 1) {
     const kpi = lastMonth.salesAchievement?.kpi.find(k => k.month === lastMonth.month);
     if (kpi) {
-      // Achievement / YoY derived from the figures so they match the table.
-      const lsa = lastMonth.salesAchievement;
-      const li = lastMonth.month - 1;
-      const accRate = lsa && lsa.target2026[li] && lsa.actual2026[li] != null ? lsa.actual2026[li]! / lsa.target2026[li]! : null;
-      const yoyRate = lsa && lsa.actual2025[li] && lsa.actual2026[li] != null ? lsa.actual2026[li]! / lsa.actual2025[li]! : null;
+      // Achievement / YoY come from the shared helper so preview + deck
+      // read the same rates.
+      const { accRate, yoyRate } = salesAchievementRates(lastMonth.salesAchievement, lastMonth.month);
       const lines = [
         `Monthly achievement rate of ${fmtPct(accRate)}`,
         `Year on Year achievement rate for same month ${fmtPct(yoyRate)}`,
@@ -195,10 +187,7 @@ function slideSalesAchievement(pptx: PptxGenJS, input: PptxInput) {
         x, y: 5.95, w: colW, h: 0.35, fontFace: FONT, fontSize: 18, bold: true, color: C.header,
       });
       if (!kpi) return;
-      const msa = m.salesAchievement;
-      const mIdx = m.month - 1;
-      const accRate = msa && msa.target2026[mIdx] && msa.actual2026[mIdx] != null ? msa.actual2026[mIdx]! / msa.target2026[mIdx]! : null;
-      const yoyRate = msa && msa.actual2025[mIdx] && msa.actual2026[mIdx] != null ? msa.actual2026[mIdx]! / msa.actual2025[mIdx]! : null;
+      const { accRate, yoyRate } = salesAchievementRates(m.salesAchievement, m.month);
       const lines = [
         `Monthly achievement rate of ${fmtPct(accRate)}`,
         `YoY achievement rate for same month ${fmtPct(yoyRate)}`,
@@ -224,12 +213,9 @@ function slideSalesTrend(pptx: PptxGenJS, input: PptxInput) {
   }
   const categories = MONTH_NAMES.slice();
   const safe = (a: (number | null)[]) => a.map(v => (v ?? 0));
-  // Actual 2026 stops at the last month with real data — replace future months with the
-  // last known value so the line sits flat rather than crashing to 0.
-  const lastFilled = SA.actual2026.reduce<number>((acc, v, i) => v != null ? i : acc, -1);
-  const actual2026Trimmed = lastFilled >= 0
-    ? SA.actual2026.map((v, i) => i <= lastFilled ? (v ?? 0) : null)
-    : SA.actual2026.map(() => null);
+  // Trim Actual 2026 to the last month with real data via the shared helper
+  // — same function as the preview's chart clip point.
+  const actual2026Trimmed = trimActualToLastFilled(SA.actual2026);
   // Commentary card pushes up from the bottom; the chart shrinks to fit.
   const commentary = (last.salesTrend?.commentary ?? "").trim();
   const chartH = commentary ? 4.5 : 5.7;

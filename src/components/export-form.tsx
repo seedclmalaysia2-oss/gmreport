@@ -45,19 +45,36 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
   async function download() {
     if (selected.length === 0) { setErr("Select at least one month."); return; }
     setBusy(true); setErr("");
-    const res = await fetch("/api/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ months: selected, template, paletteId }),
-    });
-    setBusy(false);
-    if (!res.ok) { setErr("Export failed"); return; }
-    const blob = await res.blob();
-    const cd = res.headers.get("Content-Disposition") || "";
-    const name = /filename="([^"]+)"/.exec(cd)?.[1] || "report.pptx";
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
+    let url: string | null = null;
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ months: selected, template, paletteId }),
+      });
+      if (!res.ok) {
+        // Surface the server's actual message when we can — a 500 with a
+        // parse-error body is more useful than "Export failed" to a GM
+        // trying to catch what went wrong before HQ's deadline.
+        let detail = "";
+        try { detail = (await res.text()).slice(0, 300); } catch { /* ignore */ }
+        setErr(detail ? `Export failed (${res.status}): ${detail}` : `Export failed (${res.status})`);
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const name = /filename="([^"]+)"/.exec(cd)?.[1] || "report.pptx";
+      url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = name; a.click();
+    } catch (netErr) {
+      // fetch() rejects on network drop, DNS failure, aborted connection
+      // mid-response. Previously this left the button spinning forever —
+      // Simon on hotel Wi-Fi at 11pm had no way to know the download failed.
+      setErr(netErr instanceof Error ? `Network error: ${netErr.message}` : "Network error");
+    } finally {
+      setBusy(false);
+      if (url) URL.revokeObjectURL(url);
+    }
   }
 
   return (
@@ -221,7 +238,14 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        {err && <p className="text-sm text-red-600 mr-auto">{err}</p>}
+        {err && (
+          <p
+            role="alert"
+            className="text-sm text-[var(--color-bad-800)] bg-[var(--color-bad-50)] border border-[var(--color-bad-200)] rounded-md px-3 py-2 mr-auto max-w-full break-words"
+          >
+            {err}
+          </p>
+        )}
         <div className="flex items-center gap-2 ml-auto">
           {/* Client-side PDF — renders all slides with the picked template+palette then stitches with jsPDF. */}
           <PdfExporter

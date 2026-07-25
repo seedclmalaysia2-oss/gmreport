@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:slide-math": "tsx scripts/verify-slide-math.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

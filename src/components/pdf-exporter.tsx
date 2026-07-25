@@ -150,7 +150,14 @@ export function PdfExporter({
         {status.phase === "rendering" ? `Rendering ${progressPct}%…` : "Download PDF"}
       </button>
 
-      {status.error && <p className="text-sm text-red-600 mt-2">{status.error}</p>}
+      {status.error && (
+        <p
+          role="alert"
+          className="text-sm text-[var(--color-bad-800)] bg-[var(--color-bad-50)] border border-[var(--color-bad-200)] rounded-md px-3 py-2 mt-2"
+        >
+          {status.error}
+        </p>
+      )}
 
       {/* Off-screen stage — must stay laid-out + visible for Recharts' ResizeObserver
           to fire, so we push it way off-screen rather than using `visibility: hidden`. */}

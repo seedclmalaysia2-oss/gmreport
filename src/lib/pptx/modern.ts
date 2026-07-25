@@ -6,6 +6,12 @@ import { MODERN_PALETTE as P, applyThemeToModern, SLIDE_W, SLIDE_H, brandImageDa
 import { htmlToPptxRuns } from "./rich-text";
 import { MONTH_NAMES } from "@/lib/utils";
 import { AGENDA, ECP_CATEGORIES, REGIONS } from "@/lib/catalog/mappings";
+import {
+  ratioPerMonth,
+  weightedRatioTotal,
+  salesAchievementRates,
+  trimActualToLastFilled,
+} from "@/lib/slide-math";
 
 const DISPLAY_FONT = "Cambria";
 const BODY_FONT = "Calibri";
@@ -119,10 +125,9 @@ function salesAchievement(pptx: PptxGenJS, input: PptxInput) {
   const actual = SA?.actual2026[idx] ?? 0;
   const prior = SA?.actual2025[idx] ?? 0;
   const ni = SA?.netIncome2026[idx] ?? 0;
-  // Achievement / YoY are derived straight from the figures so they always
-  // match the ACC % / YoY % table rows — no separately stored percentage.
-  const achievementRate = target ? actual / target : null;
-  const yoyRate = prior ? actual / prior : null;
+  // Achievement / YoY come from the shared helper so all three renderers
+  // (preview, classic PPTX, modern PPTX) report identical rates.
+  const { accRate: achievementRate, yoyRate } = salesAchievementRates(SA, last.month);
 
   callout(0.60, "TARGET",    `RM ${fmtMYR(target, 0)}`, `${monthShort(last.month)} ${last.year}`, P.ice);
   callout(3.70, "ACTUAL",    `RM ${fmtMYR(actual, 0)}`, `${fmtPct(achievementRate, 0)} of target`, P.accent);
@@ -152,15 +157,15 @@ function salesAchievement(pptx: PptxGenJS, input: PptxInput) {
     return r;
   };
   if (SA) {
-    const sumOf = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
-    const totalTarget = sumOf(SA.target2026);
-    const totalActual = sumOf(SA.actual2026);
-    const totalPrior  = sumOf(SA.actual2025);
+    // Percent rows come from the shared math kernel so the values (and the
+    // weighted-ratio Totals) can't drift from the preview or classic deck.
+    const acc = ratioPerMonth(SA.actual2026, SA.target2026);
+    const yoy = ratioPerMonth(SA.actual2026, SA.actual2025);
     rows.push(row("Target 2026",  SA.target2026));
     rows.push(row("Actual 2026",  SA.actual2026));
-    rows.push(row("ACC %",        SA.target2026.map((t, i) => (t && SA.actual2026[i] != null ? SA.actual2026[i]! / t : 0)), true, totalTarget ? totalActual / totalTarget : null));
+    rows.push(row("ACC %",        acc, true, weightedRatioTotal(SA.actual2026, SA.target2026)));
     rows.push(row("Actual 2025",  SA.actual2025));
-    rows.push(row("YoY %",        SA.actual2025.map((p, i) => (p && SA.actual2026[i] != null ? SA.actual2026[i]! / p : 0)), true, totalPrior ? totalActual / totalPrior : null));
+    rows.push(row("YoY %",        yoy, true, weightedRatioTotal(SA.actual2026, SA.actual2025)));
     rows.push(row("Net Income",   SA.netIncome2026));
   }
   s.addTable(rows, {
@@ -178,10 +183,8 @@ function salesTrend(pptx: PptxGenJS, input: PptxInput) {
   if (!SA) return;
   const cats = [...MONTH_NAMES];
   const safe = (a: (number | null)[]) => a.map(v => v ?? 0);
-  const lastFilled = SA.actual2026.reduce<number>((acc, v, i) => v != null ? i : acc, -1);
-  const actual2026Trimmed = lastFilled >= 0
-    ? SA.actual2026.map((v, i) => i <= lastFilled ? (v ?? 0) : null)
-    : SA.actual2026.map(() => null);
+  // Same trim helper as the preview + classic deck.
+  const actual2026Trimmed = trimActualToLastFilled(SA.actual2026);
   // Commentary card pushes up from the bottom; the chart shrinks to fit.
   const commentary = (input.months[input.months.length - 1].salesTrend?.commentary ?? "").trim();
   const chartH = commentary ? 3.9 : 5.3;
