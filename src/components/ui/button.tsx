@@ -15,7 +15,6 @@ import type { ComponentPropsWithoutRef, ElementType, ReactElement, Ref } from "r
  *   destructive      — text-bad only; row-level "Remove" / "Delete forever"
  *   destructive-solid — bg-bad white text; toolbar / bulk destructive CTAs
  *   warn             — bg-warn-100 warn-800 text; legacy / needs-attention CTAs
- *   ghost            — plain text-ink-800 with subtle hover; used in modal footers
  *
  * Sizes:
  *   sm  — 11px, py-1 px-2   — row action clusters
@@ -32,8 +31,7 @@ export type ButtonVariant =
   | "secondary"
   | "destructive"
   | "destructive-solid"
-  | "warn"
-  | "ghost";
+  | "warn";
 
 export type ButtonSize = "sm" | "md" | "lg";
 
@@ -48,8 +46,6 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     "bg-[var(--color-bad)] text-white hover:bg-[var(--color-bad-800)] active:scale-95",
   warn:
     "bg-[var(--color-warn-100)] text-[var(--color-warn-800)] hover:bg-[var(--color-warn-200)] active:scale-95",
-  ghost:
-    "text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {

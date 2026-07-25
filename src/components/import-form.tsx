@@ -5,29 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, FileText, UploadCloud } from "lucide-react";
 import { SECTION_META, type SectionKey } from "@/lib/schema";
 import { detectPeriod } from "@/lib/filename-period";
+import { kindLabel } from "@/lib/kind-labels";
 import { Modal } from "./ui/modal";
 import { Button } from "./ui/button";
-
-/**
- * Friendly labels for the parser's internal file-kind identifiers. Kept in
- * sync with the KIND_LABELS map on the Files page so "Files recognised" in
- * the import summary reads in Simon's own vocabulary rather than raw snake
- * case (`pos_master`, `pos_ecp_list`).
- */
-const KIND_LABELS: Record<string, string> = {
-  pos_master:     "POS Master (Stock Sales Analysis)",
-  pos_mcuv:       "MCUV breakdown",
-  pos_writeoff:   "Stocks Write-Off",
-  pos_outlets:    "Monthly Sales Performance",
-  pos_ecp_list:   "ECP List",
-  pos_region:     "Sales Analysis By Region",
-  pos_salesman:   "Salesman Sales & Collection",
-  pos_inventory:  "Stock List (SCLM)",
-  pos_collection: "Collection Listing",
-  pos_daily:      "Daily Sales Quantity",
-  ref_2025:       "2025 Sales Summary (prior-year reference)",
-  unknown:        "Unrecognised file",
-};
 
 /**
  * Filename keyword hints surfaced in the "Some files need attention" popup.
@@ -146,6 +126,13 @@ export function ImportForm() {
     | { from: { year: number; month: number }; to: { year: number; month: number } }
     | null
   >(null);
+  // Set when a single drop contains files with >1 distinct filename-encoded
+  // period. Refusing is safer than picking one and silently bundling the
+  // rest — Simon can retry with a single-month drop.
+  const [mixedDrop, setMixedDrop] = useState<
+    | { periods: { year: number; month: number }[]; groups: Record<string, string[]> }
+    | null
+  >(null);
   useEffect(() => {
     if (isInitialMount.current) { isInitialMount.current = false; return; }
     if (skipNextReset.current) { skipNextReset.current = false; return; }
@@ -172,14 +159,41 @@ export function ImportForm() {
   function addFiles(added: File[]) {
     if (added.length === 0) return;
 
-    // First hint present in the new drop (usually the first file, but skip
-    // untitled/unhinted files until we find one).
-    let hint: { year: number; month: number } | null = null;
+    // Collect every distinct period hint present in this drop. If more than
+    // one period appears, refuse the queue and surface a warn strip listing
+    // the offending files grouped by period. Silently picking whichever
+    // hint appeared first (the old behaviour) would send Apr files into a
+    // Feb report; refusing lets Simon retry per-month.
+    const periodMap = new Map<string, { year: number; month: number; names: string[] }>();
+    let firstHint: { year: number; month: number } | null = null;
     for (const f of added) {
       const h = detectPeriod(f.name);
-      if (h) { hint = h; break; }
+      if (!h) continue;
+      if (!firstHint) firstHint = h;
+      const key = `${h.year}-${h.month}`;
+      const entry = periodMap.get(key);
+      if (entry) entry.names.push(f.name);
+      else periodMap.set(key, { year: h.year, month: h.month, names: [f.name] });
     }
 
+    if (periodMap.size > 1) {
+      // Refuse the drop. The warn strip renders under the dropzone with a
+      // per-period breakdown so Simon can see exactly which files clash.
+      setMixedDrop({
+        periods: [...periodMap.values()].map(({ year, month }) => ({ year, month }))
+                    .sort((a, b) => a.year - b.year || a.month - b.month),
+        groups: Object.fromEntries(
+          [...periodMap.values()]
+            .sort((a, b) => a.year - b.year || a.month - b.month)
+            .map(g => [`${MONTH_NAMES[g.month - 1]} ${g.year}`, g.names]),
+        ),
+      });
+      return;
+    }
+
+    setMixedDrop(null);
+
+    const hint = firstHint;
     const isEmptyQueue = files.length === 0;
     const hintDiffers = hint !== null && (hint.year !== year || hint.month !== month);
 
@@ -389,6 +403,34 @@ export function ImportForm() {
           </div>
         )}
 
+        {mixedDrop && (
+          <div className="rounded-md border border-[var(--color-warn-200)] bg-[var(--color-warn-50)] px-3 py-2 text-xs text-[var(--color-warn-900)] space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <strong>Files from multiple months detected.</strong>{" "}
+                Nothing was added — drop one month at a time so each queue targets a single report.
+              </div>
+              <button
+                type="button"
+                onClick={() => setMixedDrop(null)}
+                aria-label="Dismiss mixed-drop notice"
+                className="shrink-0 rounded-md p-0.5 text-[var(--color-warn-800)] hover:bg-[var(--color-warn-100)]"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="space-y-1 pt-1">
+              {Object.entries(mixedDrop.groups).map(([label, names]) => (
+                <li key={label}>
+                  <span className="font-semibold tabular-nums">{label}</span>
+                  <span className="text-[var(--color-warn-800)]"> — </span>
+                  <span className="text-[var(--color-ink-700)]">{names.join(", ")}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {files.length > 0 && (
           <ul className="space-y-1 text-sm">
             {files.map((f, i) => (
@@ -440,7 +482,7 @@ export function ImportForm() {
               <ul className="space-y-0.5 text-[var(--color-ink-600)]">
                 {Object.entries(result.result.filesByKind).map(([kind, names]) => (
                   <li key={kind}>
-                    <span className="text-[var(--color-ink-800)]">{KIND_LABELS[kind] ?? kind}</span>
+                    <span className="text-[var(--color-ink-800)]">{kindLabel(kind)}</span>
                     {" → "}
                     {names.join(", ")}
                   </li>

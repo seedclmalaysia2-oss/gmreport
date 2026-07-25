@@ -8,23 +8,9 @@ import type { RawFileEntry } from "@/lib/month-report";
 import { monthNameFull } from "@/lib/utils";
 import { fmtBytes, fmtTimestamp } from "@/lib/format";
 import { coverageOf } from "@/lib/coverage";
+import { kindLabel } from "@/lib/kind-labels";
 import { CoverageChips, UncoveredSlideList } from "./coverage-chip";
 import { FileRowActions } from "./file-row-actions";
-
-const KIND_LABELS: Record<string, string> = {
-  pos_master:     "POS Master (Stock Sales Analysis)",
-  pos_mcuv:       "MCUV breakdown",
-  pos_writeoff:   "Stocks Write-Off",
-  pos_outlets:    "Monthly Sales Performance",
-  pos_ecp_list:   "ECP List",
-  pos_region:     "Sales Analysis By Region",
-  pos_salesman:   "Salesman Sales & Collection",
-  pos_inventory:  "Stock List (SCLM)",
-  pos_collection: "Collection Listing",
-  pos_daily:      "Daily Sales Quantity",
-  ref_2025:       "2025 Sales Summary (prior-year reference)",
-  unknown:        "Unrecognised file",
-};
 
 export type MonthGroup = {
   monthReportId: string;
@@ -43,17 +29,12 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
   const total = files.length;
 
   const coverage = useMemo(() => coverageOf(files), [files]);
-  const [filterActive, setFilterActive] = useState(false);
-
-  const visibleFiles = useMemo(() => {
-    if (!filterActive) return files;
-    const uncoveredSet = new Set(coverage.uncoveredInputs);
-    // A file "feeds an uncovered slide" iff its sectionKeys intersect
-    // uncoveredInputs. Under normal use this is empty (why would a file be
-    // uploaded yet not feed the slide it was meant for?), but if the parser
-    // downgrades a file to `unknown` mid-import Simon needs to see it here.
-    return files.filter(f => f.sectionKeys.some(k => uncoveredSet.has(k as SectionKey)));
-  }, [files, filterActive, coverage.uncoveredInputs]);
+  // Reveal the "Waiting for a file" strip when the user clicks the partial-
+  // coverage chip. We DON'T filter the file table — a file whose sectionKeys
+  // include X moves X into coveredInputs, so filtering by "feeds an
+  // uncovered slide" is provably empty. The chip is a "show me what's
+  // missing" affordance, not a "hide what's already there" one.
+  const [missingOpen, setMissingOpen] = useState(false);
 
   return (
     <section className="rounded-2xl border border-[var(--color-ice-200)] bg-white overflow-hidden">
@@ -65,11 +46,11 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <CoverageChips
             coverage={coverage}
-            filterActive={filterActive}
-            onToggleFilter={() => setFilterActive(v => !v)}
+            revealActive={missingOpen}
+            onToggleReveal={() => setMissingOpen(v => !v)}
             hasFiles={total > 0}
           />
           <Link
@@ -81,7 +62,7 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
         </div>
       </header>
 
-      {filterActive && (
+      {missingOpen && coverage.uncoveredInputs.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-5 py-2.5 border-b border-[var(--color-ice-200)] bg-[var(--color-warn-50)]">
           <UncoveredSlideList
             monthReportId={monthReportId}
@@ -89,10 +70,10 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
           />
           <button
             type="button"
-            onClick={() => setFilterActive(false)}
+            onClick={() => setMissingOpen(false)}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-warn-800)] hover:underline"
           >
-            <X size={12} /> Clear filter
+            <X size={12} /> Hide
           </button>
         </div>
       )}
@@ -113,20 +94,18 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
             </tr>
           </thead>
           <tbody>
-            {visibleFiles.length === 0 ? (
+            {files.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-5 py-6 text-center text-sm text-[var(--color-ink-600)]">
-                  {filterActive
-                    ? "No uploaded files are feeding an uncovered slide — the missing slides need a new upload."
-                    : "No files in this month."}
+                  No files in this month.
                 </td>
               </tr>
             ) : (
-              /* Row number is positional — re-sequences on filter or remove
-                 (the page re-renders server-side or via client state). A
-                 same-name re-upload supersedes the old copy at import time,
-                 so it reuses the slot rather than taking a fresh number. */
-              visibleFiles.map((f, i) => <FileRow key={f.id} file={f} index={i + 1} />)
+              /* Row number is positional — re-sequences when a file is
+                 removed (the page re-renders server-side). A same-name
+                 re-upload supersedes the old copy at import time, so it
+                 reuses the slot rather than taking a fresh number. */
+              files.map((f, i) => <FileRow key={f.id} file={f} index={i + 1} />)
             )}
           </tbody>
         </table>
@@ -136,7 +115,7 @@ export function MonthBlock({ group }: { group: MonthGroup }) {
 }
 
 function FileRow({ file, index }: { file: RawFileEntry; index: number }) {
-  const kindLabel = KIND_LABELS[file.kind] ?? file.kind;
+  const label = kindLabel(file.kind);
   // Slides are stored in the order they were touched at import time; render
   // them in slide-number order (1, 5, 6 — not 6, 1, 5) so the chips read
   // top-to-bottom of the deck and match the row-level sort above.
@@ -171,7 +150,7 @@ function FileRow({ file, index }: { file: RawFileEntry; index: number }) {
               </span>
             )}
             <div className="sm:hidden text-[11px] text-[var(--color-ink-600)] mt-0.5 space-y-0.5">
-              <div>{kindLabel}</div>
+              <div>{label}</div>
               <div className="tabular-nums">{fmtTimestamp(file.createdAt)}</div>
               {slides.length > 0 && (
                 <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
@@ -201,7 +180,7 @@ function FileRow({ file, index }: { file: RawFileEntry; index: number }) {
           </div>
         </div>
       </td>
-      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell text-[var(--color-ink-700)]">{kindLabel}</td>
+      <td className="px-3 sm:px-5 py-2.5 hidden sm:table-cell text-[var(--color-ink-700)]">{label}</td>
       <td className="px-3 sm:px-5 py-2.5 hidden md:table-cell">
         {slides.length === 0 ? (
           <span className="text-[var(--color-ink-600)] italic">—</span>

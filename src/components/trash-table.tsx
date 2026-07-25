@@ -81,17 +81,20 @@ export function TrashTable({
     }
   }
 
-  // Guard against tab close mid-bulk — a mid-purge close would leave the
-  // list in a mixed state. Native prompt lets Simon stay to see it finish.
+  // Guard against tab close mid-bulk PURGE only — a mid-purge close would
+  // leave the list in a mixed irrecoverable state. Bulk Restore is
+  // idempotent (rerunning it is safe), so prompting there is disruption
+  // inflation; Simon closing the tab after "Restore selected" should just
+  // work.
   useEffect(() => {
-    if (!isWorking) return;
+    if (busy !== "purge") return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [isWorking]);
+  }, [busy]);
 
   return (
     <div className="space-y-3">

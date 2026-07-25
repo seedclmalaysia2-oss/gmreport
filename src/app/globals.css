@@ -33,7 +33,6 @@
   --color-bad-50:  #fef2f2;
   --color-bad-100: #fee2e2;
   --color-bad-200: #fecaca;
-  --color-bad-700: #b91c1c;
   --color-bad-800: #991b1b;
 
   --font-display: "Cambria", "Georgia", serif;
@@ -90,7 +89,6 @@ html.dark {
   --color-bad-50:  #2a0d0d;
   --color-bad-100: #3d1414;
   --color-bad-200: #571818;
-  --color-bad-700: #fecaca;
   --color-bad-800: #fee2e2;
 }
 

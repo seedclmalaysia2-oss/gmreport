@@ -8,21 +8,22 @@ import type { MonthCoverage } from "@/lib/coverage";
  * Two chips summarising a MonthBlock's slide coverage:
  *
  *   InputChip  — filled status pill "N/8 inputs ready" / "N/8 inputs" /
- *                "No files yet". Clickable when partial to toggle the
- *                filter-to-uncovered-slides view. Uses the semantic ok/
- *                warn/ice tokens so the palette picker retunes correctly.
+ *                "No files yet". Clickable when partial to reveal the
+ *                "Waiting for a file" strip below the header. Uses the
+ *                semantic ok/warn/ice tokens so the palette picker retunes
+ *                correctly.
  *   ManualChip — read-only neutral pill "Manual: 2 · 3 · 9 · 12 · 13"
  *                explaining which slides are always entered by hand.
  */
 export function CoverageChips({
   coverage,
-  filterActive,
-  onToggleFilter,
+  revealActive,
+  onToggleReveal,
   hasFiles,
 }: {
   coverage: MonthCoverage;
-  filterActive: boolean;
-  onToggleFilter: () => void;
+  revealActive: boolean;
+  onToggleReveal: () => void;
   hasFiles: boolean;
 }) {
   const coveredCount = coverage.coveredInputs.size;
@@ -37,8 +38,8 @@ export function CoverageChips({
         total={total}
         isFull={isFull}
         isEmpty={isEmpty}
-        filterActive={filterActive}
-        onToggleFilter={onToggleFilter}
+        revealActive={revealActive}
+        onToggleReveal={onToggleReveal}
       />
       <ManualChip manualSlides={coverage.manualSlides} />
     </div>
@@ -50,15 +51,15 @@ function InputChip({
   total,
   isFull,
   isEmpty,
-  filterActive,
-  onToggleFilter,
+  revealActive,
+  onToggleReveal,
 }: {
   coveredCount: number;
   total: number;
   isFull: boolean;
   isEmpty: boolean;
-  filterActive: boolean;
-  onToggleFilter: () => void;
+  revealActive: boolean;
+  onToggleReveal: () => void;
 }) {
   // Compose the chip class based on state — ok when complete, warn when
   // partial (and clickable to filter), neutral outline when empty.
@@ -88,18 +89,20 @@ function InputChip({
     );
   }
 
-  // Partial — clickable button that toggles the filter.
+  // Partial — clickable button that reveals the "Waiting for a file" strip
+  // under the header. The strip is where the actionable content lives; the
+  // chip is the affordance.
   return (
     <button
       type="button"
-      onClick={onToggleFilter}
-      aria-pressed={filterActive}
+      onClick={onToggleReveal}
+      aria-pressed={revealActive}
       title={
-        filterActive
-          ? "Showing only files feeding uncovered slides — click to clear"
-          : `${total - coveredCount} slide(s) still waiting for a file — click to filter this month's list`
+        revealActive
+          ? "Hide the list of slides waiting for a file"
+          : `${total - coveredCount} slide(s) still waiting for a file — click to see which`
       }
-      className={`${base} bg-[var(--color-warn-100)] text-[var(--color-warn-800)] hover:bg-[var(--color-warn-200)] active:scale-95 transition ${filterActive ? "ring-2 ring-[var(--color-warn-800)]/40" : ""}`}
+      className={`${base} bg-[var(--color-warn-100)] text-[var(--color-warn-800)] hover:bg-[var(--color-warn-200)] active:scale-95 transition ${revealActive ? "ring-2 ring-[var(--color-warn-800)]/40" : ""}`}
     >
       <CircleDot size={11} />
       <span className="tabular-nums">{coveredCount}/{total}</span> inputs

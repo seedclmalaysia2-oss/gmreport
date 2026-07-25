@@ -97,16 +97,30 @@ export function Modal({
     const prev = document.activeElement as HTMLElement | null;
     const canRestore = prev && prev !== document.body && prev !== document.documentElement;
 
-    // Focus the first focusable child (skip the X close button unless
-    // it's the only option) so keyboard users land on an actionable spot.
+    // Focus target on open:
+    //
+    //   role="alertdialog"  → the SAFE default (first non-X focusable, which
+    //                         is Cancel in every current call site). A
+    //                         destructive alertdialog opening with focus on
+    //                         the destructive button means a stray Enter or
+    //                         Space commits the irreversible action.
+    //   role="dialog"       → the primary action (last focusable). Info
+    //                         dialogs benefit from "hit Enter to proceed"
+    //                         because the destructive path isn't the default.
+    //
+    // In both cases fall back to the first focusable when only the X is
+    // present.
     const focusables = () => Array.from(
       containerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
     );
     const t = setTimeout(() => {
       const nodes = focusables();
-      // Prefer the primary action (usually the last button in the footer).
+      if (nodes.length === 0) return;
+      if (nodes.length === 1) { nodes[0].focus(); return; }
+      // nodes[0] is the X close button in every current layout. Skip it.
+      const safeFirst = nodes[1];
       const primary = nodes[nodes.length - 1];
-      const target = nodes.length > 1 ? primary : nodes[0];
+      const target = role === "alertdialog" ? safeFirst : primary;
       target?.focus();
     }, 20);
 
