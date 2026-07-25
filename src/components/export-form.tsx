@@ -6,6 +6,7 @@ import { PALETTES, DEFAULT_PALETTE_ID, classicSlidePalette, modernSlidePalette }
 import { SECTION_KEYS, SECTION_META, type MonthReport } from "@/lib/schema";
 import { SlidePreview, type DeckSlide } from "./slide-preview";
 import { PdfExporter } from "./pdf-exporter";
+import { ModernPreviewNotice } from "./modern-preview-notice";
 
 /**
  * Full deck order — cover + agenda open the deck, the 13 section slides
@@ -235,6 +236,16 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
             {PALETTES.find(p => p.id === paletteId)?.name} · {template === "classic" ? "Classic" : "Modern"}
           </span>
         </div>
+
+        {/* Honesty banner — Modern preview currently renders the shared table
+            layout, not the KPI-callout / doughnut / dark-cover variants the
+            Modern PPTX ships. Simon shouldn't sign off a preview that
+            doesn't match what HQ opens. Only visible when Modern is chosen. */}
+        {template === "modern" && (
+          <div className="mb-3">
+            <ModernPreviewNotice />
+          </div>
+        )}
 
         {/* Preview */}
         {previewReport ? (
