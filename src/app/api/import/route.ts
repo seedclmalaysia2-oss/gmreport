@@ -495,6 +495,59 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
+  // ----- Re-apply the ON-FILE Sales Summary reference(s) to THIS month -----
+  // A POS master import rebuilds salesByQuantity from scratch, reseeding every
+  // row's qty2025 from last year's SAME-month POS report — which usually
+  // doesn't exist, so qty2025 collapses to 0. The authoritative prior-year
+  // figures live in the Sales Summary workbook that's already on file (uploaded
+  // in an earlier batch). The fan-out above only fires when a Summary is in
+  // *this* upload, so a plain POS import would leave qty2025 (and a
+  // freshly-synthesized actual2025) empty until someone ran Repair by hand.
+  //
+  // So: whenever this import rebuilt a Summary-fed slide but carried no Summary
+  // of its own, pull the stored reference(s) and re-apply them to the current
+  // month. Idempotent — a re-run with nothing to change writes nothing. Only
+  // the current month is touched; other months already hold their own values.
+  if (!summaryRefs.length && (sectionsTouched.has("salesByQuantity") || sectionsTouched.has("salesAchievement"))) {
+    try {
+      const storedRefRows = await prisma.rawFile.findMany({
+        where: { kind: "ref_2025", deletedAt: null },
+        orderBy: { createdAt: "asc" }, // same order as the repair route
+        select: { bytes: true, originalName: true },
+      });
+      const storedRefs: Year2025Reference[] = [];
+      for (const r of storedRefRows) {
+        if (!r.bytes) continue;
+        try { storedRefs.push(parse2025Summary(new Uint8Array(r.bytes))); }
+        catch (e) { console.error(`[import] failed to parse stored Sales Summary "${r.originalName}":`, e); }
+      }
+      // Only PRIOR-YEAR references matter here: they carry the qty2025 /
+      // actual2025 comparison this month's rebuild just cleared. The
+      // current-year workbook only feeds target2026 — which a POS import never
+      // clears — so re-applying it would needlessly overwrite manual target
+      // edits. Skip it; upload-time fan-out and Repair still keep it in sync.
+      const priorYearRefs = storedRefs.filter(ref => ref.year === year - 1);
+      if (priorYearRefs.length) {
+        let current = saved;
+        let monthChanged = false;
+        for (const ref of priorYearRefs) {
+          const { changed, next } = applyYear2025ToReport(current, ref);
+          if (changed) { current = next; monthChanged = true; }
+        }
+        if (monthChanged) {
+          await upsertMonthReport(current);
+          revalidatePath(`/report/${saved.id}`);
+          revalidatePath("/");
+          revalidatePath("/export");
+        }
+      }
+    } catch (e) {
+      // Never fail the import over a reference re-sync — the POS data is
+      // already saved. Worst case the user can still click Repair.
+      console.error("[import] failed to re-apply on-file Sales Summary references:", e);
+    }
+  }
+
   const result: ImportResult = {
     year, month,
     grandTotalMyr: grand,
