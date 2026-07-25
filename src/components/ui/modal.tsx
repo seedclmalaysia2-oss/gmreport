@@ -76,7 +76,8 @@ export function Modal({
   role?: "dialog" | "alertdialog";
   tone?: ModalTone;
   /** md ≈ 28rem, lg ≈ 42rem (wider info dialogs like the filename hints table). */
-  size?: "md" | "lg";
+  /** md ≈ 28rem, lg ≈ 42rem, full ≈ viewport-width up to 1600px (content-heavy previews). */
+  size?: "md" | "lg" | "full";
   icon?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
@@ -172,7 +173,10 @@ export function Modal({
 
   if (!open) return null;
 
-  const widthClass = size === "lg" ? "max-w-2xl" : "max-w-md";
+  const widthClass =
+    size === "full" ? "max-w-[1600px]" :
+    size === "lg" ? "max-w-2xl" :
+    "max-w-md";
 
   return (
     <div

@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import type { MonthReport, SectionKey } from "@/lib/schema";
 import { MONTH_NAMES, fmtMYR, fmtJPY, fmtPct, monthNameFull } from "@/lib/utils";
 import {
@@ -9,7 +9,8 @@ import {
   trimActualToLastFilled,
 } from "@/lib/slide-math";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2 } from "lucide-react";
+import { Modal } from "./ui/modal";
 
 // Slide canvas in PPT inches: 13.33 × 7.5 (16:9 widescreen).
 const SLIDE_W_IN = 13.33;
@@ -151,7 +152,7 @@ function PreviewCanvas({ section, report, template, siblings, minWidth = 640, pa
     <div className={noPadding ? "" : "overflow-x-auto bg-[var(--color-ice-50)] p-4"}>
       <div
         ref={ref}
-        className={noPadding ? "relative" : "relative mx-auto shadow-sm border border-[var(--color-ice-200)]"}
+        className={noPadding ? "relative" : "relative mx-auto ring-1 ring-[var(--color-ice-200)] border border-[var(--color-ice-200)]"}
         style={{
           width: "100%",
           minWidth: noPadding ? undefined : minWidth,
@@ -167,32 +168,30 @@ function PreviewCanvas({ section, report, template, siblings, minWidth = 640, pa
   );
 }
 
-// Full-screen modal — viewport-width preview for detail review.
+// Full-screen modal — viewport-width preview for detail review. Uses the
+// shared <Modal> shell so it inherits the focus trap, ESC dismiss,
+// role="dialog" + aria-modal + labelled-by, and restore-on-close from
+// the same primitive the Files-page dialogs use.
 function ExpandedPreview({ section, report, template, siblings, onClose, paletteOverride }: {
   section: DeckSlide; report: MonthReport; template: Template; siblings: MonthReport[]; onClose: () => void; paletteOverride?: Palette;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const templateLabel = template === "classic" ? "Classic" : "Modern";
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm grid place-items-center p-6" onClick={onClose}>
-      <div
-        className="w-full max-w-[1600px] bg-white rounded-2xl overflow-hidden shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-ice-200)] bg-[var(--color-ice-50)]">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-ink-600)] font-semibold">
-            {template} preview · press Esc to close
-          </div>
-          <button onClick={onClose} className="rounded-md p-1.5 hover:bg-[var(--color-ice-100)] text-[var(--color-ink-800)]" title="Close">
-            <X size={16} />
-          </button>
-        </div>
+    <Modal
+      open={true}
+      onClose={onClose}
+      role="dialog"
+      tone="neutral"
+      size="full"
+      title={`${templateLabel} preview`}
+      subtitle="Full-size review — press Esc to close."
+      labelledById="expanded-preview-title"
+      describedById="expanded-preview-body"
+    >
+      <div className="-m-5">
         <PreviewCanvas section={section} report={report} template={template} siblings={siblings} minWidth={900} paletteOverride={paletteOverride} />
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1205,9 +1204,14 @@ function thStyle(P: Palette, scale: number, align: "left" | "right" | "center" =
   };
 }
 function tdStyle(P: Palette, scale: number, align: "left" | "right" | "center" = "left"): React.CSSProperties {
+  // Right- and center-aligned cells carry digits — turn on tabular-nums so
+  // columns line up (DESIGN.md Tabular-Numbers rule). Left cells are usually
+  // labels, so we leave them proportional.
+  const isNumberCell = align !== "left";
   return {
     padding: fs(4, scale), fontSize: fs(9, scale), color: P.text,
     textAlign: align, border: `1px solid ${P.border}`, whiteSpace: "nowrap",
+    ...(isNumberCell ? { fontVariantNumeric: "tabular-nums" as const } : {}),
   };
 }
 function EmptyMsg({ scale, P }: { scale: number; P: Palette }) {

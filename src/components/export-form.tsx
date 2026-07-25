@@ -3,9 +3,25 @@ import { useMemo, useState } from "react";
 import { MONTH_NAMES } from "@/lib/utils";
 import { Check, ChevronLeft, ChevronRight, Download, Layers, Sparkles } from "lucide-react";
 import { PALETTES, DEFAULT_PALETTE_ID, classicSlidePalette, modernSlidePalette } from "@/lib/themes";
-import { SECTION_KEYS, SECTION_META, type MonthReport, type SectionKey } from "@/lib/schema";
-import { SlidePreview } from "./slide-preview";
+import { SECTION_KEYS, SECTION_META, type MonthReport } from "@/lib/schema";
+import { SlidePreview, type DeckSlide } from "./slide-preview";
 import { PdfExporter } from "./pdf-exporter";
+
+/**
+ * Full deck order — cover + agenda open the deck, the 13 section slides
+ * carry the content, thankyou closes it. Preview iterates this so Simon
+ * can catch a stale presenter name on the cover before HQ sees it.
+ * Kept in sync with buildDeckSequence in pdf-exporter.tsx and the
+ * server PPTX layouts.
+ */
+const DECK_KEYS: DeckSlide[] = ["cover", "agenda", ...SECTION_KEYS, "thankyou"];
+
+function labelFor(k: DeckSlide): { no: string; title: string } {
+  if (k === "cover")    return { no: "Cover",  title: "Front cover" };
+  if (k === "agenda")   return { no: "Agenda", title: "Deck agenda" };
+  if (k === "thankyou") return { no: "Close",  title: "Thank you"   };
+  return { no: `Slide ${SECTION_META[k].no}`, title: SECTION_META[k].title };
+}
 
 export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
   const months = allReports.map(m => ({ id: m.id, year: m.year, month: m.month }));
@@ -15,7 +31,7 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
   const [paletteId, setPaletteId] = useState<string>(DEFAULT_PALETTE_ID);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [previewSection, setPreviewSection] = useState<SectionKey>("salesAchievement");
+  const [previewSection, setPreviewSection] = useState<DeckSlide>("salesAchievement");
 
   // Preview always uses the last selected month as the "current" — same as PPTX export.
   const previewReport = useMemo<MonthReport | null>(() => {
@@ -28,9 +44,9 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
     template === "classic" ? classicSlidePalette(paletteId) : modernSlidePalette(paletteId)
   ), [template, paletteId]);
 
-  const sectionIndex = SECTION_KEYS.indexOf(previewSection);
-  const goPrevSection = () => setPreviewSection(SECTION_KEYS[(sectionIndex - 1 + SECTION_KEYS.length) % SECTION_KEYS.length]);
-  const goNextSection = () => setPreviewSection(SECTION_KEYS[(sectionIndex + 1) % SECTION_KEYS.length]);
+  const sectionIndex = DECK_KEYS.indexOf(previewSection);
+  const goPrevSection = () => setPreviewSection(DECK_KEYS[(sectionIndex - 1 + DECK_KEYS.length) % DECK_KEYS.length]);
+  const goNextSection = () => setPreviewSection(DECK_KEYS[(sectionIndex + 1) % DECK_KEYS.length]);
 
   function toggle(id: string) {
     setErr("");
@@ -140,10 +156,10 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
                 type="button"
                 onClick={() => setPaletteId(p.id)}
                 className={[
-                  "group relative rounded-xl border p-3 text-left hover:shadow-md transition",
+                  "group relative rounded-xl border p-3 text-left transition",
                   active
                     ? "border-[var(--color-ink-800)] ring-2 ring-[var(--color-ink-700)]"
-                    : "border-[var(--color-ice-200)]",
+                    : "border-[var(--color-ice-200)] hover:border-[var(--color-ink-700)] hover:ring-1 hover:ring-[var(--color-ice-200)]",
                 ].join(" ")}
                 title={p.name}
               >
@@ -165,7 +181,7 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
                   <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-ink-600)] truncate">{p.mood}</div>
                 </div>
                 {active && (
-                  <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[var(--color-ink-800)] text-white grid place-items-center shadow-sm">
+                  <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[var(--color-ink-800)] text-white grid place-items-center ring-2 ring-white">
                     <Check size={12} strokeWidth={3} />
                   </span>
                 )}
@@ -180,7 +196,7 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h3 className="font-semibold">4. Review before download</h3>
           <span className="text-[11px] text-[var(--color-ink-600)]">
-            Live — updates with template &amp; theme. Slide {sectionIndex + 1} of {SECTION_KEYS.length}.
+            Live — updates with template &amp; theme. Slide {sectionIndex + 1} of {DECK_KEYS.length}.
           </span>
         </div>
 
@@ -196,12 +212,12 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
           </button>
           <select
             value={previewSection}
-            onChange={e => setPreviewSection(e.target.value as SectionKey)}
+            onChange={e => setPreviewSection(e.target.value as DeckSlide)}
             className="rounded-md border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] px-2 py-1.5 text-sm min-w-[260px]"
           >
-            {SECTION_KEYS.map(k => {
-              const meta = SECTION_META[k];
-              return <option key={k} value={k}>Slide {meta.no} · {meta.title}</option>;
+            {DECK_KEYS.map(k => {
+              const l = labelFor(k);
+              return <option key={k} value={k}>{l.no} · {l.title}</option>;
             })}
           </select>
           <button
