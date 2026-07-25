@@ -152,6 +152,101 @@ export const PRM_TO_PARENT: Record<string, string> = {
 // Codes that the parser should silently drop (qty = 0, no revenue, no product).
 export const EXCLUDED_CODES: ReadonlySet<string> = new Set(["PRMSD"]);
 
+// ----------------------------------------------------------------------------
+// SKU-LEVEL ("exploded") exports.
+//
+// Newer POS "Summary By Group" exports break each product into its individual
+// shade / power / variant SKUs instead of the aggregated group codes above —
+// e.g. MonthlyColour UV arrives as MC-NAT BROWN, MC-FIRE GRAY, … instead of a
+// single MCUV line, and 1D Pure EDOF as HIGH/LOW/MID. This table maps each such
+// SKU straight to its canonical product + qty divisor, bypassing the suffix
+// logic (these codes don't strip cleanly). base/FOC rows use divisor 1; trial
+// ("...T"/"...TR"/"...-T") rows use the pack size, matching the aggregated codes.
+//
+// MonthlyColour colour-box grouping (defined by the project owner):
+//   Blue box   = Nat Brown/Gray (NB,NY), Glit Brown/Gray (GB,GY), Fire Brown/Gray (FB,FY)
+//   Orange box = Jade Green (JG), Spark Brown/Gray (SB,SY), Shining Honey (SH)
+//   Pegavision = Cocoa Brown (CB), Gray Dgry (GD)  [+ Pink, Gold when present]
+//   II         = the MCII-* shades
+// ----------------------------------------------------------------------------
+export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor: number }> = {
+  // 1D Pure UP (32-pack; trials ÷32)
+  "1DPR": { product: "1dayPureUP (32P)", divisor: 1 }, "1DPRFC": { product: "1dayPureUP (32P)", divisor: 1 }, "1DPRTR": { product: "1dayPureUP (32P)", divisor: 32 },
+  "1DTT": { product: "1dayPureUP Astig (32P)", divisor: 32 },
+  "1MSA": { product: "1dayPureUP Multistage (32P)", divisor: 1 }, "1MSB": { product: "1dayPureUP Multistage (32P)", divisor: 1 },
+  "1MSAFC": { product: "1dayPureUP Multistage (32P)", divisor: 1 }, "1MSBFC": { product: "1dayPureUP Multistage (32P)", divisor: 1 },
+  "1MAT": { product: "1dayPureUP Multistage (32P)", divisor: 32 }, "1MBT": { product: "1dayPureUP Multistage (32P)", divisor: 32 },
+  "1DPEHI": { product: "1dayPureUP EDOF (32P)", divisor: 1 }, "1DPELO": { product: "1dayPureUP EDOF (32P)", divisor: 1 }, "1DPEMID": { product: "1dayPureUP EDOF (32P)", divisor: 1 },
+  "1DPELOFC": { product: "1dayPureUP EDOF (32P)", divisor: 1 }, "1DPEMDFC": { product: "1dayPureUP EDOF (32P)", divisor: 1 },
+  "1DPEHITR": { product: "1dayPureUP EDOF (32P)", divisor: 32 }, "1DPELOTR": { product: "1dayPureUP EDOF (32P)", divisor: 32 }, "1DPEMDTR": { product: "1dayPureUP EDOF (32P)", divisor: 32 },
+  "1DPVS": { product: "1 Day View Support", divisor: 1 }, "1DPVSFC": { product: "1 Day View Support", divisor: 1 }, "1DPVST": { product: "1 Day View Support", divisor: 32 },
+  "1DPS": { product: "1dayPure Silfa", divisor: 1 }, "1DPSFC": { product: "1dayPure Silfa", divisor: 1 }, "1DPSTR": { product: "1dayPure Silfa", divisor: 32 },
+  // 2 Week Pure (6-pack; trials ÷6)
+  "2UWK": { product: "2weekPure Up (6P)", divisor: 1 }, "2UWKFC": { product: "2weekPure Up (6P)", divisor: 1 }, "2UWKT": { product: "2weekPure Up (6P)", divisor: 6 },
+  "2UWKAT": { product: "2weekPure Up Toric", divisor: 6 },
+  "2MSA": { product: "2weekPure Multistage (6P)", divisor: 1 }, "2MSB": { product: "2weekPure Multistage (6P)", divisor: 1 },
+  "2UWKMSFC": { product: "2weekPure Multistage (6P)", divisor: 1 }, "2UMBT": { product: "2weekPure Multistage (6P)", divisor: 6 },
+  // Eye Coffret-M colour makes (10-pack; trials ÷10)
+  "ECB-M": { product: "Eye coffret-M", divisor: 1 }, "ECDW-M": { product: "Eye coffret-M", divisor: 1 }, "ECF-M": { product: "Eye coffret-M", divisor: 1 }, "ECLV-M": { product: "Eye coffret-M", divisor: 1 }, "ECMY-M": { product: "Eye coffret-M", divisor: 1 }, "ECN-M": { product: "Eye coffret-M", divisor: 1 }, "ECR-M": { product: "Eye coffret-M", divisor: 1 }, "ECS-M": { product: "Eye coffret-M", divisor: 1 }, "ECST-M": { product: "Eye coffret-M", divisor: 1 }, "ECW-M": { product: "Eye coffret-M", divisor: 1 },
+  "ECB-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECDW-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECF-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECLV-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECMY-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECN-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECR-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECS-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECST-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECW-MFC": { product: "Eye coffret-M", divisor: 1 },
+  "ECB-MT": { product: "Eye coffret-M", divisor: 10 }, "ECDW-MT": { product: "Eye coffret-M", divisor: 10 }, "ECF-MT": { product: "Eye coffret-M", divisor: 10 }, "ECMY-MT": { product: "Eye coffret-M", divisor: 10 }, "ECN-MT": { product: "Eye coffret-M", divisor: 10 }, "ECR-MT": { product: "Eye coffret-M", divisor: 10 }, "ECS-MT": { product: "Eye coffret-M", divisor: 10 }, "ECST-MT": { product: "Eye coffret-M", divisor: 10 }, "ECW-MT": { product: "Eye coffret-M", divisor: 10 },
+  "ECRT30-MFC": { product: "Eye Coffret-M 30 Toric", divisor: 1 }, "ECWT30-MFC": { product: "Eye Coffret-M 30 Toric", divisor: 1 }, "ECRT-MTR": { product: "Eye Coffret-M 30 Toric", divisor: 10 }, "ECWT-MTR": { product: "Eye Coffret-M 30 Toric", divisor: 10 },
+  // MonthlyFine Plus (3-pack ÷3) / MonthlyPure
+  "MHFN+": { product: "MonthlyFine Plus (3P)", divisor: 1 }, "MHFTFC+": { product: "MonthlyFine Plus (3P)", divisor: 1 }, "MHFT": { product: "MonthlyFine Plus (3P)", divisor: 3 },
+  "MTPR": { product: "Monthly Pure 6", divisor: 1 }, "MTPRTR": { product: "Monthly Pure 6", divisor: 6 },
+  "MTPR3": { product: "Monthly Pure 3", divisor: 1 }, "MTPRFC3": { product: "Monthly Pure 3", divisor: 1 },
+  // MonthlyColour UV — Blue box (÷2 trials)
+  "MCNB": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCNBFC": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCNBT": { product: "MonthlyColour UV - Blue", divisor: 2 },
+  "MCNG": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCNGFC": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCNYT": { product: "MonthlyColour UV - Blue", divisor: 2 },
+  "MCGLB": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCGLBFC": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCGLBT": { product: "MonthlyColour UV - Blue", divisor: 2 },
+  "MCGLG": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCGLGFC": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCGLGT": { product: "MonthlyColour UV - Blue", divisor: 2 },
+  "MCFB": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCFBFC": { product: "MonthlyColour UV - Blue", divisor: 1 },
+  "MCFY": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCFYFC": { product: "MonthlyColour UV - Blue", divisor: 1 },
+  // MonthlyColour UV — Orange box
+  "MCJD": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCJDFC": { product: "MonthlyColour UV - Orange", divisor: 1 },
+  "MCSBR": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSBRFC": { product: "MonthlyColour UV - Orange", divisor: 1 },
+  "MCSGY": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSGYFC": { product: "MonthlyColour UV - Orange", divisor: 1 },
+  "MCSH": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSHFC": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSHT": { product: "MonthlyColour UV - Orange", divisor: 2 },
+  // MonthlyColour UV — Pegavision box (leftover shades)
+  "MCCB": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCCBFC": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCCBT": { product: "MonthlyColour UV - Pegavision", divisor: 2 },
+  "MCGD": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCGDFC": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCGDT": { product: "MonthlyColour UV - Pegavision", divisor: 2 },
+  // MonthlyColour UV II
+  "MCDB": { product: "MonthlyColour UV II", divisor: 1 }, "MCDBFC": { product: "MonthlyColour UV II", divisor: 1 }, "MCDBT": { product: "MonthlyColour UV II", divisor: 2 },
+  "MCDY": { product: "MonthlyColour UV II", divisor: 1 }, "MCDYFC": { product: "MonthlyColour UV II", divisor: 1 }, "MCDYT": { product: "MonthlyColour UV II", divisor: 2 },
+  // Minasoft
+  "MNSFBG": { product: "Minasoft 1Day Color UV", divisor: 1 }, "MNSFRB": { product: "Minasoft 1Day Color UV", divisor: 1 }, "MNSFVI": { product: "Minasoft 1Day Color UV", divisor: 1 }, "MNSFVIFC": { product: "Minasoft 1Day Color UV", divisor: 1 },
+  "MNSFBG-T": { product: "Minasoft 1Day Color UV", divisor: 10 }, "MNSFRB-T": { product: "Minasoft 1Day Color UV", divisor: 10 }, "MNSFVI-T": { product: "Minasoft 1Day Color UV", divisor: 10 },
+  "MNSFCUV": { product: "Minasoft Care UV", divisor: 1 }, "MNSFCUV-T": { product: "Minasoft Care UV", divisor: 3 },
+  // Ultra Vision specialty series
+  "UVAVMT": { product: "Ultra Vision", divisor: 1 }, "UVAVT": { product: "Ultra Vision", divisor: 1 }, "UVBDSP": { product: "Ultra Vision", divisor: 1 }, "UVDWSH": { product: "Ultra Vision", divisor: 1 }, "UVHYST": { product: "Ultra Vision", divisor: 1 }, "UVKRIC": { product: "Ultra Vision", divisor: 1 }, "UVKRTH": { product: "Ultra Vision", divisor: 1 }, "UVSPL": { product: "Ultra Vision", divisor: 1 },
+  // RGP / hard lens / drops
+  "SDUV1": { product: "UV-1 / UV-1 KC", divisor: 1 }, "SDUV1KC": { product: "UV-1 / UV-1 KC", divisor: 1 },
+  "SDASL": { product: "As-Luna / O2 Noah", divisor: 1 },
+  "SDIRS": { product: "Iris Lens", divisor: 1 },
+  "SDBRHOC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCCSG": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCTC": { product: "Breath O Correct", divisor: 1 },
+  // DISOP care solutions & eyedrops
+  "SDEYEDSP10M": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPEY10S": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDEYEDSP20V": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSP20S": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPVS": { product: "DISOP Ultra Eyedrop", divisor: 1 },
+  "SDSOLDSP": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDDSP60S": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDSOLCC": { product: "DISOP H2O2 Solution", divisor: 1 },
+};
+
+// Toric SKUs are exploded by power/axis ("1DPT -0.75/AX10", "ECRT30-M -1.25X180",
+// "2UWKA -0.75/AX180") — too many to list — so match them by code prefix. All
+// are base sales (divisor 1). Trials/FOC of the toric lines are handled above.
+const TORIC_PREFIXES: { re: RegExp; product: CanonicalProduct }[] = [
+  { re: /^1DPT[\s\-]/i, product: "1dayPureUP Astig (32P)" },
+  { re: /^2UWKA[\s\-]/i, product: "2weekPure Up Toric" },
+  { re: /^ECRT10-M[\s\-]/i, product: "Eye Coffret-M 10 Toric" },
+  { re: /^ECWT10-M[\s\-]/i, product: "Eye Coffret-M 10 Toric" },
+  { re: /^ECRT30-M[\s\-]/i, product: "Eye Coffret-M 30 Toric" },
+  { re: /^ECWT30-M[\s\-]/i, product: "Eye Coffret-M 30 Toric" },
+];
+
+/** Match an exploded toric power/axis SKU by prefix, or null. */
+export function matchToricPrefix(code: string): CanonicalProduct | null {
+  for (const t of TORIC_PREFIXES) if (t.re.test(code)) return t.product;
+  return null;
+}
+
 export function normaliseGroupCode(raw: string): { base: string; suffix: SkuSuffix } {
   const code = raw.trim().toUpperCase();
   for (const s of SUFFIX_TAGS) {
@@ -177,6 +272,19 @@ export function lookupProduct(rawGroupCode: string): SkuLookupResult {
 
   if (EXCLUDED_CODES.has(code)) {
     return { product: null, suffix: null, qtyDivisor: 1, excluded: true };
+  }
+
+  // SKU-level ("exploded") exports: exact code → product + divisor. Checked
+  // first so a shade/power SKU never falls into the group-level suffix logic
+  // (which can't strip these codes cleanly).
+  const skuLevel = SKU_LEVEL_MAP[code];
+  if (skuLevel) {
+    return { product: skuLevel.product, suffix: null, qtyDivisor: skuLevel.divisor, excluded: false };
+  }
+  // Toric power/axis SKUs (e.g. "1DPT -0.75/AX10") — matched by prefix, base qty.
+  const toric = matchToricPrefix(code);
+  if (toric) {
+    return { product: toric, suffix: null, qtyDivisor: 1, excluded: false };
   }
 
   // Trial-lens explicit table — checked before the generic suffix strip so

@@ -124,7 +124,13 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     // dropped multi-word codes silently — most visibly SERVICE CHARGE,
     // worth ~MYR 2,400/month — which made the import grand total disagree
     // with the Excel Grand Total by exactly that amount.
-    if (!/^[A-Z0-9][A-Z0-9+\-\s]*[A-Z0-9+\-]$|^[A-Z0-9]$/.test(trimmed)) continue;
+    // Toric SKUs in the exploded export carry power/axis notation ("1DPT
+    // -0.75/AX10", "ECRT30-M -1.25X180") — admit those specific prefixes on
+    // top of the normal clean-code shape so they reach lookupProduct's
+    // toric-prefix matcher instead of being dropped (they carry real sales).
+    const looksLikeCode = /^[A-Z0-9][A-Z0-9+\-\s]*[A-Z0-9+\-]$|^[A-Z0-9]$/.test(trimmed);
+    const looksLikeToricSku = /^(1DPT|2UWKA|ECRT10-M|ECRT30-M|ECWT10-M|ECWT30-M)[\s\-]/i.test(trimmed);
+    if (!looksLikeCode && !looksLikeToricSku) continue;
 
     const description = String(row[descCol] ?? "").trim();
     const qty       = Math.round(toNum(row[qtyCol]));
