@@ -264,6 +264,22 @@ export function matchToricPrefix(code: string): CanonicalProduct | null {
   return null;
 }
 
+// Whole-family catch-alls. Ultra Vision specialty lenses are exploded per
+// design (AVANTI, DURAWAVE, HYDROWAVE, KERASOFT, SIMPLON, BANDAGE, SCL,
+// SPECIALTY, …) and HQ keeps adding variants — UVHYMT was silently unmapped
+// for exactly this reason — so match the whole "UV*" family by prefix rather
+// than enumerating every code. All are sold per piece (divisor 1). The RGP
+// UV-1 line is coded SDUV1* and so is NOT caught here.
+const FAMILY_PREFIXES: { re: RegExp; product: CanonicalProduct }[] = [
+  { re: /^UV[A-Z0-9]/i, product: "Ultra Vision" },
+];
+
+/** Match a whole-product-family code prefix (e.g. any UV* → Ultra Vision). */
+export function matchFamilyPrefix(code: string): CanonicalProduct | null {
+  for (const f of FAMILY_PREFIXES) if (f.re.test(code)) return f.product;
+  return null;
+}
+
 export function normaliseGroupCode(raw: string): { base: string; suffix: SkuSuffix } {
   const code = raw.trim().toUpperCase();
   for (const s of SUFFIX_TAGS) {
@@ -326,6 +342,15 @@ export function lookupProduct(rawGroupCode: string): SkuLookupResult {
       qtyDivisor: 1,
       excluded: false,
     };
+  }
+
+  // Whole-family prefix catch-all (UV* → Ultra Vision). Deliberately placed
+  // AFTER the exact SKU / trial / PRM tables so any explicit entry always
+  // wins, and BEFORE the suffix-strip fallback so a new UV variant lands on
+  // its product instead of being dropped as an unrecognised code.
+  const family = matchFamilyPrefix(code);
+  if (family) {
+    return { product: family, suffix: null, qtyDivisor: 1, excluded: false };
   }
 
   // Fallback: generic suffix-strip. Per the rules doc, "all remaining trial
