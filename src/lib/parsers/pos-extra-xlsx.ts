@@ -589,18 +589,30 @@ export function parseDailySalesXlsx(buf: ArrayBuffer): DailySalesParseResult {
     const cur = byDate.get(pendingDate) ?? { qty: 0, amount: 0 };
 
     if (flag === 2) {
-      // Qty row — apply trial-lens divisors per-column.
-      let sum = 0;
+      // Qty row — apply trial-lens divisors per-column for the headline daily
+      // total, but also keep the RAW per-column net (no divisors).
+      let adjusted = 0;
+      let raw = 0;
       if (useFallback) {
         const grand = typeof r[90] === "number" ? r[90] : 0;
-        sum = grand;
+        adjusted = grand;
+        raw = grand;
       } else {
         for (const { col, divisor } of skuColumns) {
           const v = r[col];
           if (typeof v !== "number" || !Number.isFinite(v)) continue;
-          sum += v / divisor;
+          adjusted += v / divisor;
+          raw += v;
         }
       }
+      // A large full-size return (credit note) on a day whose sales are mostly
+      // trial packs can push the DIVISOR-ADJUSTED total <= 0 even though the
+      // day sold more units than were returned — the divisors shrink the trial
+      // sales while the return stays at full value. In that case fall back to
+      // the raw net (gross sales - CN), which is the true units-moved figure
+      // and stays positive (owner rule, 2026: "no negative daily qty when
+      // sales exceed the CN"). Normal days keep the divisor-adjusted total.
+      const sum = adjusted <= 0 && raw > 0 ? raw : adjusted;
       cur.qty = Math.max(cur.qty, sum);
     } else if (flag === 1) {
       // Amount row — MYR is never adjusted, so the file's Grand Total is fine.
