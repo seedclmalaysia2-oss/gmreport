@@ -235,7 +235,7 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "MNSFBG-T": { product: "Minasoft 1Day Color UV", divisor: 10 }, "MNSFRB-T": { product: "Minasoft 1Day Color UV", divisor: 10 }, "MNSFVI-T": { product: "Minasoft 1Day Color UV", divisor: 10 },
   "MNSFCUV": { product: "Minasoft Care UV", divisor: 1 }, "MNSFCUV-T": { product: "Minasoft Care UV", divisor: 3 },
   // Ultra Vision specialty series
-  "UVAVMT": { product: "Ultra Vision", divisor: 1 }, "UVAVT": { product: "Ultra Vision", divisor: 1 }, "UVBDSP": { product: "Ultra Vision", divisor: 1 }, "UVDWSH": { product: "Ultra Vision", divisor: 1 }, "UVHYST": { product: "Ultra Vision", divisor: 1 }, "UVKRIC": { product: "Ultra Vision", divisor: 1 }, "UVKRTH": { product: "Ultra Vision", divisor: 1 }, "UVSPL": { product: "Ultra Vision", divisor: 1 },
+  "UVAVMT": { product: "Ultra Vision", divisor: 1 }, "UVAVT": { product: "Ultra Vision", divisor: 1 }, "UVBDSP": { product: "Ultra Vision", divisor: 1 }, "UVDWSH": { product: "Ultra Vision", divisor: 1 }, "UVHYST": { product: "Ultra Vision", divisor: 1 }, "UVHYMT": { product: "Ultra Vision", divisor: 1 }, "UVKRIC": { product: "Ultra Vision", divisor: 1 }, "UVKRTH": { product: "Ultra Vision", divisor: 1 }, "UVSPL": { product: "Ultra Vision", divisor: 1 },
   // RGP / hard lens / drops
   "SDUV1": { product: "UV-1 / UV-1 KC", divisor: 1 }, "SDUV1KC": { product: "UV-1 / UV-1 KC", divisor: 1 },
   "SDASL": { product: "As-Luna / O2 Noah", divisor: 1 },
