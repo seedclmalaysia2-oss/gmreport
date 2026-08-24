@@ -100,16 +100,30 @@ export function topProducts(
 }
 
 // --- Slide 9: Sales by ECP category ---
+//
+// PERMANENT RULE: the outlet count is the number of CUSTOMER ACCOUNTS that
+// billed this month — i.e. one per row of the POS listing — not the number of
+// distinct customer names.
+//
+// This used to accumulate names into a Set, which silently merged two separate
+// accounts whenever they share a display name. The POS export has no customer
+// code column and truncates long names to 20 chars, so collisions are routine:
+// in Jul-26 "LUCORA GLASSES" (SIO, RM112.50 + RM37.50) and "LABUAN OPTICS"
+// (KIO, RM420.00 + RM61.50) each appear as two adjacent rows with different
+// figures, which pushed SIO to 215 instead of 216 and KIO to 11 instead of 12.
+// Sales MYR was always correct — both rows were summed — only the count was
+// short. Both source parsers emit one row per customer account (rows with zero
+// sales are already filtered out upstream), so counting rows is the right rule.
 export function salesByECP(outlets: OutletRow[], ecpList: EcpListEntry[] = []): SalesByECP {
   const typeByStore = new Map(ecpList.map(e => [e.storeName.toUpperCase(), e.type]));
-  const agg = new Map<string, { outlets: Set<string>; sales: number }>();
-  for (const cat of ECP_CATEGORIES) agg.set(cat, { outlets: new Set(), sales: 0 });
+  const agg = new Map<string, { outlets: number; sales: number }>();
+  for (const cat of ECP_CATEGORIES) agg.set(cat, { outlets: 0, sales: 0 });
 
   for (const row of outlets) {
     const typ = row.accountType || typeByStore.get(row.customerName.toUpperCase()) || "";
     const cat = classifyECP(typ);
     const bucket = agg.get(cat)!;
-    bucket.outlets.add(row.customerName);
+    bucket.outlets += 1;
     bucket.sales += row.amount;
   }
   const totalSales = [...agg.values()].reduce((s, v) => s + v.sales, 0) || 1;
@@ -118,7 +132,7 @@ export function salesByECP(outlets: OutletRow[], ecpList: EcpListEntry[] = []): 
       const b = agg.get(category)!;
       return {
         category,
-        outlets: b.outlets.size,
+        outlets: b.outlets,
         pct: b.sales / totalSales,
         salesMyr: b.sales,
       };
