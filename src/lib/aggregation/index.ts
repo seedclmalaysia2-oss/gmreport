@@ -101,19 +101,30 @@ export function topProducts(
 
 // --- Slide 9: Sales by ECP category ---
 //
-// PERMANENT RULE: the outlet count is the number of CUSTOMER ACCOUNTS that
-// billed this month — i.e. one per row of the POS listing — not the number of
-// distinct customer names.
+// PERMANENT RULE (owner decision, 2026-08-24): the outlet count is the number
+// of BILLING LINES in the POS salesman listing — one per row — NOT the number
+// of distinct customer names. It used to accumulate names into a Set, which
+// reported SIO 215 / KIO 11 for Jul-26 against HQ's 216 / 12.
 //
-// This used to accumulate names into a Set, which silently merged two separate
-// accounts whenever they share a display name. The POS export has no customer
-// code column and truncates long names to 20 chars, so collisions are routine:
-// in Jul-26 "LUCORA GLASSES" (SIO, RM112.50 + RM37.50) and "LABUAN OPTICS"
-// (KIO, RM420.00 + RM61.50) each appear as two adjacent rows with different
-// figures, which pushed SIO to 215 instead of 216 and KIO to 11 instead of 12.
-// Sales MYR was always correct — both rows were summed — only the count was
-// short. Both source parsers emit one row per customer account (rows with zero
-// sales are already filtered out upstream), so counting rows is the right rule.
+// This is a deliberate choice between two defensible definitions, so don't
+// "fix" it back without asking. The salesman listing splits one customer across
+// several ledger sub-lines, and the "Sales Analysis by Customer" report
+// consolidates them again — verified by matching the sub-line sums exactly:
+//
+//   HALO OPTICAL    Jan-26   6 rows  0 + 3292 + 52.50 + 52.50 + 105 + 105
+//                                    = RM3,607.00  -> ONE customer row
+//   LABUAN OPTICS   Jul-26   2 rows  RM420.00 + RM61.50
+//                                    = RM481.50    -> ONE customer row
+//   LUCORA GLASSES  Jul-26   2 rows  RM112.50 + RM37.50
+//                                    = RM150.00    -> ONE customer row
+//
+// So rows count billing lines and distinct names count customers; the two
+// diverge by 1–25 outlets a month (worst case Jan-26: SIO 247 vs 222, because
+// HALO alone contributes 5 extra lines). HQ reports the line count. To switch
+// to the customer count, dedupe on customerName here and re-run
+// scripts/backfill-slides.ts.
+//
+// Sales MYR is identical under both rules — every row is summed either way.
 export function salesByECP(outlets: OutletRow[], ecpList: EcpListEntry[] = []): SalesByECP {
   const typeByStore = new Map(ecpList.map(e => [e.storeName.toUpperCase(), e.type]));
   const agg = new Map<string, { outlets: number; sales: number }>();

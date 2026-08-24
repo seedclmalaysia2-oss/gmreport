@@ -149,7 +149,7 @@ This table is the contract for what each slide computes from what file.
 | **4 Daily Sales Quantity** | `Daily Sales Quantity.xlsx` (per-SKU layout) | **Trial-lens ÷ divisor**, **PRM full qty**, **PRMSD excluded**, **any remaining trial-lens code dropped to 0** | Per-day MYR via the file's Amount Grand Total column. |
 | **5 Sales Quantity (by Product)** | Master PDF + MCUV BLUE/ORANGE/PEGA PDFs | Same rules as Slide 4. Trial-lens packs convert to lens-equivalents before rolling to the canonical product. | — |
 | **6 Top Products** | Master PDF + MCUV PDFs | — | `row.netSales` raw from every line; ranked by MYR. **MYR never adjusted.** |
-| **7 Sales by ECP** | `Salesman Sales and Collection Listing By Account Type.xlsx` | Account-type prefix classifier: `SIO*`→SIO, `KCS*`→KCS, `KIO*`→KIO, `HOS*`/`UNI*`/`SPE*`→Hospital & University Clinic, `OVE*`/`EXPORT*`/empty→Overseas. | Outlet sales amount (`Mar' 2026 Sales` column) raw per row. Percentages derived from totals. |
+| **7 Sales by ECP** | `Salesman Sales and Collection Listing By Account Type.xlsx` | Account-type prefix classifier: `SIO*`→SIO, `KCS*`→KCS, `KIO*`→KIO, `HOS*`/`UNI*`/`SPE*`→Hospital & University Clinic, `OVE*`/`EXPORT*`/empty→Overseas. **Outlet count = one per billing line** (see below). | Outlet sales amount (`Mar' 2026 Sales` column) raw per row. Percentages derived from totals. |
 | **8 Sales by Region** | `Sales Analysis By Region.xlsx` | State→region mapping (see below) | "Sub Total" row's monthly amount per `Customer UD Group : <STATE>` block. Country groups (e.g. `INDONESIA (COUNTRY)`) skipped. |
 | **9 Product Registration** | Manual | — | Carries forward when a new month is created. |
 | **10 Inventory** | `SCLM - Stock List` (master) **+** `SCLM Stock List HQ` **+** `SCLM Stock List HQ2` | warehouse vs consignment split (see below) | Per-product balance from the master; warehouse from HQ+HQ2. |
@@ -204,6 +204,28 @@ still comes from the master/HQ split.
 | `HOS*` (HOS-GOV), `UNI*` (UNI-LOC), `SPE*` (SPECIALIST) | Hospital & University Clinic |
 | `OVE*` (OVERSEA / OVERSEAS), `EXPORT*`, empty | Overseas |
 | Anything else (incl. `CASH`) | Falls to SIO (default) |
+
+### Slide 7 — what counts as an "outlet"
+
+The outlet count is the number of **billing lines** in the salesman listing
+(one per row, zero-sales rows already dropped), **not** the number of distinct
+customer names. This is an owner decision made 2026-08-24; the two definitions
+genuinely differ.
+
+The salesman listing splits one customer across several ledger sub-lines, and
+the "Sales Analysis by Customer" report consolidates them back — the sub-line
+sums match the consolidated row exactly:
+
+| Customer | Month | Salesman rows | Sum | Customer report |
+|---|---|---|---|---|
+| HALO OPTICAL   | Jan-26 | 6 | RM3,607.00 | 1 row, RM3,607.00 |
+| LABUAN OPTICS  | Jul-26 | 2 | RM481.50   | 1 row, RM481.50 |
+| LUCORA GLASSES | Jul-26 | 2 | RM150.00   | 1 row, RM150.00 |
+
+So line-counting runs 1–25 outlets a month above customer-counting (worst case
+Jan-26: SIO 247 vs 222). HQ reports the line count. Sales MYR is unaffected by
+the choice. To switch, dedupe on `customerName` in `salesByECP` and re-run
+`scripts/backfill-slides.ts`.
 
 ---
 
