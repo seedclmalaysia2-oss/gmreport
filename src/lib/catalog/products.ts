@@ -26,6 +26,8 @@ export const CANONICAL_PRODUCTS = [
   "Iris Lens",
   "Ultra Vision",
   "Breath O Correct",
+  "Wohlk Contact Life Sph",
+  "Wohlk Contact Life Toric",
   "Wohlk KE RGP",
   "DISOP H2O2 Solution",
   "DISOP Ultra Eyedrop",

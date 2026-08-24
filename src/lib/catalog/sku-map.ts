@@ -50,7 +50,16 @@ export const SKU_MAP: Record<string, CanonicalProduct> = {
   "SDBRHOCCSG2025": "Breath O Correct",
   "SDBRHOCCSG2026": "Breath O Correct",
 
+  // Wohlk. The POS emits the short codes WHKE / WHCLS / WHCLA; "WOHLKKE" is
+  // kept as a legacy alias (it never appeared in a real export, which is why
+  // Wohlk KE printed 0 while WHKE sat in the unmapped drawer).
+  "WHKE":      "Wohlk KE RGP",
   "WOHLKKE":   "Wohlk KE RGP",
+  "WHCLS":     "Wohlk Contact Life Sph",
+  // Base code for the toric line is inferred from the observed trial code
+  // "WHCLAT" (Wohlk C.Life Toric trial lens) — no paid toric row has been
+  // seen yet. If the real base code differs it will surface as unmapped.
+  "WHCLA":     "Wohlk Contact Life Toric",
 
   "SDRGPSL":   "DISOP H2O2 Solution",
   "SDEYEDROP": "DISOP Ultra Eyedrop",
@@ -111,8 +120,13 @@ export const TRIAL_LENS_ADJUSTMENTS: Record<string, { parentBase: string; diviso
 
   // ÷10
   "EC-MT":   { parentBase: "EC10-M",   divisor: 10 },
-  "ECRT-MT": { parentBase: "ECRT30-M", divisor: 10 }, // match by name (ECRT30-M / ECRT10-M)
-  "ECWT-MT": { parentBase: "ECWT30-M", divisor: 10 }, // match by name (ECWT30-M / ECWT10-M)
+  // Toric trial lenses. The POS code carries no 10/30 marker, so the pack size
+  // has to be chosen. These roll into the 10 Toric line at ÷10 (owner decision,
+  // 2026-08-24): the divisor and the destination now agree. Previously they
+  // landed on the 30 Toric line while still using the 10-pack divisor, which
+  // inflated 30 Toric ~3x on its trial component and left 10 Toric with none.
+  "ECRT-MT": { parentBase: "ECRT10-M", divisor: 10 },
+  "ECWT-MT": { parentBase: "ECWT10-M", divisor: 10 },
   "ECTR":    { parentBase: "EC10-M",   divisor: 10 },
   "MNSFTR":  { parentBase: "MNSF10",   divisor: 10 },
 
@@ -190,7 +204,10 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "ECB-M": { product: "Eye coffret-M", divisor: 1 }, "ECDW-M": { product: "Eye coffret-M", divisor: 1 }, "ECF-M": { product: "Eye coffret-M", divisor: 1 }, "ECLV-M": { product: "Eye coffret-M", divisor: 1 }, "ECMY-M": { product: "Eye coffret-M", divisor: 1 }, "ECN-M": { product: "Eye coffret-M", divisor: 1 }, "ECR-M": { product: "Eye coffret-M", divisor: 1 }, "ECS-M": { product: "Eye coffret-M", divisor: 1 }, "ECST-M": { product: "Eye coffret-M", divisor: 1 }, "ECW-M": { product: "Eye coffret-M", divisor: 1 },
   "ECB-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECDW-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECF-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECLV-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECMY-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECN-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECR-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECS-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECST-MFC": { product: "Eye coffret-M", divisor: 1 }, "ECW-MFC": { product: "Eye coffret-M", divisor: 1 },
   "ECB-MT": { product: "Eye coffret-M", divisor: 10 }, "ECDW-MT": { product: "Eye coffret-M", divisor: 10 }, "ECF-MT": { product: "Eye coffret-M", divisor: 10 }, "ECMY-MT": { product: "Eye coffret-M", divisor: 10 }, "ECN-MT": { product: "Eye coffret-M", divisor: 10 }, "ECR-MT": { product: "Eye coffret-M", divisor: 10 }, "ECS-MT": { product: "Eye coffret-M", divisor: 10 }, "ECST-MT": { product: "Eye coffret-M", divisor: 10 }, "ECW-MT": { product: "Eye coffret-M", divisor: 10 },
-  "ECRT30-MFC": { product: "Eye Coffret-M 30 Toric", divisor: 1 }, "ECWT30-MFC": { product: "Eye Coffret-M 30 Toric", divisor: 1 }, "ECRT-MTR": { product: "Eye Coffret-M 30 Toric", divisor: 10 }, "ECWT-MTR": { product: "Eye Coffret-M 30 Toric", divisor: 10 },
+  "ECRT30-MFC": { product: "Eye Coffret-M 30 Toric", divisor: 1 }, "ECWT30-MFC": { product: "Eye Coffret-M 30 Toric", divisor: 1 },
+  // Exploded-export spelling of the toric trial codes — same rule as
+  // ECRT-MT / ECWT-MT above: 10 Toric line, ÷10.
+  "ECRT-MTR": { product: "Eye Coffret-M 10 Toric", divisor: 10 }, "ECWT-MTR": { product: "Eye Coffret-M 10 Toric", divisor: 10 },
   // MonthlyFine Plus (3-pack ÷3) / MonthlyPure
   "MHFN+": { product: "MonthlyFine Plus (3P)", divisor: 1 }, "MHFTFC+": { product: "MonthlyFine Plus (3P)", divisor: 1 }, "MHFT": { product: "MonthlyFine Plus (3P)", divisor: 3 },
   "MTPR": { product: "Monthly Pure 6", divisor: 1 }, "MTPRTR": { product: "Monthly Pure 6", divisor: 6 },

@@ -45,8 +45,8 @@ and is applied during aggregation in [`src/lib/aggregation/index.ts`](../src/lib
 | Code | Parent | Divisor |
 |---|---|---|
 | `EC-MT`      | `EC10-M`            | 10 |
-| `ECRT-MT`    | `ECRT30-M` (match by name) | 10 |
-| `ECWT-MT`    | `ECWT30-M` (match by name) | 10 |
+| `ECRT-MT` / `ECRT-MTR` | `ECRT10-M` (**10** Toric) | 10 |
+| `ECWT-MT` / `ECWT-MTR` | `ECWT10-M` (**10** Toric) | 10 |
 | `ECTR`       | `EC10-M`            | 10 |
 | `MNSFTR`     | `MNSF10`            | 10 |
 
@@ -100,8 +100,8 @@ and is applied during aggregation in [`src/lib/aggregation/index.ts`](../src/lib
 | R12 | 2 Week Pure UP Toric            | `2WPT` |
 | R13 | 2 Week Pure UP                  | `2UWK` |
 | R14 | Eye Coffret-M                   | `EC10-M` + `EC10-MPRM` |
-| R15 | Eye Coffret-M 10 Toric          | `ECRT10-M` + `ECWT10-M` |
-| R16 | Eye Coffret-M 30 Toric          | `ECRT30-M` + `ECWT30-M` + promos |
+| R15 | Eye Coffret-M 10 Toric          | `ECRT10-M` + `ECWT10-M` + toric trials (`ECRT-MT`/`ECWT-MT`, ÷10) |
+| R16 | Eye Coffret-M 30 Toric          | `ECRT30-M` + `ECWT30-M` + promos + FOC |
 | R17 | Monthly Fine Plus               | `MFN+` + promos |
 | R18 | Monthly Pure3                   | `MTPR3` |
 | R19 | Monthly Pure6                   | `MTPR` |
@@ -117,6 +117,9 @@ and is applied during aggregation in [`src/lib/aggregation/index.ts`](../src/lib
 | R29 | Ultra Vision                    | `UVSCL` + `UVSPVCL` |
 | R30 | Breath O Correct                | `SDBRHOC` |
 | R31 | Breath O Correct (Overseas)     | `SDBRHOCSG` + `SDBRHOCSG202` |
+| R32a | Wohlk Contact Life Sph         | `WHCLS` (+ `WHCLSFC`) |
+| R32b | Wohlk Contact Life Toric       | `WHCLA` (+ `WHCLAFC`) — base code inferred from `WHCLAT` |
+| R32c | Wohlk KE RGP                   | `WHKE` (legacy alias `WOHLKKE`) |
 | R33 | Disop H2O2 Solution             | `SDRGPSL` |
 | R34 | Disop Ultra Eyedrop             | `SDEYEDROP` |
 | R35 | Accessories / Others            | `CL` |
