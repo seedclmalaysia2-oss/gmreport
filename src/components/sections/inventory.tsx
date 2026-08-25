@@ -78,8 +78,16 @@ export function SectionInventory({ report, update }: SectionProps) {
     parentMap.get(p)!.push({ idx, group: g });
   });
 
-  // Column count = max subgroup length → determines table width.
-  const MAX_COLS = Math.max(6, ...inv.groups.map(g => g.rows.length));
+  // Column count = widest subgroup → table width. The LAST subgroup additionally
+  // has to leave two free cells at its right-hand end, because that is where the
+  // TOTAL label and value sit (bottom-right of the grid), so widen the table if
+  // that block is nearly full. Keeps the totals INSIDE the one table rather than
+  // in a separate column bolted onto the side.
+  const lastGroupLen = inv.groups.length ? inv.groups[inv.groups.length - 1].rows.length : 0;
+  const MAX_COLS = Math.max(6, ...inv.groups.map(g => g.rows.length), lastGroupLen + 2);
+  // Column indices of the two totals cells, used only on the last subgroup.
+  const TOTAL_LABEL_COL = MAX_COLS - 2;
+  const TOTAL_VALUE_COL = MAX_COLS - 1;
 
   return (
     <SectionShell
@@ -142,58 +150,59 @@ export function SectionInventory({ report, update }: SectionProps) {
                         className="p-0 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-800)] border-b border-l border-[var(--color-ice-100)]"
                         style={{ minWidth: 80 }}
                       >
-                        <TextCell
-                          value={r.product}
-                          onChange={v => updateProduct(gIdx, i, v)}
-                          placeholder="SKU"
-                          className="!border-0 !rounded-none !bg-transparent !text-center !font-semibold !uppercase !tracking-wider text-[10px] focus:!bg-[var(--color-ice-50)]"
-                        />
+                        {/* The two cells directly above the TOTAL block stay
+                            blank - no SKU placeholder over the corner. */}
+                        {showTotals && i >= TOTAL_LABEL_COL ? null : (
+                          <TextCell
+                            value={r.product}
+                            onChange={v => updateProduct(gIdx, i, v)}
+                            placeholder="SKU"
+                            className="!border-0 !rounded-none !bg-transparent !text-center !font-semibold !uppercase !tracking-wider text-[10px] focus:!bg-[var(--color-ice-50)]"
+                          />
+                        )}
                       </td>
                     ))}
-                    {/* Totals right-side slot.
-                        On the block that carries the totals this must span ONE
-                        row, not three: rows 2 and 3 below render their own
-                        cells in this column. Spanning 3 here left those rows a
-                        column wider than the rest of the table, which pushed
-                        both TOTAL badges outside the table's right border. */}
-                    <td rowSpan={showTotals ? 1 : 3} className={cn(
-                      "px-2 py-1 text-right align-middle",
-                      !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
-                      "border-l border-[var(--color-ice-200)]",
-                    )} />
                   </tr>,
                   /* Row 2: warehouse values */
                   <tr key={`${gIdx}-wh`}>
                     <td className="px-2 py-0.5 text-[10px] font-semibold text-[var(--color-ink-800)] border-b border-[var(--color-ice-100)] bg-[var(--color-ice-50)] whitespace-nowrap">
                       warehouse
                     </td>
-                    {rows.map((r, i) => (
-                      <td key={i} className="px-0.5 py-0.5 text-center border-b border-l border-[var(--color-ice-100)]">
-                        <NumberCell
-                          variant="plain"
-                          align="center"
-                          size="sm"
-                          bold
-                          value={r.warehouse}
-                          onChange={n => updateRow(gIdx, i, "warehouse", n)}
-                        />
-                      </td>
-                    ))}
-                    {/* Totals column — rendered only on last parent's last subgroup */}
-                    {showTotals && (
-                      <td className="px-2 text-center align-middle bg-[var(--color-ink-800)] text-white font-bold border-b border-l border-[var(--color-ice-200)]">
-                        <div className="text-[9px] uppercase tracking-widest opacity-80">Total</div>
-                        <NumberCell
-                          variant="plain"
-                          align="center"
-                          size="sm"
-                          bold
-                          value={inv.totalWarehouse}
-                          onChange={n => set({ totalWarehouse: n ?? 0 })}
-                          className="text-white [&_input]:!text-white"
-                        />
-                      </td>
-                    )}
+                    {/* On the last block the final two cells carry the grand
+                        total (label + value) instead of product figures, so the
+                        table keeps ONE consistent column count. */}
+                    {rows.map((r, i) => {
+                      if (showTotals && i === TOTAL_LABEL_COL) return (
+                        <td key={i} className="px-2 py-0.5 text-center align-middle border-b border-l border-[var(--color-ice-200)] bg-[var(--color-ink-800)] text-white text-[9px] font-bold uppercase tracking-widest">
+                          Total
+                        </td>
+                      );
+                      if (showTotals && i === TOTAL_VALUE_COL) return (
+                        <td key={i} className="px-2 py-0.5 text-center align-middle border-b bg-[var(--color-ink-800)] text-white font-bold">
+                          <NumberCell
+                            variant="plain"
+                            align="center"
+                            size="sm"
+                            bold
+                            value={inv.totalWarehouse}
+                            onChange={n => set({ totalWarehouse: n ?? 0 })}
+                            className="text-white [&_input]:!text-white"
+                          />
+                        </td>
+                      );
+                      return (
+                        <td key={i} className="px-0.5 py-0.5 text-center border-b border-l border-[var(--color-ice-100)]">
+                          <NumberCell
+                            variant="plain"
+                            align="center"
+                            size="sm"
+                            bold
+                            value={r.warehouse}
+                            onChange={n => updateRow(gIdx, i, "warehouse", n)}
+                          />
+                        </td>
+                      );
+                    })}
                   </tr>,
                   /* Row 3: Consignment values */
                   <tr key={`${gIdx}-co`} className="bg-[var(--color-ice-50)]/40">
@@ -203,35 +212,41 @@ export function SectionInventory({ report, update }: SectionProps) {
                     )}>
                       Consignment
                     </td>
-                    {rows.map((r, i) => (
-                      <td key={i} className={cn(
-                        "px-0.5 py-0.5 text-center border-l border-[var(--color-ice-100)]",
-                        !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
-                      )}>
-                        <NumberCell
-                          variant="plain"
-                          align="center"
-                          size="sm"
-                          bold
-                          value={r.consignment}
-                          onChange={n => updateRow(gIdx, i, "consignment", n)}
-                        />
-                      </td>
-                    ))}
-                    {showTotals && (
-                      <td className="px-2 text-center align-middle bg-[var(--color-ink-700)] text-white font-bold border-l border-[var(--color-ice-200)]">
-                        <div className="text-[9px] uppercase tracking-widest opacity-80">Total</div>
-                        <NumberCell
-                          variant="plain"
-                          align="center"
-                          size="sm"
-                          bold
-                          value={inv.totalConsignment}
-                          onChange={n => set({ totalConsignment: n ?? 0 })}
-                          className="text-white [&_input]:!text-white"
-                        />
-                      </td>
-                    )}
+                    {rows.map((r, i) => {
+                      if (showTotals && i === TOTAL_LABEL_COL) return (
+                        <td key={i} className="px-2 py-0.5 text-center align-middle border-l border-[var(--color-ice-200)] bg-[var(--color-ink-700)] text-white text-[9px] font-bold uppercase tracking-widest">
+                          Total
+                        </td>
+                      );
+                      if (showTotals && i === TOTAL_VALUE_COL) return (
+                        <td key={i} className="px-2 py-0.5 text-center align-middle bg-[var(--color-ink-700)] text-white font-bold">
+                          <NumberCell
+                            variant="plain"
+                            align="center"
+                            size="sm"
+                            bold
+                            value={inv.totalConsignment}
+                            onChange={n => set({ totalConsignment: n ?? 0 })}
+                            className="text-white [&_input]:!text-white"
+                          />
+                        </td>
+                      );
+                      return (
+                        <td key={i} className={cn(
+                          "px-0.5 py-0.5 text-center border-l border-[var(--color-ice-100)]",
+                          !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
+                        )}>
+                          <NumberCell
+                            variant="plain"
+                            align="center"
+                            size="sm"
+                            bold
+                            value={r.consignment}
+                            onChange={n => updateRow(gIdx, i, "consignment", n)}
+                          />
+                        </td>
+                      );
+                    })}
                   </tr>,
                 ];
               });
