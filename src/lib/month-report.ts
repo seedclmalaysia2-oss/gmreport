@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { sectionIsComplete } from "./coverage";
 import {
   MonthReport,
   MonthReportZ,
@@ -123,9 +124,14 @@ export type MonthSummary = {
 export async function listMonthSummaries(): Promise<MonthSummary[]> {
   // Prisma's `select` can't compute "is column NULL", so go raw. One CASE per
   // section column, summed → filledSections, with zero blob payload.
-  const rows = await prisma.$queryRaw<MonthSummary[]>`
+  //
+  // `inventory` is deliberately NOT counted in SQL: "column is not null" marks
+  // Slide 10 complete even when its warehouse split silently failed. It's the
+  // one small section blob, so we pull it and judge it with sectionIsComplete()
+  // below — keeping this count in step with the editor's sidebar ticks.
+  const rows = await prisma.$queryRaw<(MonthSummary & { inventory: string | null })[]>`
     SELECT
-      "id", "year", "month", "fxRate",
+      "id", "year", "month", "fxRate", "inventory",
       (
         (CASE WHEN "salesAchievement"    IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "salesTrend"          IS NOT NULL THEN 1 ELSE 0 END) +
@@ -136,7 +142,6 @@ export async function listMonthSummaries(): Promise<MonthSummary[]> {
         (CASE WHEN "salesByECP"          IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "salesByRegion"       IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "productRegistration" IS NOT NULL THEN 1 ELSE 0 END) +
-        (CASE WHEN "inventory"           IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "expireWriteOff"      IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "financial"           IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "otherMarket"         IS NOT NULL THEN 1 ELSE 0 END)
@@ -146,13 +151,20 @@ export async function listMonthSummaries(): Promise<MonthSummary[]> {
   `;
   // $queryRaw can hand back BigInt for integer expressions on some drivers —
   // normalise to plain numbers so the value serialises cleanly to the client.
-  return rows.map(r => ({
-    id: r.id,
-    year: Number(r.year),
-    month: Number(r.month),
-    fxRate: Number(r.fxRate),
-    filledSections: Number(r.filledSections),
-  }));
+  return rows.map(r => {
+    let inventory: unknown = null;
+    if (r.inventory) {
+      try { inventory = JSON.parse(r.inventory); }
+      catch { inventory = null; }   // malformed blob counts as not-done
+    }
+    return {
+      id: r.id,
+      year: Number(r.year),
+      month: Number(r.month),
+      fxRate: Number(r.fxRate),
+      filledSections: Number(r.filledSections) + (sectionIsComplete("inventory", inventory) ? 1 : 0),
+    };
+  });
 }
 
 export async function upsertMonthReport(input: Partial<MonthReport> & { year: number; month: number }): Promise<MonthReport> {

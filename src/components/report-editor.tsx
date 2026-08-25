@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import type { MonthReport, SectionKey } from "@/lib/schema";
 import { SECTION_KEYS, SECTION_META } from "@/lib/schema";
 import type { RawFileEntry } from "@/lib/month-report";
+import { sectionIsComplete } from "@/lib/coverage";
 import { SectionShellContext } from "./sections/shared";
 import { SectionFrontCover } from "./sections/front-cover";
 import { SectionSalesAchievement } from "./sections/sales-achievement";
@@ -140,9 +141,12 @@ export function ReportEditor({
     }
   }, [report.id, flushSave]);
 
+  // A section counts as done only when its payload is USABLE, not merely
+  // present — see sectionIsComplete(). Slide 10 with a failed warehouse join
+  // is structurally valid JSON but is not finished work.
   const progress = useMemo(() =>
     SECTION_KEYS.reduce((acc, k) => {
-      acc[k] = Boolean(report[k]);
+      acc[k] = sectionIsComplete(k, report[k]);
       return acc;
     }, {} as Record<SectionKey, boolean>),
   [report]);

@@ -101,6 +101,12 @@ export interface StockParseResult {
    *  portion is `byCanonical - byCanonicalWarehouse`. See docs/CLAUDE-RULES. */
   byCanonicalWarehouse: Record<string, number> | null;
   byMcuvVariantWarehouse: Record<"BLUE" | "ORANGE" | "PEGA", number> | null;
+  /** Join diagnostics, so the caller can tell a real all-consignment month
+   *  apart from a silently broken join (see the Jul-26 blank-header case in
+   *  collectStockRows). `warehouseMatchedRows` is null when no warehouse map
+   *  was supplied. */
+  rowsWithStockId: number;
+  warehouseMatchedRows: number | null;
 }
 
 /**
@@ -298,21 +304,47 @@ function collectStockRows(
   }
 
   // Layout A — clean header table.
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
+  //
+  // Columns are resolved POSITIONALLY from the header row rather than by
+  // sheet_to_json's object keys, because the Stock ID header cell is blank in
+  // some exports. The Jul-26 master (SCLM - Stock List 31.07.2026.xlsx) has A1
+  // empty while every one of its 12,505 data rows carries an ID in column A;
+  // sheet_to_json then names that column "__EMPTY", `r["Stock ID"]` came back
+  // undefined for every row, and the HQ/HQ2 warehouse join matched 0 rows. The
+  // whole nationwide balance was reported as consignment with warehouse at
+  // zero, and nothing flagged it. Falling back to "the column immediately left
+  // of Stock Description" recovers the ID whether or not the header is labelled.
+  const headerIdx = grid.findIndex(
+    row => Array.isArray(row) &&
+      row.some(cc => typeof cc === "string" && /^\s*(stock\s+)?description\s*$/i.test(cc)),
+  );
+  if (headerIdx < 0) return [];
+  const header = grid[headerIdx] as unknown[];
+  const col = (re: RegExp): number =>
+    header.findIndex(cc => typeof cc === "string" && re.test(cc.trim()));
+
+  const cDesc = col(/^(stock\s+)?description$/i);
+  const cBal  = col(/^balance\s+quantity$/i);
+  const cExp  = col(/^expiry\s+date$/i);
+  const cCost = col(/^total\s+cost$/i);
+  let   cId   = col(/^stock\s*id$/i);
+  if (cId < 0 && cDesc > 0) cId = cDesc - 1;
+
   const stock: StockRow[] = [];
-  for (const r of rows) {
-    const desc = String(r["Stock Description"] ?? r["Description"] ?? "").trim();
+  for (let i = headerIdx + 1; i < grid.length; i++) {
+    const row = grid[i];
+    if (!Array.isArray(row)) continue;
+    const desc = cDesc >= 0 ? String(row[cDesc] ?? "").trim() : "";
     if (!desc || /^total$/i.test(desc)) continue;
-    const bal = Number(r["Balance Quantity"] ?? 0);
+    const bal = cBal >= 0 ? num(row[cBal]) : 0;
     if (!bal) continue;
-    const exp = r["Expiry Date"] == null ? null : String(r["Expiry Date"]).trim();
-    const stockId = String(r["Stock ID"] ?? "").trim();
+    const stockId = cId >= 0 ? String(row[cId] ?? "").trim() : "";
     stock.push({
       stockId,
       description: desc,
       balance: bal,
-      expiryYm: exp,
-      totalCost: Number(r["Total Cost"] ?? 0),
+      expiryYm: cExp >= 0 && row[cExp] != null ? String(row[cExp]).trim() : null,
+      totalCost: cCost >= 0 ? num(row[cCost]) : 0,
       warehouseBalance: wh(stockId, bal),
     });
   }
@@ -378,6 +410,10 @@ export function parseStockListXlsx(
     grandTotalQty: stock.reduce((s, r) => s + r.balance, 0),
     byCanonicalWarehouse: split ? byCanonicalWh : null,
     byMcuvVariantWarehouse: split ? byMcuvWh : null,
+    rowsWithStockId: stock.filter(r => r.stockId !== "").length,
+    warehouseMatchedRows: split
+      ? stock.filter(r => r.stockId !== "" && warehouseById!.has(r.stockId)).length
+      : null,
   };
 }
 

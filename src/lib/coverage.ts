@@ -35,6 +35,38 @@ export const MANUAL_SLIDES: readonly SectionKey[] = [
   "otherMarket",        // 13
 ] as const;
 
+/**
+ * Is a section's stored payload actually usable, or present-but-broken?
+ *
+ * The sidebar tick and the "N missing" badge used to be a bare
+ * `Boolean(report[key])` — "the JSON exists". That marked Slide 10 complete
+ * even when every warehouse cell read 0 because the Stock ID join had silently
+ * failed (Jul-26: the master SCLM exported column A with a blank header, so no
+ * row matched HQ/HQ2 and the entire nationwide balance landed in consignment).
+ * A section that is structurally present but self-evidently unfinished should
+ * read as missing, so it gets re-imported rather than shipped.
+ *
+ * Keep the checks here cheap and unambiguous — a false "missing" is nearly as
+ * unhelpful as a false "complete".
+ */
+export function sectionIsComplete(key: SectionKey, value: unknown): boolean {
+  if (!value) return false;
+  if (key === "inventory") {
+    const inv = value as { totalWarehouse?: number | null; totalConsignment?: number | null };
+    // Warehouse stock is never legitimately zero for a month that imported
+    // successfully — in split mode it's HQ + HQ2, and in master-only mode it's
+    // the entire nationwide balance. Zero means the parse or the Stock ID join
+    // fell over. Two ways this has actually shipped green:
+    //   Jul-26  warehouse 0, consignment 261,515  (split matched 0 of 12,505 rows)
+    //   Jan/Feb-26  every one of the 25 cells 0/null (nothing parsed at all)
+    // /api/import now refuses to write the first case, but months imported
+    // before that guard still carry it, so check the payload rather than
+    // trusting that it was written by a good build.
+    if (!(inv.totalWarehouse ?? 0)) return false;
+  }
+  return true;
+}
+
 export type MonthCoverage = {
   /** Slides where at least one uploaded file's sectionKeys includes the key. */
   coveredInputs: Set<SectionKey>;

@@ -3,8 +3,9 @@
  * uploaded POS file, using the bytes already stored in RawFile, so a mapping
  * or aggregation fix takes effect without re-uploading every month by hand.
  *
- *   Slide 5 Sales Quantity + Slide 6 Top Products  <- pos_master   (.xlsx)
- *   Slide 7 Sales by ECP                           <- pos_salesman (.xlsx)
+ *   Slide 5 Sales Quantity + Slide 6 Top Products  <- pos_master    (.xlsx)
+ *   Slide 7 Sales by ECP                           <- pos_salesman  (.xlsx)
+ *   Slide 10 Inventory                             <- pos_inventory (master + HQ + HQ2 + BOC)
  *
  * Preserves, verbatim:
  *   • every product row's qty2025 (the prior-year reference — NOT re-derived)
@@ -21,9 +22,11 @@ import fs from "fs";
 import path from "path";
 import { Client } from "pg";
 import { parseMasterXlsx, parseSalesmanSalesXlsx } from "@/lib/parsers/pos-xlsx";
+import { parseBocConsignmentXlsx, parseStockBalancesById, parseStockListXlsx } from "@/lib/parsers/pos-extra-xlsx";
+import { inventoryFromStock } from "@/lib/aggregation/from-stock";
 import { salesByECP, salesByQuantity, topProducts } from "@/lib/aggregation";
 import { CANONICAL_PRODUCTS, type CanonicalProduct } from "@/lib/catalog/products";
-import { SalesByECPZ, SalesByQuantityZ, TopProductsZ } from "@/lib/schema";
+import { InventoryZ, SalesByECPZ, SalesByQuantityZ, TopProductsZ } from "@/lib/schema";
 
 const WRITE = process.argv.includes("--write");
 const env = fs.readFileSync(".env", "utf8");
@@ -38,7 +41,7 @@ const toArrayBuffer = (b: Buffer): ArrayBuffer =>
   await c.connect();
 
   const months = await c.query(
-    `SELECT id, year, month, "salesByQuantity", "topProducts", "salesByECP" FROM "MonthReport" ORDER BY year, month`);
+    `SELECT id, year, month, "salesByQuantity", "topProducts", "salesByECP", "inventory" FROM "MonthReport" ORDER BY year, month`);
 
   // Snapshot everything we are about to touch, before touching it.
   const backupDir = process.env.BACKUP_DIR || ".";
@@ -84,6 +87,58 @@ const toArrayBuffer = (b: Buffer): ArrayBuffer =>
             SalesByECPZ.parse(nextEcp);
             await c.query(`UPDATE "MonthReport" SET "salesByECP"=$2, "updatedAt"=NOW() WHERE id=$1`,
               [m.id, JSON.stringify(nextEcp)]);
+            console.log(`    written`);
+          }
+        }
+      }
+    }
+
+    // ---------- Slide 10: inventory (master + HQ + HQ2 + BOC) ----------
+    // Same role classification as classifyStockFile() in /api/import.
+    const stockFiles = await c.query(
+      `SELECT "originalName", bytes FROM "RawFile"
+       WHERE "monthReportId"=$1 AND kind='pos_inventory' AND "deletedAt" IS NULL AND bytes IS NOT NULL
+       ORDER BY "createdAt" DESC`, [m.id]);
+    const roleOf = (name: string): "hq" | "hq2" | "boc" | "master" => {
+      if (/(stock\s*list|sclm).*hq\s*2(?!\d)|hq\s*2(?!\d).*(stock\s*list|sclm)/i.test(name)) return "hq2";
+      if (/(stock\s*list|sclm).*hq|hq.*(stock\s*list|sclm)/i.test(name)) return "hq";
+      if (/(stock\s*list|sclm).*boc|boc.*(stock\s*list|sclm)/i.test(name)) return "boc";
+      return "master";
+    };
+    const byRole: Partial<Record<"hq" | "hq2" | "boc" | "master", ArrayBuffer>> = {};
+    for (const row of stockFiles.rows) {            // newest copy of each role wins
+      const role = roleOf(row.originalName);
+      if (!byRole[role]) byRole[role] = toArrayBuffer(row.bytes as Buffer);
+    }
+    if (byRole.master) {
+      let warehouseById: Map<string, number> | undefined;
+      if (byRole.hq || byRole.hq2) {
+        warehouseById = new Map<string, number>();
+        for (const buf of [byRole.hq, byRole.hq2]) {
+          if (!buf) continue;
+          for (const [id, qty] of parseStockBalancesById(buf)) {
+            warehouseById.set(id, (warehouseById.get(id) ?? 0) + qty);
+          }
+        }
+      }
+      const stock = parseStockListXlsx(byRole.master, new Date(m.year, m.month, 0), warehouseById);
+      const boc = byRole.boc ? parseBocConsignmentXlsx(byRole.boc) : undefined;
+      const brokenJoin = warehouseById != null && stock.rows.length > 0 &&
+        (stock.rowsWithStockId === 0 || stock.warehouseMatchedRows === 0);
+      if (brokenJoin) {
+        console.log(`${m.id}: inventory join still broken (withId=${stock.rowsWithStockId}, matched=${stock.warehouseMatchedRows}) — SKIPPED`);
+      } else {
+        const nextInv = inventoryFromStock(stock, boc || undefined);
+        const oldInv = m.inventory ? JSON.parse(m.inventory) : null;
+        nextInv.commentary = oldInv?.commentary ?? "";
+        if ((oldInv?.totalWarehouse ?? null) !== nextInv.totalWarehouse ||
+            (oldInv?.totalConsignment ?? null) !== nextInv.totalConsignment) {
+          touched++;
+          console.log(`${m.id}: inventory  warehouse ${String(oldInv?.totalWarehouse ?? "-").padStart(8)} -> ${String(nextInv.totalWarehouse).padStart(8)}   consignment ${String(oldInv?.totalConsignment ?? "-").padStart(8)} -> ${String(nextInv.totalConsignment).padStart(8)}`);
+          if (WRITE) {
+            InventoryZ.parse(nextInv);
+            await c.query(`UPDATE "MonthReport" SET "inventory"=$2, "updatedAt"=NOW() WHERE id=$1`,
+              [m.id, JSON.stringify(nextInv)]);
             console.log(`    written`);
           }
         }

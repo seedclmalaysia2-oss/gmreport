@@ -326,8 +326,34 @@ export async function POST(req: Request): Promise<Response> {
         warnings.push("Inventory: the SCLM Stock List BOC file was uploaded but no BOC quantity could be read — BOC consignment left at 0.");
       }
     }
-    sections.inventory = inventoryFromStock(stock, bocConsignment);
-    sectionsTouched.add("inventory");
+
+    // ----- Gate the warehouse/consignment split before writing Slide 10 -----
+    //
+    // The split is a Stock ID join across three files, and it can fail
+    // silently: the Jul-26 master exported column A with a BLANK header, so
+    // every stockId parsed as "" and 0 of 12,505 rows matched HQ/HQ2. Slide 10
+    // then showed warehouse 0 across the board with the entire nationwide
+    // balance sitting in consignment — and nothing flagged it, because the
+    // section JSON existed and looked populated. Refuse to overwrite a good
+    // split with a broken one, same as the Sales-by-Region guard above.
+    const splitRequested = warehouseById != null;
+    const joinBroken =
+      splitRequested &&
+      stock.rows.length > 0 &&
+      (stock.rowsWithStockId === 0 || stock.warehouseMatchedRows === 0);
+    if (joinBroken) {
+      const why = stock.rowsWithStockId === 0
+        ? `none of the ${stock.rows.length} rows in the master SCLM file carry a Stock ID — check that column A has a "Stock ID" header and is populated`
+        : `not one of the ${stock.rowsWithStockId} Stock IDs in the master matched the ${warehouseById!.size} IDs in HQ + HQ2 — the files may be from different periods or a different POS export`;
+      warnings.push(`Inventory: the warehouse/consignment split could not be computed because ${why}. Slide 10 was NOT changed.`);
+    } else {
+      if (splitRequested && stock.warehouseMatchedRows !== null &&
+          stock.warehouseMatchedRows < stock.rowsWithStockId * 0.5) {
+        warnings.push(`Inventory: only ${stock.warehouseMatchedRows} of ${stock.rowsWithStockId} master Stock IDs matched HQ + HQ2, so most stock is being reported as consignment. Confirm all three files are the same month-end.`);
+      }
+      sections.inventory = inventoryFromStock(stock, bocConsignment);
+      sectionsTouched.add("inventory");
+    }
   } else if (stockHqXlsxBuf || stockHq2XlsxBuf || stockBocXlsxBuf) {
     warnings.push("Inventory: HQ / HQ2 / BOC stock files were uploaded without the master SCLM file — Slide 10 needs the master to compute consignment.");
   }

@@ -184,6 +184,15 @@ consignment        = master[stockId] − warehouse   (clamped at 0 per row)
 - Upload all three files together for the split. With only the master, the
   grid falls back to "everything in warehouse, consignment blank" and the
   import emits a warning.
+- **The join is gated.** If the master carries no Stock IDs, or not one of them
+  matches HQ + HQ2, the import warns and leaves Slide 10 unchanged rather than
+  writing an all-consignment grid. A partial match below 50% warns but still
+  writes. Some exports ship column A with a *blank* header (Jul-26), so the
+  Stock ID column is resolved by position — the column left of "Stock
+  Description" — not by header label.
+- **`totalWarehouse` of 0 marks the slide incomplete** (`sectionIsComplete()` in
+  `src/lib/coverage.ts`). Warehouse is never legitimately zero: in split mode
+  it's HQ + HQ2, in master-only mode it's the whole nationwide balance.
 - The master's trailing "Total" row (blank Stock ID) is skipped.
 - "DISOP ACUAISS DUAL GEL" is its own inventory slot — excluded from the
   "DISOP ACUAISS → Ultra Eyedrop" description rule so it isn't double-counted.
