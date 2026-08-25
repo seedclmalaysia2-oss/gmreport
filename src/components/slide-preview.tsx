@@ -794,47 +794,78 @@ function SlideInventory({ report, P, scale }: { report: MonthReport; P: Palette;
             <tbody>
               {inv.groups.map((g, gi) => {
                 const cells = g.rows.slice(0, 6);
+                // Grand totals live in the last block's two spare columns, the
+                // same bottom-right corner the editor grid and the exported
+                // deck use. They used to be an absolutely-positioned box, which
+                // is what made them read as floating text over the table.
+                const isLast = gi === inv.groups.length - 1;
+                const corner = isLast && cells.length <= 4;
+                const TOTAL_LABEL_I = 4;
+                const TOTAL_VALUE_I = 5;
+                const totalStyle = {
+                  ...tdStyle(P, scale, "center"),
+                  background: P.header,
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontVariantNumeric: "tabular-nums" as const,
+                };
+                // Pad the last block out to 6 columns so the corner cells exist.
+                const slots = corner
+                  ? [...cells, ...Array(6 - cells.length).fill(null)]
+                  : cells;
                 return (
                   <Fragment key={gi}>
                     <tr><td colSpan={7} style={{ ...thStyle(P, scale), padding: fs(6, scale) }}>{g.name}</td></tr>
                     <tr>
                       <td style={tdStyle(P, scale)}></td>
-                      {cells.map((c, i) => <td key={i} style={{ ...tdStyle(P, scale, "center"), fontWeight: 600 }}>{c.product}</td>)}
+                      {slots.map((c, i) => (
+                        <td key={i} style={{ ...tdStyle(P, scale, "center"), fontWeight: 600 }}>
+                          {corner && i >= TOTAL_LABEL_I ? "" : (c ? c.product : "")}
+                        </td>
+                      ))}
                     </tr>
                     <tr>
                       <td style={{ ...tdStyle(P, scale), fontStyle: "italic", color: P.muted }}>Warehouse</td>
-                      {cells.map((c, i) => (
-                        <td
-                          key={i}
-                          style={{
-                            ...tdStyle(P, scale, "center"),
-                            // Match the dashboard + PPTX treatment: bigger, bolder, centered.
-                            fontSize: fs(12, scale),
-                            fontWeight: 700,
-                            color: P.text,
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          {c.warehouse == null ? "" : fmtMYR(c.warehouse, 0)}
-                        </td>
-                      ))}
+                      {slots.map((c, i) => {
+                        if (corner && i === TOTAL_LABEL_I) return <td key={i} style={{ ...totalStyle, fontSize: fs(8, scale), letterSpacing: fs(1, scale) }}>TOTAL</td>;
+                        if (corner && i === TOTAL_VALUE_I) return <td key={i} style={{ ...totalStyle, fontSize: fs(12, scale) }}>{fmtMYR(inv.totalWarehouse ?? 0, 0)}</td>;
+                        return (
+                          <td
+                            key={i}
+                            style={{
+                              ...tdStyle(P, scale, "center"),
+                              // Match the dashboard + PPTX treatment: bigger, bolder, centered.
+                              fontSize: fs(12, scale),
+                              fontWeight: 700,
+                              color: P.text,
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {!c || c.warehouse == null ? "" : fmtMYR(c.warehouse, 0)}
+                          </td>
+                        );
+                      })}
                     </tr>
                     <tr>
                       <td style={{ ...tdStyle(P, scale), fontStyle: "italic", color: P.muted }}>Consignment</td>
-                      {cells.map((c, i) => (
-                        <td
-                          key={i}
-                          style={{
-                            ...tdStyle(P, scale, "center"),
-                            fontSize: fs(12, scale),
-                            fontWeight: 700,
-                            color: P.text,
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          {c.consignment == null ? "" : fmtMYR(c.consignment, 0)}
-                        </td>
-                      ))}
+                      {slots.map((c, i) => {
+                        if (corner && i === TOTAL_LABEL_I) return <td key={i} style={{ ...totalStyle, fontSize: fs(8, scale), letterSpacing: fs(1, scale) }}>TOTAL</td>;
+                        if (corner && i === TOTAL_VALUE_I) return <td key={i} style={{ ...totalStyle, fontSize: fs(12, scale) }}>{fmtMYR(inv.totalConsignment ?? 0, 0)}</td>;
+                        return (
+                          <td
+                            key={i}
+                            style={{
+                              ...tdStyle(P, scale, "center"),
+                              fontSize: fs(12, scale),
+                              fontWeight: 700,
+                              color: P.text,
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {!c || c.consignment == null ? "" : fmtMYR(c.consignment, 0)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   </Fragment>
                 );
@@ -855,27 +886,6 @@ function SlideInventory({ report, P, scale }: { report: MonthReport; P: Palette;
               {inv.commentary}
             </div>
           )}
-          {/* Totals anchored to the bottom-right — boxed, never overlaps the table. */}
-          <div style={{
-            position: "absolute",
-            right: px(0.25, scale), top: px(6.55, scale),
-            textAlign: "right", lineHeight: 1.25,
-            padding: `${fs(6, scale)}px ${fs(10, scale)}px`,
-            border: `1px solid ${P.border}`,
-            borderRadius: fs(4, scale),
-            background: "#FFFFFF",
-            minWidth: px(3.0, scale),
-            fontVariantNumeric: "tabular-nums",
-          }}>
-            <div style={{ fontSize: fs(10, scale), color: P.text }}>
-              <strong>Warehouse Total:</strong>{" "}
-              <span style={{ fontWeight: 700 }}>{fmtMYR(inv.totalWarehouse ?? 0, 0)}</span>
-            </div>
-            <div style={{ fontSize: fs(10, scale), color: P.text, marginTop: fs(2, scale) }}>
-              <strong>Consignment Total:</strong>{" "}
-              <span style={{ fontWeight: 700 }}>{fmtMYR(inv.totalConsignment ?? 0, 0)}</span>
-            </div>
-          </div>
         </>
       )}
     </>

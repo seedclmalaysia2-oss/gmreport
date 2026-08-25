@@ -657,19 +657,46 @@ function slideInventory(pptx: PptxGenJS, input: PptxInput) {
   const inv = last.inventory;
   const rows: PptxGenJS.TableCell[][] = [];
   if (inv) {
-    for (const g of inv.groups) {
+    // The grand totals belong INSIDE the grid, in the last block's two spare
+    // columns — the same bottom-right corner the dashboard puts them in.
+    // (Design Principle 1: a total present in one must be present in the other,
+    // in the same place.) They used to be a separate addText pinned at y=5.85,
+    // but an addTable grows to fit its rows, so on a full month the table ran
+    // straight under that block and the totals exported as a floating box
+    // sitting on top of the Monthly Colour band.
+    const lastGroupIdx = inv.groups.length - 1;
+    const lastGroup = inv.groups[lastGroupIdx];
+    // The corner needs two free columns in the last block. If that block ever
+    // fills all six, fall back to a dedicated total row appended to the table —
+    // still inside it, never floating.
+    const cornerFits = (lastGroup?.rows.length ?? 0) <= 4;
+    const TOTAL_LABEL_I = 4;
+    const TOTAL_VALUE_I = 5;
+    const totalFor = (loc: "warehouse" | "consignment") =>
+      fmtMYR((loc === "warehouse" ? inv.totalWarehouse : inv.totalConsignment) ?? 0, 0);
+    const totalCell = (text: string, fontSize: number): PptxGenJS.TableCell => ({
+      text,
+      options: { align: "center", bold: true, fontSize, fill: headerFill(), color: C.headerText },
+    });
+
+    inv.groups.forEach((g, gi) => {
+      const isLast = gi === lastGroupIdx;
+      const corner = isLast && cornerFits;
       rows.push([
         { text: g.name, options: { bold: true, fill: headerFill(), color: C.headerText, colspan: 7, align: "left" } } as PptxGenJS.TableCell,
       ]);
       const header: PptxGenJS.TableCell[] = [{ text: "", options: {} }];
       for (let i = 0; i < 6; i++) {
-        const prod = g.rows[i]?.product ?? "";
+        // Blank above the TOTAL block so the corner reads clean.
+        const prod = corner && i >= TOTAL_LABEL_I ? "" : (g.rows[i]?.product ?? "");
         header.push({ text: prod, options: { bold: true, align: "center", fontSize: 11 } });
       }
       rows.push(header);
       for (const loc of ["warehouse", "consignment"] as const) {
         const r: PptxGenJS.TableCell[] = [{ text: loc === "warehouse" ? "Warehouse" : "Consignment", options: { italic: true, fontSize: 11 } }];
         for (let i = 0; i < 6; i++) {
+          if (corner && i === TOTAL_LABEL_I) { r.push(totalCell("TOTAL", 11)); continue; }
+          if (corner && i === TOTAL_VALUE_I) { r.push(totalCell(totalFor(loc), 13)); continue; }
           const v = g.rows[i]?.[loc];
           // Centered + slightly bigger number cells to match the dashboard view,
           // but capped at 13pt so 6-digit values like "57,339" fit the 1.0" column.
@@ -679,6 +706,18 @@ function slideInventory(pptx: PptxGenJS, input: PptxInput) {
           });
         }
         rows.push(r);
+      }
+    });
+
+    if (!cornerFits) {
+      for (const loc of ["warehouse", "consignment"] as const) {
+        rows.push([
+          {
+            text: loc === "warehouse" ? "Warehouse total" : "Consignment total",
+            options: { bold: true, fill: headerFill(), color: C.headerText, colspan: 6, align: "right" },
+          } as PptxGenJS.TableCell,
+          totalCell(totalFor(loc), 13),
+        ]);
       }
     }
   } else {
@@ -691,14 +730,15 @@ function slideInventory(pptx: PptxGenJS, input: PptxInput) {
   }
   s.addTable(rows, { x: 0.20, y: 1.05, w: 12.98, h: 4.6, fontFace: FONT, fontSize: 14, border: { type: "solid", pt: 0.5, color: C.tableBorder }, valign: "middle" });
 
-  s.addText(
-    [
-      { text: `Warehouse Total: ${fmtMYR(inv?.totalWarehouse ?? 0, 0)}`, options: { bold: true } },
-      { text: `Consignment Total: ${fmtMYR(inv?.totalConsignment ?? 0, 0)}`, options: { bold: true } },
-      { text: inv?.commentary ?? "", options: {} },
-    ],
-    { x: 0.20, y: 5.85, w: 12.78, h: 1.5, fontFace: FONT, fontSize: 14, color: C.text, valign: "top" },
-  );
+  // Commentary only — the totals are in the table's corner now. Pinned to the
+  // same y as Slide 9's commentary so the two slides sit on one baseline, and
+  // low enough that a full-height inventory table can't reach it.
+  const invCmt = (inv?.commentary ?? "").replace(/<[^>]*>/g, "").trim();
+  if (invCmt) {
+    s.addText(htmlToPptxRuns(inv?.commentary, 12), {
+      x: 0.20, y: 6.55, w: 12.78, h: 0.80, fontFace: FONT, color: C.muted, italic: true, valign: "top", wrap: true,
+    });
+  }
 }
 
 function slideExpireWriteOff(pptx: PptxGenJS, input: PptxInput) {

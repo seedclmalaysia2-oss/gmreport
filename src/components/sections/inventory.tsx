@@ -89,6 +89,18 @@ export function SectionInventory({ report, update }: SectionProps) {
   const TOTAL_LABEL_COL = MAX_COLS - 2;
   const TOTAL_VALUE_COL = MAX_COLS - 1;
 
+  // The corner TOTAL block. Both rows sit on ink-800 — the design system's
+  // single `table-header` surface — so the block reads as one object rather
+  // than two differently-weighted badges; the rows are separated by a hairline
+  // instead of by a second ink. The label follows the Wide-Tracked Label Rule
+  // (uppercase, 0.2em) at the same 10px as this table's other labels.
+  const totalCellBase = "px-2 py-1 align-middle bg-[var(--color-ink-800)] text-white";
+  const totalLabelCls = "text-center text-[10px] font-semibold uppercase tracking-[0.2em] border-l border-[var(--color-ice-200)]";
+  // The figures themselves are handed NumberCell's `onDark` variant rather than
+  // patched from outside — see shared.tsx. Doing it in the primitive means the
+  // focus state is actually defined for a dark fill instead of relying on
+  // arbitrary-variant overrides winning a specificity race.
+
   return (
     <SectionShell
       sectionKey="inventory"
@@ -173,20 +185,20 @@ export function SectionInventory({ report, update }: SectionProps) {
                         table keeps ONE consistent column count. */}
                     {rows.map((r, i) => {
                       if (showTotals && i === TOTAL_LABEL_COL) return (
-                        <td key={i} className="px-2 py-0.5 text-center align-middle border-b border-l border-[var(--color-ice-200)] bg-[var(--color-ink-800)] text-white text-[9px] font-bold uppercase tracking-widest">
+                        <td key={i} className={cn(totalCellBase, totalLabelCls, "border-b border-b-white/15")}>
                           Total
                         </td>
                       );
                       if (showTotals && i === TOTAL_VALUE_COL) return (
-                        <td key={i} className="px-2 py-0.5 text-center align-middle border-b bg-[var(--color-ink-800)] text-white font-bold">
+                        <td key={i} className={cn(totalCellBase, "border-b border-b-white/15")}>
                           <NumberCell
                             variant="plain"
                             align="center"
                             size="sm"
                             bold
                             value={inv.totalWarehouse}
+                            onDark
                             onChange={n => set({ totalWarehouse: n ?? 0 })}
-                            className="text-white [&_input]:!text-white"
                           />
                         </td>
                       );
@@ -214,20 +226,20 @@ export function SectionInventory({ report, update }: SectionProps) {
                     </td>
                     {rows.map((r, i) => {
                       if (showTotals && i === TOTAL_LABEL_COL) return (
-                        <td key={i} className="px-2 py-0.5 text-center align-middle border-l border-[var(--color-ice-200)] bg-[var(--color-ink-700)] text-white text-[9px] font-bold uppercase tracking-widest">
+                        <td key={i} className={cn(totalCellBase, totalLabelCls)}>
                           Total
                         </td>
                       );
                       if (showTotals && i === TOTAL_VALUE_COL) return (
-                        <td key={i} className="px-2 py-0.5 text-center align-middle bg-[var(--color-ink-700)] text-white font-bold">
+                        <td key={i} className={cn(totalCellBase, "rounded-br-xl")}>
                           <NumberCell
                             variant="plain"
                             align="center"
                             size="sm"
                             bold
                             value={inv.totalConsignment}
+                            onDark
                             onChange={n => set({ totalConsignment: n ?? 0 })}
-                            className="text-white [&_input]:!text-white"
                           />
                         </td>
                       );

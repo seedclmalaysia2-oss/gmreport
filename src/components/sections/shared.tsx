@@ -118,7 +118,7 @@ export function NumberCell({
   value, onChange, placeholder, suffix, className,
   decimals = 0, variant = "card",
   align = "right", size = "sm",
-  bold = false, readOnly = false,
+  bold = false, readOnly = false, onDark = false,
 }: {
   value: number | null | undefined;
   onChange: (n: number | null) => void;
@@ -138,6 +138,13 @@ export function NumberCell({
   /** When true the input is locked — value still shows, but it can't be
    *  edited or focused. Used by section-level Edit/Save toggles. */
   readOnly?: boolean;
+  /** Set when the cell sits on a dark (ink) fill rather than a white surface,
+   *  e.g. Slide 10's corner TOTAL block. The plain variant normally focuses to
+   *  `bg-white` with an ink-700 ring — on an ink-800 fill that renders the
+   *  figure white-on-white and hides the focus ring. This swaps both for a
+   *  transparent focus fill and an ice-200 ring, so the value stays readable
+   *  and the focus indicator stays visible. */
+  onDark?: boolean;
 }) {
   const factor = Math.pow(10, decimals);
   const round = (n: number) => Math.round(n * factor) / factor;
@@ -224,7 +231,10 @@ export function NumberCell({
           bold && "font-semibold",
           variant === "card"
             ? "rounded-md border border-[var(--color-ice-200)] focus:ring-2 focus:ring-[var(--color-ink-700)]"
-            : "bg-transparent border-0 focus:ring-1 focus:ring-[var(--color-ink-700)] focus:bg-white dark:focus:bg-[var(--surface-2)]",
+            : onDark
+              // Keep the ink fill on focus; ring in ice so it reads on dark.
+              ? "bg-transparent border-0 text-white caret-white focus:ring-1 focus:ring-[var(--color-ice-200)]"
+              : "bg-transparent border-0 focus:ring-1 focus:ring-[var(--color-ink-700)] focus:bg-white dark:focus:bg-[var(--surface-2)]",
           // Locked: drop the border/ring affordances and the text cursor so it
           // reads as a value, not an input.
           readOnly && "cursor-default border-transparent focus:ring-0",
