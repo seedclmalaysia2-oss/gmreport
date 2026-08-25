@@ -150,8 +150,13 @@ export function SectionInventory({ report, update }: SectionProps) {
                         />
                       </td>
                     ))}
-                    {/* Totals right-side slot */}
-                    <td rowSpan={3} className={cn(
+                    {/* Totals right-side slot.
+                        On the block that carries the totals this must span ONE
+                        row, not three: rows 2 and 3 below render their own
+                        cells in this column. Spanning 3 here left those rows a
+                        column wider than the rest of the table, which pushed
+                        both TOTAL badges outside the table's right border. */}
+                    <td rowSpan={showTotals ? 1 : 3} className={cn(
                       "px-2 py-1 text-right align-middle",
                       !isLastSubgroup && "border-b border-[var(--color-ice-100)]",
                       "border-l border-[var(--color-ice-200)]",
