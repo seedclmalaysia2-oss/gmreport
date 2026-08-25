@@ -1,4 +1,10 @@
 @import "tailwindcss";
+/* Tailwind v4 auto-scans the whole project for class names, markdown included.
+   DESIGN.md documents the token rules in prose ("use text-[var(--color-ink-*)]"),
+   and the scanner read that literal as a real utility, emitting
+   `color: var(--color-ink-*)` — invalid CSS that failed the stylesheet and
+   500'd every route. Docs describe classes; they never define them. */
+@source not "./**/*.md";
 @variant dark (&:where(.dark, .dark *));
 
 @theme {

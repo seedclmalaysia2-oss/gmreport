@@ -461,7 +461,7 @@ a concrete pixel-level prohibition.
 - **Do** use `font-mono tabular-nums` on every number, in every
   table cell, in every KPI card. Columns of numbers must line up
   vertically at every zoom level.
-- **Do** use `text-[var(--color-ink-*)]` semantic tokens instead of
+- **Do** use the `text-[var(--color-ink-600)]` family of semantic tokens instead of
   `text-gray-*` Tailwind primitives. The palette-picker system
   depends on it.
 - **Do** wrap every keyed-in figure in an Edit/Save lock. Manual
