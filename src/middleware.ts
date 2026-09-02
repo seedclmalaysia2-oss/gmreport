@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_COOKIE, verifyToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/_next", "/favicon", "/brand"];
+// /api/keepalive is the Vercel Cron DB-warm ping — it must run without a login
+// cookie, so it's public (it only executes SELECT 1; see the route).
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/keepalive", "/_next", "/favicon", "/brand"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
