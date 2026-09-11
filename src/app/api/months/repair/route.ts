@@ -19,6 +19,7 @@ import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
 import { REGIONS } from "@/lib/catalog/mappings";
 
+import { guardDept } from "@/lib/auth";
 type RepairReport = {
   id: string;
   changed: boolean;
@@ -305,6 +306,9 @@ async function dedupeRawFiles(): Promise<{ trashed: number; details: string[] }>
 }
 
 export async function POST() {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   // Step 0 — clean the file audit log: move duplicate / unused uploads to the
   // trash so the rest of the recalculation works from the latest files only.
   const dedup = await dedupeRawFiles();

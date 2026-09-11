@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { applyYear2025ToReport, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import type { MonthReport, SectionKey, SourceFile, SourceFiles } from "@/lib/schema";
 
+import { guardDept } from "@/lib/auth";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -71,6 +72,9 @@ type ImportResult = {
 };
 
 export async function POST(req: Request): Promise<Response> {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const form = await req.formData();
   const year = Number(form.get("year"));
   const month = Number(form.get("month"));

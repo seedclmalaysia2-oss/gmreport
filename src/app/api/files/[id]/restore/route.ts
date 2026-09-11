@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+import { guardDept } from "@/lib/auth";
 /**
  * POST /api/files/{id}/restore
  *
@@ -12,6 +13,9 @@ export async function POST(
   _: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   await prisma.rawFile
     .update({ where: { id }, data: { deletedAt: null } })

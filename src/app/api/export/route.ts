@@ -5,10 +5,14 @@ import type { Template } from "@/lib/pptx";
 import { titleFor } from "@/lib/pptx/shared";
 import { slugify } from "@/lib/utils";
 
+import { guardDept } from "@/lib/auth";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { months: ids, template, paletteId } = (await req.json()) as {
     months: string[]; template: Template; paletteId?: string;
   };

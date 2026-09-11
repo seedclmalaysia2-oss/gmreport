@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+import { guardDept } from "@/lib/auth";
 export const runtime = "nodejs";
 
 /**
@@ -21,6 +22,9 @@ export const runtime = "nodejs";
  * batch on stale ids.
  */
 export async function POST(req: Request) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   let body: { ids?: unknown; action?: unknown };
   try {
     body = await req.json();

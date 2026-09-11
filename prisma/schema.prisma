@@ -1,14 +1,21 @@
-// Postgres on Supabase.
+// Postgres on Supabase — the shared `salesreport` project, schema `gm`.
+// Every department now lives in its own schema on one database; see
+// SUPABASE-CONSOLIDATION.md.
 //   DATABASE_URL = pooled connection (port 6543, ?pgbouncer=true) — used by the running app
 //   DIRECT_URL   = direct connection (port 5432)                  — used by `prisma migrate / db push`
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // multiSchema lets one Prisma client address a named schema. Needed because
+  // these tables now live in `gm` on the shared salesreport database rather
+  // than in `public` on a database of their own.
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  schemas   = ["gm"]
 }
 
 // One row per YYYY-MM. Section JSON blobs validated by Zod in src/lib/schema.ts.
@@ -42,6 +49,8 @@ model MonthReport {
   rawFiles RawFile[]
 
   @@unique([year, month])
+
+  @@schema("gm")
 }
 
 // Per-file upload log. One row written per file every time the user POSTs to
@@ -73,6 +82,8 @@ model RawFile {
 
   @@index([monthReportId, createdAt])
   @@index([deletedAt])
+
+  @@schema("gm")
 }
 
 // Named settings — outlet-type overrides, SKU map overrides, etc.
@@ -81,4 +92,6 @@ model Mapping {
   type  String                                       // "sku" | "outlet" | "state"
   value String                                       // JSON
   updatedAt DateTime @updatedAt
+
+  @@schema("gm")
 }

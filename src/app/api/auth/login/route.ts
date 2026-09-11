@@ -1,23 +1,16 @@
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE, signToken } from "@/lib/auth";
 
-export async function POST(req: Request) {
-  const { password } = await req.json().catch(() => ({}));
-  const expected = process.env.DASHBOARD_PASSWORD || "seed2026";
-  if (password !== expected) return NextResponse.json({ ok: false }, { status: 401 });
-
-  const token = await signToken(`${Date.now()}`);
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(AUTH_COOKIE, token, {
-    httpOnly: true, sameSite: "lax", path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-    secure: process.env.NODE_ENV === "production",
-  });
-  return res;
-}
-
-export async function DELETE() {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.delete(AUTH_COOKIE);
-  return res;
+/**
+ * Gone. The shared-password gate was replaced by Supabase Auth on the
+ * company-wide `auth.users` table — sign-in now happens client-side on
+ * /login via supabase.auth.signInWithPassword().
+ *
+ * Kept as a 410 rather than deleted so that a stale browser tab posting an
+ * old password gets a clear answer instead of a confusing 404.
+ */
+export async function POST() {
+  return NextResponse.json(
+    { error: "The shared password has been retired. Sign in with your work email." },
+    { status: 410 },
+  );
 }

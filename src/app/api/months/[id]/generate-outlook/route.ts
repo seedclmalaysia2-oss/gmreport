@@ -3,9 +3,13 @@ import { getMonthReport, getMonthReportById, upsertMonthReport } from "@/lib/mon
 import { buildOutlookFacts } from "@/lib/aggregation/outlook-facts";
 import { generateOutlookHtml } from "@/lib/outlook/generate";
 
+import { guardDept } from "@/lib/auth";
 export const maxDuration = 60;
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   const current = await getMonthReportById(id);
   if (!current) return NextResponse.json({ error: "not found" }, { status: 404 });

@@ -3,7 +3,11 @@ import { getMonthReportById, upsertMonthReport } from "@/lib/month-report";
 import { parseMonthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 
+import { guardDept } from "@/lib/auth";
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   const report = await getMonthReportById(id);
   if (!report) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -11,6 +15,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   const { year, month } = parseMonthId(id);
   const body = await req.json();
@@ -19,6 +26,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   await prisma.monthReport.delete({ where: { id } }).catch(() => {});
   return NextResponse.json({ ok: true });

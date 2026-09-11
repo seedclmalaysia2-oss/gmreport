@@ -5,12 +5,19 @@ import { monthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import type { MonthReport } from "@/lib/schema";
 
+import { guardDept } from "@/lib/auth";
 export async function GET() {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const all = await listMonthReports();
   return NextResponse.json(all);
 }
 
 export async function POST(req: Request) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const body = await req.json();
   if (typeof body.year !== "number" || typeof body.month !== "number") {
     return NextResponse.json({ error: "year and month required" }, { status: 400 });
@@ -72,6 +79,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await req.json().catch(() => ({}));
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
   await prisma.monthReport.delete({ where: { id } }).catch(() => {});

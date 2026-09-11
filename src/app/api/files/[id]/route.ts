@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+import { guardDept } from "@/lib/auth";
 // Use Node runtime — we deal with binary Buffers, which are awkward in Edge.
 export const runtime = "nodejs";
 
@@ -27,6 +28,9 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   const row = await prisma.rawFile.findUnique({
     where: { id },
@@ -82,6 +86,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await guardDept();
+  if (denied) return denied;
+
   const { id } = await params;
   const purge = new URL(req.url).searchParams.get("purge") === "1";
 

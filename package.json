@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.105.1",
     "ai": "^6.0.168",
     "clsx": "^2.1.1",
     "html-to-image": "^1.11.13",
