@@ -43,16 +43,19 @@ export const SKU_MAP: Record<string, CanonicalProduct> = {
   "SDIRIS":    "Iris Lens",
   "UVSCL":     "Ultra Vision",
   "UVSPCL":    "Ultra Vision",
-  // SDBRHOC = domestic Breath O Correct. The CSG suffix chain is the export /
-  // overseas SKU family and now feeds the dedicated "Breath O Correct
-  // (Overseas)" row that the SEED Sales Summary 2026 file lists.
-  "SDBRHOC":   "Breath O Correct",
-  "SDBRHOCTC": "Breath O Correct",
-  "SDBRHOCCSG":     "Breath O Correct (Overseas)",
-  "SDBRHOCCSG80":   "Breath O Correct (Overseas)",
-  "SDBRHOCCSG202":  "Breath O Correct (Overseas)",
-  "SDBRHOCCSG2025": "Breath O Correct (Overseas)",
-  "SDBRHOCCSG2026": "Breath O Correct (Overseas)",
+  // Breath O Correct. The domestic vs overseas split is now driven by
+  // CUSTOMER, not by SKU code (per the owner's Sep 2026 clarification —
+  // GLODISA is the only overseas BoC buyer). Every SDBRHOC* SKU therefore
+  // lands on the plain "Breath O Correct" row here; the "Breath O Correct
+  // (Overseas)" row on Slide 5 is a manual editor entry each month, sourced
+  // from HQ's Sales Summary workbook or customer invoicing records.
+  "SDBRHOC":        "Breath O Correct",
+  "SDBRHOCTC":      "Breath O Correct",
+  "SDBRHOCCSG":     "Breath O Correct",
+  "SDBRHOCCSG80":   "Breath O Correct",
+  "SDBRHOCCSG202":  "Breath O Correct",
+  "SDBRHOCCSG2025": "Breath O Correct",
+  "SDBRHOCCSG2026": "Breath O Correct",
 
   // Wohlk. The POS emits the short codes WHKE / WHCLS / WHCLA; "WOHLKKE" is
   // kept as a legacy alias (it never appeared in a real export, which is why
@@ -248,7 +251,10 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "SDUV1": { product: "UV-1 / UV-1 KC", divisor: 1 }, "SDUV1KC": { product: "UV-1 / UV-1 KC", divisor: 1 },
   "SDASL": { product: "As-Luna / O2 Noah", divisor: 1 },
   "SDIRS": { product: "Iris Lens", divisor: 1 },
-  "SDBRHOC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCTC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCCSG": { product: "Breath O Correct (Overseas)", divisor: 1 },
+  // BoC domestic/overseas is a customer-based split (GLODISA = overseas);
+  // every SKU rolls into "Breath O Correct" and the Overseas row is a
+  // manual editor entry each month — see the SKU_MAP comment above.
+  "SDBRHOC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCTC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCCSG": { product: "Breath O Correct", divisor: 1 },
   // DISOP care solutions & eyedrops. Source-of-truth is the master-file
   // Description text (verified against Aug26 export):
   //   SDEYEDSP10M -> "DISOP ACUAISS ULTRA 10ml"           -> Ultra Eyedrop
