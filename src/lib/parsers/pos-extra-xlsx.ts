@@ -34,21 +34,42 @@ export function parseWriteOffXlsx(buf: ArrayBuffer): PosWriteOffParseResult {
     return Number.isFinite(n) ? n : 0;
   };
 
+  // Column layout differs between exports — the older ~45-column form put
+  // "Doc Date" at col 10 and the item Amount at col 44, whereas the newer
+  // compact ~11-column export puts them at col 3 and col 10. Anchor to the
+  // header labels ("Document No", "Doc Date", "Item", "Description",
+  // "Quantity", "Amount") so both survive; fall back to the old column
+  // positions if a label is missing so pre-labelled exports still parse.
+  let docNoCol = 1, docDateCol = 10, itemCol = 3, descCol = 11, qtyCol = 29, amtCol = 44;
+  const seen = new Set<string>();
+  for (const row of rows) {
+    for (let c = 0; c < row.length; c++) {
+      const label = cell(row, c).toLowerCase();
+      if (!label) continue;
+      if (label === "document no" && !seen.has("docNo")) { docNoCol = c; seen.add("docNo"); }
+      else if (label === "doc date" && !seen.has("docDate")) { docDateCol = c; seen.add("docDate"); }
+      else if (label === "item" && !seen.has("item")) { itemCol = c; seen.add("item"); }
+      else if (label === "description" && !seen.has("desc")) { descCol = c; seen.add("desc"); }
+      else if (label === "quantity" && !seen.has("qty")) { qtyCol = c; seen.add("qty"); }
+      else if (label === "amount" && !seen.has("amt")) { amtCol = c; seen.add("amt"); }
+    }
+  }
+
   const events: PosWriteOffParseResult["events"] = [];
   let current: PosWriteOffParseResult["events"][number] | null = null;
 
   for (const row of rows) {
-    const c1 = cell(row, 1);
+    const cDocNo = cell(row, docNoCol);
     // Document header — "WOFF00449" etc. — starts a new write-off event.
-    if (/^WOFF\s*\d+/i.test(c1)) {
+    if (/^WOFF\s*\d+/i.test(cDocNo)) {
       if (current) events.push(current);
-      const dm = cell(row, 10).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const dm = cell(row, docDateCol).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
       const date = dm
         ? `${dm[3]}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`
         : null;
       const monthKey = dm ? `${dm[3]}-${dm[2].padStart(2, "0")}` : null;
       current = {
-        writeOffNo: c1.replace(/\s+/g, ""),
+        writeOffNo: cDocNo.replace(/\s+/g, ""),
         date, monthKey,
         rows: [], totalQty: 0, totalAmt: 0,
       };
@@ -56,12 +77,22 @@ export function parseWriteOffXlsx(buf: ArrayBuffer): PosWriteOffParseResult {
     }
     if (!current) continue;
 
-    // Item line — col D is a plain item number, col L the description.
-    const itemNo = cell(row, 3);
-    const desc = cell(row, 11);
+    // Item line — itemCol is a plain item number, descCol the description.
+    const itemNo = cell(row, itemCol);
+    const desc = cell(row, descCol);
     if (/^\d+$/.test(itemNo) && desc) {
-      const qty = Math.round(toNum(row[29]));
-      const amt = toNum(row[44]);
+      // In the old wide-column export the "Quantity" header is merged so its
+      // label lands at (e.g.) col 31 but the actual number sits two cells to
+      // the left at col 29. Try the header column first; if it's empty, walk
+      // up to two cells left before giving up. Amount stays at its label.
+      const readAt = (c: number): number | null => {
+        const v = row[c];
+        if (v == null || v === "") return null;
+        const n = Number(String(v).replace(/,/g, "").trim());
+        return Number.isFinite(n) ? n : null;
+      };
+      const qty = Math.round(readAt(qtyCol) ?? readAt(qtyCol - 1) ?? readAt(qtyCol - 2) ?? 0);
+      const amt = readAt(amtCol) ?? readAt(amtCol - 1) ?? readAt(amtCol - 2) ?? 0;
       if (qty !== 0 || amt !== 0) {
         current.rows.push({ productDesc: desc, qty, totalCost: amt });
       }
