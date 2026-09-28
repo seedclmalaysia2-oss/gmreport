@@ -129,7 +129,8 @@ function parseMaster(text: string): PosMasterParseResult {
     if (!line) continue;
     // Sales adj line — capture the signed adjustment (e.g. "-73.60"). Checked
     // before the data-row regex so the line isn't mistaken for a product.
-    if (/sales\s*adj/i.test(line)) {
+    // "Sales adj" (older export) or "cust adj" (newer "By Brand" export).
+    if (/(sales|cust)\s*adj/i.test(line)) {
       const m = line.match(/-?\s*[\d,]+\.\d{1,2}/);
       if (m) salesAdjustment += num(m[0].replace(/\s/g, ""));
       continue;

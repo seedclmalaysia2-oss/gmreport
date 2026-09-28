@@ -86,8 +86,11 @@ export function parseMasterXlsx(buf: ArrayBuffer): PosMasterParseResult {
     return Number.isFinite(n) ? n : 0;
   };
 
+  // Match "Sales adj" (older "By Group" export) OR "cust adj" (newer
+  // "By Brand" export) — both label the adjustment row that follows Grand
+  // Total, and the arithmetic is identical (signed value in netCol).
   const isSalesAdjRow = (row: unknown[]): boolean =>
-    row.some(c => typeof c === "string" && /sales\s*adj/i.test(c));
+    row.some(c => typeof c === "string" && /(sales|cust)\s*adj/i.test(c));
 
   for (const row of rows2d) {
     // After Grand Total we only care about the optional Sales adj block —
