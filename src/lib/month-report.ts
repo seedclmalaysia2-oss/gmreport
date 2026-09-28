@@ -9,6 +9,7 @@ import {
 } from "./schema";
 import { monthId } from "./utils";
 import { LEGACY_REGION_REMAP, LEGACY_ECP_REMAP } from "./catalog/mappings";
+import { applyChainMergeAcrossYear } from "./sales-achievement-chain";
 
 type DbRow = Awaited<ReturnType<typeof prisma.monthReport.findUnique>>;
 
@@ -91,19 +92,56 @@ function rowToReport(row: NonNullable<DbRow>): MonthReport {
   return r;
 }
 
-export async function getMonthReport(year: number, month: number): Promise<MonthReport | null> {
-  const row = await prisma.monthReport.findUnique({ where: { year_month: { year, month } } });
-  return row ? rowToReport(row) : null;
+/**
+ * Load a month PLUS every earlier month in the same year, then run the
+ * Slide 1 chain-merge so the requested month's row carries Jan → this-month
+ * authoritative figures automatically. Never touches the DB — merge is
+ * applied on the fly on every read so the editor, preview, and PPT export
+ * stay in sync without a manual Recalculate click.
+ *
+ * `mode: "raw"` bypasses the merge; used by the repair route and by the
+ * import route when it needs the stored (un-merged) prior chain to make its
+ * own decisions.
+ */
+async function loadMonthReport(
+  where: { year: number; month: number } | { id: string },
+  mode: "chain" | "raw" = "chain",
+): Promise<MonthReport | null> {
+  const row = "id" in where
+    ? await prisma.monthReport.findUnique({ where: { id: where.id } })
+    : await prisma.monthReport.findUnique({ where: { year_month: where } });
+  if (!row) return null;
+  if (mode === "raw") return rowToReport(row);
+
+  const priorRows = await prisma.monthReport.findMany({
+    where: { year: row.year, month: { lt: row.month } },
+    orderBy: { month: "asc" },
+  });
+  const chain = [...priorRows.map(rowToReport), rowToReport(row)];
+  applyChainMergeAcrossYear(chain);
+  return chain[chain.length - 1] ?? null;
 }
 
-export async function getMonthReportById(id: string): Promise<MonthReport | null> {
-  const row = await prisma.monthReport.findUnique({ where: { id } });
-  return row ? rowToReport(row) : null;
+export async function getMonthReport(
+  year: number,
+  month: number,
+  mode: "chain" | "raw" = "chain",
+): Promise<MonthReport | null> {
+  return loadMonthReport({ year, month }, mode);
 }
 
-export async function listMonthReports(): Promise<MonthReport[]> {
+export async function getMonthReportById(
+  id: string,
+  mode: "chain" | "raw" = "chain",
+): Promise<MonthReport | null> {
+  return loadMonthReport({ id }, mode);
+}
+
+export async function listMonthReports(mode: "chain" | "raw" = "chain"): Promise<MonthReport[]> {
   const rows = await prisma.monthReport.findMany({ orderBy: [{ year: "desc" }, { month: "desc" }] });
-  return rows.map(rowToReport);
+  const reports = rows.map(rowToReport);
+  if (mode === "chain") applyChainMergeAcrossYear(reports);
+  return reports;
 }
 
 /**
