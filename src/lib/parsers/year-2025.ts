@@ -64,8 +64,15 @@ const NAME_MAP: Record<string, CanonicalProduct> = {
   "IRIS LENS": "Iris Lens",
   "ULTRA VISION": "Ultra Vision",
   "BREATH O CORRECT": "Breath O Correct",
+  "BREATH O CORRECT (OVERSEAS)": "Breath O Correct (Overseas)",
+  "WOHLK KE RGP": "Wohlk KE RGP",
   "DISOP H2O2 SOLUTION": "DISOP H2O2 Solution",
   "DISOP ULTRA EYEDROP": "DISOP Ultra Eyedrop",
+  "DISOP ACUAISS DUAL GEL EYEDROP": "DISOP Acuaiss Dual Gel Eyedrop",
+  "ACCESSORIES/OTHERS": "Accessories / Others",
+  // The Sales Amount block has a slightly different label than the qty block
+  // — accept both so the ref sync doesn't quietly skip Multistage.
+  "1 DAY PURE MULSTISTAGE": "1dayPureUP Multistage (32P)",
 };
 
 function norm(s: string): string {

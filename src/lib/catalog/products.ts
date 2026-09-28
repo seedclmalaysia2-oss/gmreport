@@ -1,4 +1,7 @@
-// Canonical product list used across the 13 sections. Order mirrors Slide 7 of the HQ sample deck.
+// Canonical product list used across the 13 sections. Order and names mirror
+// the SEED(M) Sales Summary 2026 workbook's "SALES QUANTITY" section — the
+// authoritative HQ listing. Any change here MUST match that file's row order,
+// or the ref_2025 apply step will skip products silently.
 export const CANONICAL_PRODUCTS = [
   "1dayPureUP (32P)",
   "1dayPure Silfa",
@@ -26,11 +29,12 @@ export const CANONICAL_PRODUCTS = [
   "Iris Lens",
   "Ultra Vision",
   "Breath O Correct",
-  "Wohlk Contact Life Sph",
-  "Wohlk Contact Life Toric",
+  "Breath O Correct (Overseas)",
   "Wohlk KE RGP",
   "DISOP H2O2 Solution",
   "DISOP Ultra Eyedrop",
+  "DISOP Acuaiss Dual Gel Eyedrop",
+  "Accessories / Others",
 ] as const;
 
 export type CanonicalProduct = (typeof CANONICAL_PRODUCTS)[number];

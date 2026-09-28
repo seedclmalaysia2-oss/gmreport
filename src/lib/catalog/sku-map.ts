@@ -43,26 +43,30 @@ export const SKU_MAP: Record<string, CanonicalProduct> = {
   "SDIRIS":    "Iris Lens",
   "UVSCL":     "Ultra Vision",
   "UVSPCL":    "Ultra Vision",
+  // SDBRHOC = domestic Breath O Correct. The CSG suffix chain is the export /
+  // overseas SKU family and now feeds the dedicated "Breath O Correct
+  // (Overseas)" row that the SEED Sales Summary 2026 file lists.
   "SDBRHOC":   "Breath O Correct",
-  "SDBRHOCCSG":"Breath O Correct",
-  "SDBRHOCCSG80":   "Breath O Correct",
-  "SDBRHOCCSG202":  "Breath O Correct",
-  "SDBRHOCCSG2025": "Breath O Correct",
-  "SDBRHOCCSG2026": "Breath O Correct",
+  "SDBRHOCTC": "Breath O Correct",
+  "SDBRHOCCSG":     "Breath O Correct (Overseas)",
+  "SDBRHOCCSG80":   "Breath O Correct (Overseas)",
+  "SDBRHOCCSG202":  "Breath O Correct (Overseas)",
+  "SDBRHOCCSG2025": "Breath O Correct (Overseas)",
+  "SDBRHOCCSG2026": "Breath O Correct (Overseas)",
 
-  // Wohlk. The POS emits the short codes WHKE / WHCLS / WHCLA; "WOHLKKE" is
-  // kept as a legacy alias (it never appeared in a real export, which is why
-  // Wohlk KE printed 0 while WHKE sat in the unmapped drawer).
+  // Wohlk. The POS emits the short code WHKE; "WOHLKKE" is kept as a legacy
+  // alias (it never appeared in a real export, which is why Wohlk KE printed
+  // 0 while WHKE sat in the unmapped drawer). The Sph / Toric contact-life
+  // lines were dropped in the 2026 Sales Summary — no longer canonical rows.
   "WHKE":      "Wohlk KE RGP",
   "WOHLKKE":   "Wohlk KE RGP",
-  "WHCLS":     "Wohlk Contact Life Sph",
-  // Base code for the toric line is inferred from the observed trial code
-  // "WHCLAT" (Wohlk C.Life Toric trial lens) — no paid toric row has been
-  // seen yet. If the real base code differs it will surface as unmapped.
-  "WHCLA":     "Wohlk Contact Life Toric",
 
   "SDRGPSL":   "DISOP H2O2 Solution",
   "SDEYEDROP": "DISOP Ultra Eyedrop",
+
+  // "Accessories / Others" row on Slide 5 — CLAUDE-RULES.md R35 pins this to
+  // the master's "CL" group code.
+  "CL":        "Accessories / Others",
 };
 
 // MCUV colour-variant PDFs roll up to these three product lines.
@@ -240,7 +244,7 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "SDUV1": { product: "UV-1 / UV-1 KC", divisor: 1 }, "SDUV1KC": { product: "UV-1 / UV-1 KC", divisor: 1 },
   "SDASL": { product: "As-Luna / O2 Noah", divisor: 1 },
   "SDIRS": { product: "Iris Lens", divisor: 1 },
-  "SDBRHOC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCCSG": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCTC": { product: "Breath O Correct", divisor: 1 },
+  "SDBRHOC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCTC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCCSG": { product: "Breath O Correct (Overseas)", divisor: 1 },
   // DISOP care solutions & eyedrops
   "SDEYEDSP10M": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPEY10S": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDEYEDSP20V": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSP20S": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPVS": { product: "DISOP Ultra Eyedrop", divisor: 1 },
   "SDSOLDSP": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDDSP60S": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDSOLCC": { product: "DISOP H2O2 Solution", divisor: 1 },

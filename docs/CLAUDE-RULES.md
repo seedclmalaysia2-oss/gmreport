@@ -88,42 +88,50 @@ and is applied during aggregation in [`src/lib/aggregation/index.ts`](../src/lib
 
 ## Template-row mapping (Slide 5 ordering)
 
+Order and canonical names follow the **SEED(M) Sales Summary 2026** workbook
+(`monthly sales` sheet, SALES QUANTITY section). Changing that order or
+those labels here means changing `src/lib/catalog/products.ts` too —
+the ref_2025 apply step matches by label and silently drops mismatches.
+
 | Row | Product | Group code(s) |
 |---|---|---|
-| R5  | 1 Day Pure                      | `1DPR` |
-| R6  | 1 Day Pure Silfa                | `1DPS` |
-| R7  | 1 Day Pure Astigmatism          | `1DPT` |
-| R8  | 1 Day Multistage                | `1DMS` |
-| R9  | 1 Day Pure EDOF                 | `1DPE` |
-| R10 | 1 Day View Support              | `1DPVS` |
-| R11 | 2 Week Pure Multistage          | `2WMS` |
-| R12 | 2 Week Pure UP Toric            | `2WPT` |
-| R13 | 2 Week Pure UP                  | `2UWK` |
-| R14 | Eye Coffret-M                   | `EC10-M` + `EC10-MPRM` |
-| R15 | Eye Coffret-M 10 Toric          | `ECRT10-M` + `ECWT10-M` + toric trials (`ECRT-MT`/`ECWT-MT`, ÷10) |
-| R16 | Eye Coffret-M 30 Toric          | `ECRT30-M` + `ECWT30-M` + promos + FOC |
-| R17 | Monthly Fine Plus               | `MFN+` + promos |
-| R18 | Monthly Pure3                   | `MTPR3` |
-| R19 | Monthly Pure6                   | `MTPR` |
-| R20 | Monthly Color UV — Pegavision   | sub-item of `MCUV` |
-| R21 | Monthly Color UV — Blue         | sub-item of `MCUV` |
-| R22 | Monthly Color UV — Orange       | sub-item of `MCUV` |
-| R23 | Monthly Color UV II             | `MCUV2` + `MCIIPHRM` |
-| R24 | Minasoft 1Day Color UV          | `MNSF10` + `MNSFPRM` |
-| R25 | Minasoft Care UV                | `MNSFCUV` + `MNSFCUVPRM` |
-| R26 | RGP UV-1 / UV-1 KC              | `SDUV1` + `SDUV1KC` |
-| R27 | RGP AS-Luna / O2 Noah           | `SDASL` |
-| R28 | Iris Lens                       | `SDIRIS` |
-| R29 | Ultra Vision                    | `UVSCL` + `UVSPVCL` |
-| R30 | Breath O Correct                | `SDBRHOC` |
-| R31 | Breath O Correct (Overseas)     | `SDBRHOCSG` + `SDBRHOCSG202` |
-| R32a | Wohlk Contact Life Sph         | `WHCLS` (+ `WHCLSFC`) |
-| R32b | Wohlk Contact Life Toric       | `WHCLA` (+ `WHCLAFC`) — base code inferred from `WHCLAT` |
-| R32c | Wohlk KE RGP                   | `WHKE` (legacy alias `WOHLKKE`) |
-| R33 | Disop H2O2 Solution             | `SDRGPSL` |
-| R34 | Disop Ultra Eyedrop             | `SDEYEDROP` |
-| R35 | Accessories / Others            | `CL` |
-| R70 | Other Income                    | `SERVICE CHARGE` |
+| R1  | 1 Day Pure                        | `1DPR` |
+| R2  | 1 Day Pure Silfa                  | `1DPS` |
+| R3  | 1 Day Pure Astigmatism            | `1DPT` (+ exploded `1DPT -<pwr>/AX<axis>` toric) |
+| R4  | 1 Day Multistage                  | `1DMS` |
+| R5  | 1 Day Pure EDOF                   | `1DPE` |
+| R6  | 1 Day View Support                | `1DPVS` |
+| R7  | 2 Week Pure Multistage            | `2WMS` |
+| R8  | 2 Week Pure UP Toric              | `2WPT` (+ exploded `2UWKA -<pwr>/AX<axis>`) |
+| R9  | 2 Week Pure UP                    | `2UWK` |
+| R10 | Eye Coffret-M                     | `EC10-M` + `EC10-MPRM` + colour variants (`ECB-M`, `ECDW-M`, …) |
+| R11 | Eye Coffret-M 10 Toric            | `ECRT10-M` + `ECWT10-M` + toric trials (`ECRT-MT`/`ECWT-MT`, ÷10) |
+| R12 | Eye Coffret-M 30 Toric            | `ECRT30-M` + `ECWT30-M` + promos + FOC |
+| R13 | Monthly Fine Plus                 | `MFN+` + promos (`MHFN+`, `MHFTFC+`) |
+| R14 | Monthly Pure3                     | `MTPR3` (+ `MTPRFC3`) |
+| R15 | Monthly Pure6                     | `MTPR` (+ trial `MTPRTR`) |
+| R16 | Monthly Color UV — Pegavision     | sub-item of `MCUV` (+ `MCCB`, `MCGD`) |
+| R17 | Monthly Color UV — Blue           | sub-item of `MCUV` (+ `MCFB`, `MCFY`, `MCGLB`, `MCGLG`, `MCNB`, `MCNG`, `MCGB`, `MCNY`) |
+| R18 | Monthly Color UV — Orange         | sub-item of `MCUV` (+ `MCJD`, `MCSBR`, `MCSGY`, `MCSH`) |
+| R19 | Monthly Color UV II               | `MCUV2` + `MCIIPHRM` (+ `MCDB`, `MCDY`) |
+| R20 | Minasoft 1Day Color UV            | `MNSF10` + `MNSFPRM` + colour variants (`MNSFBG`, `MNSFRB`, `MNSFVI`) |
+| R21 | Minasoft Care UV                  | `MNSFCUV` + `MNSFCUVPRM` |
+| R22 | RGP UV-1 / UV-1 KC                | `SDUV1` + `SDUV1KC` |
+| R23 | RGP AS-Luna / O2 Noah             | `SDASL` |
+| R24 | Iris Lens                         | `SDIRIS` + `SDIRS` |
+| R25 | Ultra Vision                      | `UVSCL` + `UVSPCL` + specialty (`UVDWSH`, `UVHYS`, `UVHYST`, `UVSPL`) |
+| R26 | Breath O Correct                  | `SDBRHOC` + `SDBRHOCTC` |
+| R27 | Breath O Correct (Overseas)       | `SDBRHOCCSG` + `SDBRHOCCSG80` + `SDBRHOCCSG202/2025/2026` |
+| R28 | Wohlk KE RGP                      | `WHKE` (legacy alias `WOHLKKE`) |
+| R29 | Disop H2O2 Solution               | `SDRGPSL` |
+| R30 | Disop Ultra Eyedrop               | `SDEYEDROP` |
+| R31 | Disop Acuaiss Dual Gel Eyedrop    | description match `DISOP ACUAISS … DUAL GEL` (own row per 2026 file) |
+| R32 | Accessories / Others              | `CL` |
+| R70 | Other Income                      | `SERVICE CHARGE` (Slide 1 amount only; not on Slide 5 qty) |
+
+**Removed in 2026** (no longer on Slide 5):
+- `Wohlk Contact Life Sph` (was `WHCLS`)
+- `Wohlk Contact Life Toric` (was `WHCLA`)
 
 ## Codes to exclude (zero revenue, no mapping)
 

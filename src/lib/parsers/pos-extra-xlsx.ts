@@ -210,9 +210,11 @@ function mapStockDescription(desc: string): CanonicalProduct | null {
   if (d.startsWith("MINASOFT CARE UV")) return "Minasoft Care UV";
   if (d.startsWith("SEED BOC")) return "Breath O Correct";
   if (d.startsWith("DISOP HIDROHEALTH")) return "DISOP H2O2 Solution";
-  // "DISOP ACUAISS DUAL GEL" is its own inventory slot — handled separately in
-  // from-stock.ts — so exclude it here or it double-counts into Ultra Eyedrop.
-  if (d.startsWith("DISOP ACUAISS") && !/DUAL\s*GEL/i.test(d)) return "DISOP Ultra Eyedrop";
+  // DISOP ACUAISS DUAL GEL is its OWN Slide 5 row now (SEED Sales Summary
+  // 2026 lists it separately) — match it before the generic Ultra Eyedrop
+  // fallback so the two lines never double-count each other.
+  if (d.startsWith("DISOP ACUAISS") && /DUAL\s*GEL/i.test(d)) return "DISOP Acuaiss Dual Gel Eyedrop";
+  if (d.startsWith("DISOP ACUAISS")) return "DISOP Ultra Eyedrop";
   if (d.startsWith("SEED AS LUNA") || d.startsWith("SEED AS-LUNA")) return "As-Luna / O2 Noah";
   if (d.startsWith("SEED UV-1")) return "UV-1 / UV-1 KC";
   if (d.startsWith("SEED SOFT IRIS")) return "Iris Lens";
