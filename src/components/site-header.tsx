@@ -2,7 +2,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { FileDown, Files, Home, Menu, X } from "lucide-react";
+import { ArrowLeft, FileDown, Files, Home, Menu, X } from "lucide-react";
+
+/**
+ * External URL of the parent SEED CL Malaysia hub. The header renders a
+ * "Back to SEED CL Hub" link so this dashboard feels like a sub-app of
+ * the main store, not a standalone destination.
+ */
+const HUB_URL = "https://seedclmalaysiastore.com";
 import { ThemeToggle } from "./theme-toggle";
 import { PalettePicker } from "./palette-picker";
 import { LogoutButton } from "./logout-button";
@@ -33,6 +40,17 @@ export function SiteHeader() {
   return (
     <header className="border-b border-[var(--color-ice-200)] bg-[var(--surface-1)]/95 backdrop-blur sticky top-0 z-40">
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6">
+        {/* Back-to-parent link — desktop only. Compact and set apart from
+            the app's own brand so it reads as "leave this app". */}
+        <a
+          href={HUB_URL}
+          className="hidden md:inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)] transition whitespace-nowrap"
+          title="Back to SEED CL Hub"
+        >
+          <ArrowLeft size={14} />
+          SEED CL Hub
+        </a>
+
         <Link href="/" className="flex items-center gap-2 font-semibold min-w-0">
           <span className="inline-block h-8 w-8 rounded-md bg-[var(--color-ink-800)] text-white grid place-items-center shrink-0">
             <span className="text-[11px] tracking-widest font-bold">GM</span>
@@ -75,6 +93,16 @@ export function SiteHeader() {
       {open && (
         <div className="md:hidden absolute inset-x-0 top-full bg-[var(--surface-1)] border-t border-b border-[var(--color-ice-200)] shadow-lg animate-fadein z-40">
           <nav className="px-3 py-2 flex flex-col">
+            {/* Back-to-parent — pinned at the very top of the drawer so
+                phone users can leave the app without hunting for it. */}
+            <a
+              href={HUB_URL}
+              className="flex items-center gap-3 rounded-lg px-3 h-11 text-[15px] font-medium text-[var(--color-ink-700)] hover:bg-[var(--color-ice-100)] active:bg-[var(--color-ice-100)]"
+            >
+              <span className="text-[var(--color-ink-700)]"><ArrowLeft size={18} /></span>
+              SEED CL Hub
+            </a>
+            <div className="border-t border-[var(--color-ice-200)] mt-1 pt-1" />
             <DrawerLink href="/" icon={<Home size={18} />}>Months</DrawerLink>
             <MonthsDrawerSection />
             <div className="border-t border-[var(--color-ice-200)] mt-1 pt-1" />
