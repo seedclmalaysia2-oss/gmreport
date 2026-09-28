@@ -249,8 +249,19 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "SDASL": { product: "As-Luna / O2 Noah", divisor: 1 },
   "SDIRS": { product: "Iris Lens", divisor: 1 },
   "SDBRHOC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCTC": { product: "Breath O Correct", divisor: 1 }, "SDBRHOCCSG": { product: "Breath O Correct (Overseas)", divisor: 1 },
-  // DISOP care solutions & eyedrops
-  "SDEYEDSP10M": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPEY10S": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDEYEDSP20V": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSP20S": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPVS": { product: "DISOP Ultra Eyedrop", divisor: 1 },
+  // DISOP care solutions & eyedrops. Source-of-truth is the master-file
+  // Description text (verified against Aug26 export):
+  //   SDEYEDSP10M -> "DISOP ACUAISS ULTRA 10ml"           -> Ultra Eyedrop
+  //   SDDSPEY10S  -> "DISOP ACUAISS ULTRA 10ml SAMPLE"    -> Ultra Eyedrop
+  //   SDEYEDSP20V -> "DISOP AQUA DUAL GEL 20VL"           -> Dual Gel  (was mis-mapped as Ultra)
+  //   SDDSP20S    -> "DISOP ACUAISS DUAL GEL 20vial SAMPLE" -> Dual Gel (was mis-mapped as Ultra)
+  //   SDDSPVS     -> "DISOP ACUAISS DUAL GEL Vial SAMPLE" -> Dual Gel  (was mis-mapped as Ultra;
+  //                                                                     the "VS" suffix is "Vial Sample",
+  //                                                                     NOT "View Support" as first assumed)
+  //   SDDSP60S    -> "DISOP H202 60ML SAMPLE"             -> H2O2 Solution
+  //   SDSOLDSP    -> "DISOP HidroHealth 360ml"            -> H2O2 Solution
+  "SDEYEDSP10M": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPEY10S": { product: "DISOP Ultra Eyedrop", divisor: 1 },
+  "SDEYEDSP20V": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 }, "SDDSP20S": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 }, "SDDSPVS": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 },
   "SDSOLDSP": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDDSP60S": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDSOLCC": { product: "DISOP H2O2 Solution", divisor: 1 },
 };
 
