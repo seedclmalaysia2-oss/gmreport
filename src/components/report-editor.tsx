@@ -250,13 +250,7 @@ export function ReportEditor({
           <div className="text-xs text-[var(--color-ink-600)] uppercase tracking-widest">Editing</div>
           <h1 className="font-[var(--font-display)] text-2xl font-semibold leading-tight mt-1">{monthNameFull(report.month)} {report.year}</h1>
           <div className="mt-2 text-xs text-[var(--color-ink-600)]">
-            FX: 1 MYR ={" "}
-            <input
-              type="number" step="0.01"
-              value={report.fxRate}
-              onChange={e => update({ fxRate: Number(e.target.value) || 30.73 })}
-              className="w-16 rounded border border-[var(--color-ice-200)] px-1.5 py-0.5 text-right"
-            /> JPY
+            FX: 1 MYR = <FxRateInput value={report.fxRate} onCommit={n => update({ fxRate: n })} /> JPY
           </div>
           <button
             type="button"
@@ -366,3 +360,33 @@ export type SectionProps = {
   /** All months on file, most-recent first. Sections can reach into prior months for comparisons. */
   siblings?: MonthReport[];
 };
+
+/**
+ * FX-rate input for the sidebar. The previous inline input coerced every
+ * keystroke through `Number(v) || 30.73`, so clearing the field snapped it
+ * straight back to 30.73 mid-edit and made typing a new value impossible.
+ * This wrapper keeps a local text buffer while focused, commits a valid
+ * positive number on blur (or Enter), and refuses NaN / 0 / negative
+ * silently — the buffer is discarded and the previous value stays.
+ */
+function FxRateInput({ value, onCommit }: { value: number; onCommit: (n: number) => void }) {
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState<string>(String(value));
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={focused ? draft : String(value)}
+      onFocus={() => { setFocused(true); setDraft(String(value)); }}
+      onChange={e => setDraft(e.target.value)}
+      onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      onBlur={() => {
+        setFocused(false);
+        const n = Number(draft.replace(/,/g, "").trim());
+        if (Number.isFinite(n) && n > 0 && n !== value) onCommit(n);
+      }}
+      className="w-16 rounded border border-[var(--color-ice-200)] px-1.5 py-0.5 text-right"
+      aria-label="MYR to JPY exchange rate"
+    />
+  );
+}
