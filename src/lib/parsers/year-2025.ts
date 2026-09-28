@@ -197,6 +197,46 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
  *
  * Returns { changed } so callers can skip a no-op DB write.
  */
+/**
+ * Slide 5 qty2026 override for HQ-authoritative rows. Some Slide 5 rows are
+ * split by CUSTOMER (not by SKU code), so the master POS export cannot
+ * produce the correct qty on its own — HQ's Sales Summary workbook is the
+ * source of truth for these lines. Only listed rows are overridden; every
+ * other qty2026 stays master-derived.
+ *
+ * Current members (see memory/boc-overseas-glodisa.md):
+ *   • Breath O Correct              — non-GLODISA customers
+ *   • Breath O Correct (Overseas)   — GLODISA (Indonesia)
+ *
+ * Callable independently so that after a master-only re-import (which
+ * rebuilds salesByQuantity from scratch), the import route's summary
+ * fallback can re-apply just these rows from the newest stored summary
+ * without touching target2026 (which would trample any manual target edit).
+ */
+export function applyHqCustomerSplitRows(
+  report: MonthReport,
+  ref: Year2025Reference,
+): { changed: boolean; next: MonthReport } {
+  const HQ_OWNED_ROWS: CanonicalProduct[] = [
+    "Breath O Correct",
+    "Breath O Correct (Overseas)",
+  ];
+  const monthIdx = report.month - 1;
+  const sq = report.salesByQuantity;
+  if (!sq || !sq.rows.length) return { changed: false, next: report };
+  let rowsChanged = false;
+  const nextRows = sq.rows.map(r => {
+    if (!HQ_OWNED_ROWS.includes(r.product as CanonicalProduct)) return r;
+    const series = ref.productQty[r.product as CanonicalProduct];
+    if (!series) return r;
+    const q = series[monthIdx] ?? 0;
+    if (q !== r.qty2026) rowsChanged = true;
+    return { ...r, qty2026: q };
+  });
+  if (!rowsChanged) return { changed: false, next: report };
+  return { changed: true, next: { ...report, salesByQuantity: { ...sq, rows: nextRows } } };
+}
+
 export function applyYear2025ToReport(
   report: MonthReport,
   ref: Year2025Reference,
@@ -209,26 +249,30 @@ export function applyYear2025ToReport(
   if (ref.year === report.year) {
     const wantedTarget = [...ref.monthlyTarget];
     const hasAnyTarget = wantedTarget.some(v => v != null);
-    if (!hasAnyTarget) return { changed: false, next: report };
-
     const sa = report.salesAchievement;
-    if (sa) {
-      if (JSON.stringify(sa.target2026) !== JSON.stringify(wantedTarget)) {
-        next.salesAchievement = { ...sa, target2026: wantedTarget };
+    if (hasAnyTarget) {
+      if (sa) {
+        if (JSON.stringify(sa.target2026) !== JSON.stringify(wantedTarget)) {
+          next.salesAchievement = { ...sa, target2026: wantedTarget };
+          changed = true;
+        }
+      } else {
+        next.salesAchievement = {
+          target2026: wantedTarget,
+          actual2026: Array(12).fill(null),
+          target2025: Array(12).fill(null),
+          actual2025: Array(12).fill(null),
+          netIncome2026: Array(12).fill(null),
+          netIncome2025: Array(12).fill(null),
+          kpi: [],
+        };
         changed = true;
       }
-    } else {
-      next.salesAchievement = {
-        target2026: wantedTarget,
-        actual2026: Array(12).fill(null),
-        target2025: Array(12).fill(null),
-        actual2025: Array(12).fill(null),
-        netIncome2026: Array(12).fill(null),
-        netIncome2025: Array(12).fill(null),
-        kpi: [],
-      };
-      changed = true;
     }
+
+    // Overlay the HQ customer-split qty2026 rows (BoC pair) from the summary.
+    const boc = applyHqCustomerSplitRows(next, ref);
+    if (boc.changed) { Object.assign(next, boc.next); changed = true; }
     return { changed, next };
   }
 

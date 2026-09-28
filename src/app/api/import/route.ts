@@ -9,7 +9,7 @@ import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month
 import { monthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { applyYear2025ToReport, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
+import { applyYear2025ToReport, applyHqCustomerSplitRows, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import type { MonthReport, SectionKey, SourceFile, SourceFiles } from "@/lib/schema";
 
 import { guardDept } from "@/lib/auth";
@@ -567,20 +567,30 @@ export async function POST(req: Request): Promise<Response> {
       // current-year workbook only feeds target2026 — which a POS import never
       // clears — so re-applying it would needlessly overwrite manual target
       // edits. Skip it; upload-time fan-out and Repair still keep it in sync.
+      let current = saved;
+      let monthChanged = false;
+      // Prior-year refs feed actual2025 / qty2025 / target2025 — every field
+      // a master rebuild would have cleared.
       const priorYearRefs = storedRefs.filter(ref => ref.year === year - 1);
-      if (priorYearRefs.length) {
-        let current = saved;
-        let monthChanged = false;
-        for (const ref of priorYearRefs) {
-          const { changed, next } = applyYear2025ToReport(current, ref);
-          if (changed) { current = next; monthChanged = true; }
-        }
-        if (monthChanged) {
-          await upsertMonthReport(current);
-          revalidatePath(`/report/${saved.id}`);
-          revalidatePath("/");
-          revalidatePath("/export");
-        }
+      for (const ref of priorYearRefs) {
+        const { changed, next } = applyYear2025ToReport(current, ref);
+        if (changed) { current = next; monthChanged = true; }
+      }
+      // Current-year refs are handled selectively: we ONLY re-overlay the
+      // HQ customer-split rows (BoC pair) so a master-only reimport keeps
+      // Slide 5 correct. target2026 is deliberately NOT re-applied here so
+      // manual target edits survive a POS re-run — the full workbook re-
+      // upload path still updates target2026 as before.
+      const currYearRefs = storedRefs.filter(ref => ref.year === year);
+      for (const ref of currYearRefs) {
+        const { changed, next } = applyHqCustomerSplitRows(current, ref);
+        if (changed) { current = next; monthChanged = true; }
+      }
+      if (monthChanged) {
+        await upsertMonthReport(current);
+        revalidatePath(`/report/${saved.id}`);
+        revalidatePath("/");
+        revalidatePath("/export");
       }
     } catch (e) {
       // Never fail the import over a reference re-sync — the POS data is
