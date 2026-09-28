@@ -122,16 +122,14 @@ the ref_2025 apply step matches by label and silently drops mismatches.
 | R25 | Ultra Vision                      | `UVSCL` + `UVSPCL` + specialty (`UVDWSH`, `UVHYS`, `UVHYST`, `UVSPL`) |
 | R26 | Breath O Correct                  | `SDBRHOC` + `SDBRHOCTC` |
 | R27 | Breath O Correct (Overseas)       | `SDBRHOCCSG` + `SDBRHOCCSG80` + `SDBRHOCCSG202/2025/2026` |
-| R28 | Wohlk KE RGP                      | `WHKE` (legacy alias `WOHLKKE`) |
-| R29 | Disop H2O2 Solution               | `SDRGPSL` |
-| R30 | Disop Ultra Eyedrop               | `SDEYEDROP` |
-| R31 | Disop Acuaiss Dual Gel Eyedrop    | description match `DISOP ACUAISS … DUAL GEL` (own row per 2026 file) |
-| R32 | Accessories / Others              | `CL` |
+| R28 | Wohlk Contact Life Sph            | `WHCLS` (+ `WHCLSFC`) |
+| R29 | Wohlk Contact Life Toric          | `WHCLA` (+ `WHCLAFC`) — base code inferred from `WHCLAT` |
+| R30 | Wohlk KE RGP                      | `WHKE` (legacy alias `WOHLKKE`) |
+| R31 | Disop H2O2 Solution               | `SDRGPSL` |
+| R32 | Disop Ultra Eyedrop               | `SDEYEDROP` |
+| R33 | Disop Acuaiss Dual Gel Eyedrop    | description match `DISOP ACUAISS … DUAL GEL` (own row per 2026 file) |
+| R34 | Accessories / Others              | `CL` |
 | R70 | Other Income                      | `SERVICE CHARGE` (Slide 1 amount only; not on Slide 5 qty) |
-
-**Removed in 2026** (no longer on Slide 5):
-- `Wohlk Contact Life Sph` (was `WHCLS`)
-- `Wohlk Contact Life Toric` (was `WHCLA`)
 
 ## Codes to exclude (zero revenue, no mapping)
 

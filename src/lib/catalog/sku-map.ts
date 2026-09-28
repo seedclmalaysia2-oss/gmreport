@@ -54,12 +54,16 @@ export const SKU_MAP: Record<string, CanonicalProduct> = {
   "SDBRHOCCSG2025": "Breath O Correct (Overseas)",
   "SDBRHOCCSG2026": "Breath O Correct (Overseas)",
 
-  // Wohlk. The POS emits the short code WHKE; "WOHLKKE" is kept as a legacy
-  // alias (it never appeared in a real export, which is why Wohlk KE printed
-  // 0 while WHKE sat in the unmapped drawer). The Sph / Toric contact-life
-  // lines were dropped in the 2026 Sales Summary — no longer canonical rows.
+  // Wohlk. The POS emits the short codes WHKE / WHCLS / WHCLA; "WOHLKKE" is
+  // kept as a legacy alias (it never appeared in a real export, which is why
+  // Wohlk KE printed 0 while WHKE sat in the unmapped drawer).
   "WHKE":      "Wohlk KE RGP",
   "WOHLKKE":   "Wohlk KE RGP",
+  "WHCLS":     "Wohlk Contact Life Sph",
+  // Base code for the toric line is inferred from the observed trial code
+  // "WHCLAT" (Wohlk C.Life Toric trial lens) — no paid toric row has been
+  // seen yet. If the real base code differs it will surface as unmapped.
+  "WHCLA":     "Wohlk Contact Life Toric",
 
   "SDRGPSL":   "DISOP H2O2 Solution",
   "SDEYEDROP": "DISOP Ultra Eyedrop",
