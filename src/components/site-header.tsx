@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, FileDown, Files, Home, Menu, X } from "lucide-react";
+import { FileDown, Files, Home, Menu, X } from "lucide-react";
 
 /**
  * External URL of the parent SEED CL Malaysia hub. The header renders a
@@ -40,15 +40,17 @@ export function SiteHeader() {
   return (
     <header className="border-b border-[var(--color-ice-200)] bg-[var(--surface-1)]/95 backdrop-blur sticky top-0 z-40">
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6">
-        {/* Back-to-parent link — desktop only. Compact and set apart from
-            the app's own brand so it reads as "leave this app". */}
+        {/* Back-to-parent link — desktop only. Pill matches the SEED CL
+            Malaysia Sales Performance Dashboard's own hub button (rounded
+            border, house icon), so users see the same chip in the same
+            visual language across both apps. */}
         <a
           href={HUB_URL}
-          className="hidden md:inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)] transition whitespace-nowrap"
+          className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[var(--color-ice-200)] bg-white px-3 py-1.5 text-[13px] font-medium text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)] hover:border-[var(--color-ice-300)] transition whitespace-nowrap shadow-sm"
           title="Back to SEED CL Hub"
         >
-          <ArrowLeft size={14} />
-          SEED CL Hub
+          <Home size={14} />
+          SEED CL HUB
         </a>
 
         <Link href="/" className="flex items-center gap-2 font-semibold min-w-0">
@@ -97,10 +99,10 @@ export function SiteHeader() {
                 phone users can leave the app without hunting for it. */}
             <a
               href={HUB_URL}
-              className="flex items-center gap-3 rounded-lg px-3 h-11 text-[15px] font-medium text-[var(--color-ink-700)] hover:bg-[var(--color-ice-100)] active:bg-[var(--color-ice-100)]"
+              className="flex items-center gap-3 rounded-lg px-3 h-11 text-[15px] font-medium text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)] active:bg-[var(--color-ice-100)]"
             >
-              <span className="text-[var(--color-ink-700)]"><ArrowLeft size={18} /></span>
-              SEED CL Hub
+              <span className="text-[var(--color-ink-700)]"><Home size={18} /></span>
+              SEED CL HUB
             </a>
             <div className="border-t border-[var(--color-ice-200)] mt-1 pt-1" />
             <DrawerLink href="/" icon={<Home size={18} />}>Months</DrawerLink>
