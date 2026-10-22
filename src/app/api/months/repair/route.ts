@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { listMonthReports, upsertMonthReport } from "@/lib/month-report";
 import { prisma } from "@/lib/db";
-import { applyYear2025ToReport, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
+import { applyYear2025ToReport, compareWithSummary, formatDriftWarnings, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
 import { REGIONS } from "@/lib/catalog/mappings";
@@ -336,6 +336,16 @@ export async function POST() {
     if (changed) {
       await upsertMonthReport(healed);
     }
+
+    // Drift verifier — compare the healed Slide 5 / Slide 6 against this
+    // month's own-year Summary workbook, so Repair surfaces any new POS
+    // code or lumping issue right alongside the healing notes.
+    const sameYearRef = summaryRefs.find(ref => ref.year === m.year);
+    if (sameYearRef) {
+      const drifts = compareWithSummary(healed, sameYearRef);
+      for (const line of formatDriftWarnings(drifts)) notes.push(line);
+    }
+
     results.push({ id: m.id, changed, notes });
     priorHealed = healed;
   }

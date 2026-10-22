@@ -427,3 +427,102 @@ export function applyYear2025ToReport(
 
   return { changed, next };
 }
+
+// ----------------------------------------------------------------------------
+// Drift verifier
+//
+// After the master-driven aggregation and the HQ-owned-row override have run,
+// compare each Slide 5 qty and Slide 6 MYR against the Sales Summary workbook
+// row-by-row. Any product the Summary has a value for and whose dashboard
+// figure differs by more than a tolerance is flagged — this catches:
+//
+//   • New POS SKU codes that haven't been added to SKU_MAP / SKU_LEVEL_MAP
+//     yet (e.g. MCGBT when the Gold Brown trial first appeared in Aug 2026).
+//   • Group-level master exports lumping a family into one bucket
+//     (e.g. aggregated MCUV → Pegavision) for a product not in HQ_OWNED_ROWS.
+//   • Rename / renumber of an existing code so it stops matching.
+//
+// This is a SAFETY NET, not an override — the dashboard figures are not
+// changed by this call. Callers surface the drifts as warnings so the owner
+// knows a code or mapping needs attention. Returns an empty array when:
+//   • ref is for a different year (prior-year or future-year)
+//   • ref has no data for this month
+//   • no rows drift beyond tolerance
+// ----------------------------------------------------------------------------
+export interface SummaryDrift {
+  product: string;
+  dashboardQty: number;
+  summaryQty: number | null;
+  dashboardMyr: number;
+  summaryMyr: number | null;
+  qtyDiff: number;
+  myrDiff: number;
+  likelyCause: string;
+}
+
+export function compareWithSummary(
+  report: MonthReport,
+  ref: Year2025Reference,
+  opts: { qtyAbsTolerance?: number; qtyRelTolerance?: number; myrRelTolerance?: number } = {},
+): SummaryDrift[] {
+  if (ref.year !== report.year) return [];
+  const monthIdx = report.month - 1;
+  const qtyAbs = opts.qtyAbsTolerance ?? 5;   // ignore sub-5-unit differences
+  const qtyRel = opts.qtyRelTolerance ?? 0.05; // ...OR sub-5% differences
+  const myrRel = opts.myrRelTolerance ?? 0.02; // 2% MYR tolerance
+
+  const myrByProduct = new Map(
+    (report.topProducts?.rows ?? []).map(r => [r.product, r.myr]),
+  );
+  const drifts: SummaryDrift[] = [];
+  for (const row of report.salesByQuantity?.rows ?? []) {
+    const summaryQty = ref.productQty[row.product as CanonicalProduct]?.[monthIdx] ?? null;
+    const summaryMyr = ref.productAmount[row.product as CanonicalProduct]?.[monthIdx] ?? null;
+    const dashboardQty = row.qty2026;
+    const dashboardMyr = myrByProduct.get(row.product) ?? 0;
+
+    let qtyDrifted = false;
+    if (summaryQty != null) {
+      const diff = Math.abs(dashboardQty - summaryQty);
+      const rel = summaryQty !== 0 ? diff / Math.abs(summaryQty) : (dashboardQty !== 0 ? 1 : 0);
+      qtyDrifted = diff > qtyAbs && rel > qtyRel;
+    }
+    let myrDrifted = false;
+    if (summaryMyr != null && summaryMyr > 0) {
+      myrDrifted = Math.abs(dashboardMyr - summaryMyr) / summaryMyr > myrRel;
+    }
+    if (!qtyDrifted && !myrDrifted) continue;
+
+    // Best-guess hint — the owner reads this in the warning.
+    let likelyCause: string;
+    if (summaryQty === 0 && dashboardQty > qtyAbs) {
+      likelyCause = "dashboard has activity for a product HQ reports zero — likely a POS code mis-routed into this bucket";
+    } else if (summaryQty != null && summaryQty > 0 && dashboardQty === 0) {
+      likelyCause = "dashboard shows zero while HQ reports activity — likely an unmapped SKU code or group-level export missing from the catalog";
+    } else {
+      likelyCause = "dashboard and HQ disagree — check for new POS codes, trial-lens pack-size changes, or FOC/sample rows";
+    }
+    drifts.push({
+      product: row.product,
+      dashboardQty, summaryQty, dashboardMyr, summaryMyr,
+      qtyDiff: summaryQty != null ? dashboardQty - summaryQty : 0,
+      myrDiff: summaryMyr != null ? dashboardMyr - summaryMyr : 0,
+      likelyCause,
+    });
+  }
+  return drifts;
+}
+
+/** Format a drift list as human-readable warning strings for the UI. */
+export function formatDriftWarnings(drifts: SummaryDrift[]): string[] {
+  return drifts.map(d => {
+    const parts: string[] = [];
+    if (d.summaryQty != null) {
+      parts.push(`qty ${d.dashboardQty.toLocaleString()} vs HQ ${d.summaryQty.toLocaleString()}`);
+    }
+    if (d.summaryMyr != null && d.summaryMyr > 0) {
+      parts.push(`MYR ${d.dashboardMyr.toFixed(0)} vs HQ ${d.summaryMyr.toFixed(0)}`);
+    }
+    return `Slide 5/6 drift — ${d.product}: ${parts.join(", ")}. ${d.likelyCause}.`;
+  });
+}

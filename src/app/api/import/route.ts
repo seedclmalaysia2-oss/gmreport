@@ -9,7 +9,7 @@ import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month
 import { monthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { applyYear2025ToReport, applyHqCustomerSplitRows, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
+import { applyYear2025ToReport, applyHqCustomerSplitRows, compareWithSummary, formatDriftWarnings, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import type { MonthReport, SectionKey, SourceFile, SourceFiles } from "@/lib/schema";
 
 import { guardDept } from "@/lib/auth";
@@ -600,6 +600,47 @@ export async function POST(req: Request): Promise<Response> {
       // already saved. Worst case the user can still click Repair.
       console.error("[import] failed to re-apply on-file Sales Summary references:", e);
     }
+  }
+
+  // ----- Drift verifier -----
+  // After everything is persisted, compare the final Slide 5 / Slide 6
+  // figures against the current-year Sales Summary workbook (either from
+  // this upload or from the on-file ref). Flag any product the Summary has
+  // a value for whose dashboard figure drifts beyond tolerance — catches
+  // new unmapped POS codes, group-level export lumping, and renamed codes
+  // the day they ship, instead of weeks later when the deck is reviewed.
+  //
+  // This is a WARNING, not a fix. The owner reads the warning and decides
+  // whether to add a mapping, upload a missing colour PDF, or confirm the
+  // discrepancy is expected.
+  try {
+    const finalReport = await getMonthReport(year, month);
+    if (finalReport) {
+      let driftRef: Year2025Reference | undefined =
+        summaryRefs.find(r => r.year === year);
+      if (!driftRef) {
+        // Fall back to any on-file current-year Summary (the master-only
+        // reimport path uses this same lookup).
+        const storedRefRows = await prisma.rawFile.findMany({
+          where: { kind: "ref_2025", deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          select: { bytes: true },
+        });
+        for (const r of storedRefRows) {
+          if (!r.bytes) continue;
+          try {
+            const parsed = parse2025Summary(new Uint8Array(r.bytes));
+            if (parsed.year === year) { driftRef = parsed; break; }
+          } catch { /* ignore */ }
+        }
+      }
+      if (driftRef) {
+        const drifts = compareWithSummary(finalReport, driftRef);
+        for (const line of formatDriftWarnings(drifts)) warnings.push(line);
+      }
+    }
+  } catch (e) {
+    console.error("[import] drift verifier failed:", e);
   }
 
   const result: ImportResult = {
