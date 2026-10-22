@@ -586,8 +586,9 @@ export async function POST(req: Request): Promise<Response> {
       // target2026 as before.
       const currYearRefs = storedRefs.filter(ref => ref.year === year);
       for (const ref of currYearRefs) {
-        const { changed, next } = applyHqCustomerSplitRows(current, ref);
+        const { changed, next, corrections } = applyHqCustomerSplitRows(current, ref);
         if (changed) { current = next; monthChanged = true; }
+        for (const line of corrections) warnings.push(line);
       }
       if (monthChanged) {
         await upsertMonthReport(current);

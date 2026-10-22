@@ -249,7 +249,7 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
 export function applyHqCustomerSplitRows(
   report: MonthReport,
   ref: Year2025Reference,
-): { changed: boolean; next: MonthReport } {
+): { changed: boolean; next: MonthReport; corrections: string[] } {
   const HQ_OWNED_ROWS: CanonicalProduct[] = [
     "Breath O Correct",
     "Breath O Correct (Overseas)",
@@ -261,17 +261,34 @@ export function applyHqCustomerSplitRows(
   const sq = report.salesByQuantity;
   const tp = report.topProducts;
   let changed = false;
+  const corrections: string[] = [];
 
   // ----- Slide 5 qty override -----
+  // Self-healing: if the saved sq.rows doesn't include a HQ-owned product row
+  // (common when the sales-by-quantity section was first saved before the row
+  // existed in CANONICAL_PRODUCTS, or when a POS master import skipped a
+  // zero-sum row), we ADD the row before overriding. Without this patch
+  // Repair would silently no-op the override for the missing rows and the
+  // Summary-driven split would never land.
   let nextSq = sq;
-  if (sq && sq.rows.length) {
-    let sqChanged = false;
-    const nextRows = sq.rows.map(r => {
+  if (sq) {
+    const existingProducts = new Set(sq.rows.map(r => r.product));
+    const missingHqRows: { product: string; qty2026: number; qty2025: number }[] = [];
+    for (const p of HQ_OWNED_ROWS) {
+      if (!existingProducts.has(p)) missingHqRows.push({ product: p, qty2026: 0, qty2025: 0 });
+    }
+    const baseRows = missingHqRows.length ? [...sq.rows, ...missingHqRows] : sq.rows;
+
+    let sqChanged = missingHqRows.length > 0;
+    const nextRows = baseRows.map(r => {
       if (!HQ_OWNED_ROWS.includes(r.product as CanonicalProduct)) return r;
       const series = ref.productQty[r.product as CanonicalProduct];
       if (!series) return r;
       const q = series[monthIdx] ?? 0;
-      if (q !== r.qty2026) sqChanged = true;
+      if (q !== r.qty2026) {
+        sqChanged = true;
+        corrections.push(`HQ Summary override — ${r.product}: qty ${r.qty2026.toLocaleString()}→${q.toLocaleString()}`);
+      }
       return { ...r, qty2026: q };
     });
     if (sqChanged) { nextSq = { ...sq, rows: nextRows }; changed = true; }
@@ -312,11 +329,18 @@ export function applyHqCustomerSplitRows(
           .sort((a, b) => b.myr - a.myr);
         nextTp = { rows: withPct, totalMyr, commentary: tp.commentary };
         changed = true;
+        for (const o of overrides) {
+          const prior = tp.rows.find(r => r.product === o.product);
+          const priorMyr = prior?.myr ?? 0;
+          if (Math.abs(priorMyr - o.myr) > 0.5) {
+            corrections.push(`HQ Summary override — ${o.product}: MYR ${priorMyr.toFixed(0)}→${o.myr.toFixed(0)}`);
+          }
+        }
       }
     }
   }
 
-  if (!changed) return { changed: false, next: report };
+  if (!changed) return { changed: false, next: report, corrections };
   return {
     changed: true,
     next: {
@@ -324,16 +348,18 @@ export function applyHqCustomerSplitRows(
       ...(nextSq !== sq ? { salesByQuantity: nextSq! } : {}),
       ...(nextTp !== tp ? { topProducts: nextTp! } : {}),
     },
+    corrections,
   };
 }
 
 export function applyYear2025ToReport(
   report: MonthReport,
   ref: Year2025Reference,
-): { changed: boolean; next: MonthReport } {
+): { changed: boolean; next: MonthReport; corrections?: string[] } {
   const monthIdx = report.month - 1;
   let changed = false;
   const next: MonthReport = { ...report };
+  let corrections: string[] | undefined;
 
   // ----- CURRENT-year file (target workbook) -----
   if (ref.year === report.year) {
@@ -363,7 +389,8 @@ export function applyYear2025ToReport(
     // Overlay the HQ customer-split qty2026 rows (BoC pair) from the summary.
     const boc = applyHqCustomerSplitRows(next, ref);
     if (boc.changed) { Object.assign(next, boc.next); changed = true; }
-    return { changed, next };
+    if (boc.corrections.length) corrections = boc.corrections;
+    return { changed, next, corrections };
   }
 
   // ----- PRIOR-year file (2025 reference) -----

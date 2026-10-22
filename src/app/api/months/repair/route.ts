@@ -307,6 +307,9 @@ export async function POST() {
           : "2025 comparison columns filled from Sales Summary reference");
         changed = true;
       }
+      if (r.corrections?.length) {
+        for (const line of r.corrections) notes.push(line);
+      }
     }
 
     const sa = healSalesAchievement(filled.salesAchievement);
