@@ -50,18 +50,33 @@ and is applied during aggregation in [`src/lib/aggregation/index.ts`](../src/lib
 | `ECTR`       | `EC10-M`            | 10 |
 | `MNSFTR`     | `MNSF10`            | 10 |
 
-### ÷2
+### ÷2 (MonthlyColour trial pieces)
+
+MCUV shade trials (one physical lens piece) roll into their colour-box
+parent at ÷2. The full list of trial SKUs mapped at the SKU level lives
+in `SKU_LEVEL_MAP` (`src/lib/catalog/sku-map.ts`); the group-level
+fallbacks are:
 
 | Code | Parent | Divisor |
 |---|---|---|
-| `MCUV2T`   | `MCUV2` | 2 |
-| `MCUVT`    | `MCUV`  | 2 |
+| `MCUV2T`   | `MCUV2` (II) | 2 |
+| `MCUVT`    | `MCUV` (Pegavision rollup when colour PDFs absent) | 2 |
+
+SKU-level trial pieces (one entry per shade): `MCCBT`, `MCGDT`, `MCGBT`
+→ Pegavision; `MCNBT`, `MCNYT`, `MCGLBT`, `MCGLGT` → Blue; `MCJDT`,
+`MCSGYT`, `MCSHT` → Orange; `MCDBT`, `MCDYT` → UV II. All ÷2.
 
 ### ÷3
 
 | Code | Parent | Divisor |
 |---|---|---|
 | `MNSFCUVTR` | `MNSFCUV` | 3 |
+
+### ÷20 (DISOP vial-sample pack-equivalence)
+
+| Code | Parent | Divisor |
+|---|---|---|
+| `SDDSPVS` | `DISOP Acuaiss Dual Gel Eyedrop` (individual vial sample; retail unit = 20-vial pack) | 20 |
 
 ## PRM → Parent (full quantity, no divisor)
 
@@ -122,8 +137,8 @@ the ref_2025 apply step matches by label and silently drops mismatches.
 | R25 | Ultra Vision                      | `UVSCL` + `UVSPCL` + specialty (`UVDWSH`, `UVHYS`, `UVHYST`, `UVSPL`) |
 | R26 | Breath O Correct                  | `SDBRHOC` + `SDBRHOCTC` |
 | R27 | Breath O Correct (Overseas)       | `SDBRHOCCSG` + `SDBRHOCCSG80` + `SDBRHOCCSG202/2025/2026` |
-| R28 | Wohlk Contact Life Sph            | `WHCLS` (+ `WHCLSFC`) |
-| R29 | Wohlk Contact Life Toric          | `WHCLA` (+ `WHCLAFC`) — base code inferred from `WHCLAT` |
+| R28 | Wohlk Contact Life Sph            | `WHCLS` + `WHCLSFC` + `WHCLST` (trial lens = 1 physical try-on lens, ÷1) |
+| R29 | Wohlk Contact Life Toric          | `WHCLA` + `WHCLAFC` + `WHCLAT` (trial lens ÷1) — base code inferred from `WHCLAT` |
 | R30 | Wohlk KE RGP                      | `WHKE` (legacy alias `WOHLKKE`) |
 | R31 | Disop H2O2 Solution               | `SDRGPSL` |
 | R32 | Disop Ultra Eyedrop               | `SDEYEDROP` |

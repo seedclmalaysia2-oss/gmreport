@@ -208,6 +208,15 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
  *   • Breath O Correct              — non-GLODISA customers
  *   • Breath O Correct (Overseas)   — GLODISA (Indonesia)
  *
+ * NOT included: Wohlk KE RGP. HQ's Summary workbook has only one Wohlk row
+ * ("Wohlk KE RGP") that absorbs every Wohlk product's sales, while the
+ * dashboard splits Wohlk into three canonical rows (Sph / Toric / KE RGP).
+ * Overriding "Wohlk KE RGP" from the Summary double-counts whatever the
+ * master already attributed to Sph / Toric. Leaving it master-driven keeps
+ * the three Wohlk lines coherent; the master's qty2026 and the Summary's
+ * total agree row-by-row (e.g. Aug 2026: master WHCLS 7 → Sph 7, Summary
+ * "Wohlk KE RGP" 7 — same 7 units, just under a different HQ label).
+ *
  * Callable independently so that after a master-only re-import (which
  * rebuilds salesByQuantity from scratch), the import route's summary
  * fallback can re-apply just these rows from the newest stored summary

@@ -231,13 +231,16 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "MCFB": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCFBFC": { product: "MonthlyColour UV - Blue", divisor: 1 },
   "MCFY": { product: "MonthlyColour UV - Blue", divisor: 1 }, "MCFYFC": { product: "MonthlyColour UV - Blue", divisor: 1 },
   // MonthlyColour UV — Orange box
-  "MCJD": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCJDFC": { product: "MonthlyColour UV - Orange", divisor: 1 },
+  "MCJD": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCJDFC": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCJDT": { product: "MonthlyColour UV - Orange", divisor: 2 },
   "MCSBR": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSBRFC": { product: "MonthlyColour UV - Orange", divisor: 1 },
-  "MCSGY": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSGYFC": { product: "MonthlyColour UV - Orange", divisor: 1 },
+  "MCSGY": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSGYFC": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSGYT": { product: "MonthlyColour UV - Orange", divisor: 2 },
   "MCSH": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSHFC": { product: "MonthlyColour UV - Orange", divisor: 1 }, "MCSHT": { product: "MonthlyColour UV - Orange", divisor: 2 },
-  // MonthlyColour UV — Pegavision box (leftover shades)
+  // MonthlyColour UV — Pegavision box (leftover shades). Gold Brown and Pink
+  // Brown base/FOC codes still unknown (none seen in any export yet) — only
+  // the trial code MCGBT ("MC-GOLD BRN Trial") has surfaced so far (Aug 2026).
   "MCCB": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCCBFC": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCCBT": { product: "MonthlyColour UV - Pegavision", divisor: 2 },
   "MCGD": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCGDFC": { product: "MonthlyColour UV - Pegavision", divisor: 1 }, "MCGDT": { product: "MonthlyColour UV - Pegavision", divisor: 2 },
+  "MCGBT": { product: "MonthlyColour UV - Pegavision", divisor: 2 },
   // MonthlyColour UV II
   "MCDB": { product: "MonthlyColour UV II", divisor: 1 }, "MCDBFC": { product: "MonthlyColour UV II", divisor: 1 }, "MCDBT": { product: "MonthlyColour UV II", divisor: 2 },
   "MCDY": { product: "MonthlyColour UV II", divisor: 1 }, "MCDYFC": { product: "MonthlyColour UV II", divisor: 1 }, "MCDYT": { product: "MonthlyColour UV II", divisor: 2 },
@@ -247,6 +250,18 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   "MNSFCUV": { product: "Minasoft Care UV", divisor: 1 }, "MNSFCUV-T": { product: "Minasoft Care UV", divisor: 3 },
   // Ultra Vision specialty series
   "UVAVMT": { product: "Ultra Vision", divisor: 1 }, "UVAVT": { product: "Ultra Vision", divisor: 1 }, "UVBDSP": { product: "Ultra Vision", divisor: 1 }, "UVDWSH": { product: "Ultra Vision", divisor: 1 }, "UVHYST": { product: "Ultra Vision", divisor: 1 }, "UVHYMT": { product: "Ultra Vision", divisor: 1 }, "UVKRIC": { product: "Ultra Vision", divisor: 1 }, "UVKRTH": { product: "Ultra Vision", divisor: 1 }, "UVSPL": { product: "Ultra Vision", divisor: 1 },
+  // Wohlk Contact Life (specialty RGP). A "trial lens" here is ONE physical
+  // try-on lens, not a pack trial — the sellable unit is also one lens — so
+  // the trial code (…T) rolls into the parent at FULL qty, not with a pack
+  // divisor. Without this entry WHCLST would hit the generic trial-exclusion
+  // fallback (T suffix on a known base → dropped), which is wrong for Wohlk.
+  "WHCLS":   { product: "Wohlk Contact Life Sph", divisor: 1 },
+  "WHCLSFC": { product: "Wohlk Contact Life Sph", divisor: 1 },
+  "WHCLST":  { product: "Wohlk Contact Life Sph", divisor: 1 },
+  "WHCLA":   { product: "Wohlk Contact Life Toric", divisor: 1 },
+  "WHCLAFC": { product: "Wohlk Contact Life Toric", divisor: 1 },
+  "WHCLAT":  { product: "Wohlk Contact Life Toric", divisor: 1 },
+  "WHKE":    { product: "Wohlk KE RGP", divisor: 1 },
   // RGP / hard lens / drops
   "SDUV1": { product: "UV-1 / UV-1 KC", divisor: 1 }, "SDUV1KC": { product: "UV-1 / UV-1 KC", divisor: 1 },
   "SDASL": { product: "As-Luna / O2 Noah", divisor: 1 },
@@ -267,7 +282,13 @@ export const SKU_LEVEL_MAP: Record<string, { product: CanonicalProduct; divisor:
   //   SDDSP60S    -> "DISOP H202 60ML SAMPLE"             -> H2O2 Solution
   //   SDSOLDSP    -> "DISOP HidroHealth 360ml"            -> H2O2 Solution
   "SDEYEDSP10M": { product: "DISOP Ultra Eyedrop", divisor: 1 }, "SDDSPEY10S": { product: "DISOP Ultra Eyedrop", divisor: 1 },
-  "SDEYEDSP20V": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 }, "SDDSP20S": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 }, "SDDSPVS": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 },
+  // SDDSPVS reports individual "Vial SAMPLE" vials — the sellable Dual Gel
+  // pack is 20 vials (SDEYEDSP20V), so 20 free vials count as one pack-
+  // equivalent (owner's HQ Sales Summary rule, verified Aug 2026: master
+  // SDDSPVS 1,845 ÷ 20 = 92 units → total Dual Gel 160 + 26 + 92 = 278,
+  // matches HQ's reported Aug qty). SDDSP20S is already a 20-vial sample
+  // pack, so it stays at divisor 1.
+  "SDEYEDSP20V": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 }, "SDDSP20S": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 1 }, "SDDSPVS": { product: "DISOP Acuaiss Dual Gel Eyedrop", divisor: 20 },
   "SDSOLDSP": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDDSP60S": { product: "DISOP H2O2 Solution", divisor: 1 }, "SDSOLCC": { product: "DISOP H2O2 Solution", divisor: 1 },
 };
 
