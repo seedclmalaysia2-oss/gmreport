@@ -12,13 +12,17 @@
 
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { listMonthReports, upsertMonthReport } from "@/lib/month-report";
+import { listMonthReports, upsertMonthReport, getMonthReport } from "@/lib/month-report";
 import { prisma } from "@/lib/db";
 import { applyYear2025ToReport, autoFixDriftFromSummary, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
 import { REGIONS } from "@/lib/catalog/mappings";
 import { mergeSalesAchievementChain } from "@/lib/sales-achievement-chain";
+import { parseMasterXlsx } from "@/lib/parsers/pos-xlsx";
+import { parsePosPdf } from "@/lib/parsers/pos-pdf";
+import { salesByQuantity as computeSalesByQuantity, topProducts as computeTopProducts, priorYearQtyLookup } from "@/lib/aggregation";
+import type { PosMasterParseResult, PosMcuvParseResult } from "@/lib/parsers/pos-pdf";
 
 import { guardDept } from "@/lib/auth";
 type RepairReport = {
@@ -303,6 +307,71 @@ export async function POST() {
     if (carry.notes.length) {
       notes.push(...carry.notes);
       changed = true;
+    }
+
+    // Step 0b.5 — RE-PARSE stored master + MCUV files for this month and
+    // rebuild salesByQuantity + topProducts from scratch using the CURRENT
+    // catalog. This is what makes Repair idempotent against SKU-map changes:
+    // whenever we add a new MCUV shade code, DISOP divisor, or Wohlk variant,
+    // one click of Repair re-processes every month's stored master through
+    // the new rules — without the owner having to re-upload each file.
+    try {
+      const rawFiles = await prisma.rawFile.findMany({
+        where: { monthReportId: m.id, deletedAt: null, kind: { in: ["pos_master", "pos_mcuv"] } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, kind: true, originalName: true, bytes: true },
+      });
+      // Keep only the most-recent master and ALL mcuv files (one per colour).
+      const latestMaster = rawFiles.find(r => r.kind === "pos_master" && r.bytes);
+      const mcuvFiles = rawFiles.filter(r => r.kind === "pos_mcuv" && r.bytes);
+      if (latestMaster?.bytes) {
+        let master: PosMasterParseResult | null = null;
+        try {
+          const buf = new Uint8Array(latestMaster.bytes).buffer as ArrayBuffer;
+          const name = latestMaster.originalName.toLowerCase();
+          if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+            master = parseMasterXlsx(buf);
+          } else if (name.endsWith(".pdf")) {
+            const parsed = await parsePosPdf(new Uint8Array(latestMaster.bytes), latestMaster.originalName);
+            if (parsed.kind === "master") master = parsed;
+          }
+        } catch (e) {
+          notes.push(`Could not re-parse stored master "${latestMaster.originalName}": ${e instanceof Error ? e.message : "unknown error"}`);
+        }
+        const mcuv: PosMcuvParseResult[] = [];
+        for (const f of mcuvFiles) {
+          if (!f.bytes) continue;
+          try {
+            const parsed = await parsePosPdf(new Uint8Array(f.bytes), f.originalName);
+            if (parsed.kind === "mcuv") mcuv.push(parsed);
+          } catch { /* ignore per-file parse errors */ }
+        }
+        if (master) {
+          const prior = await getMonthReport(m.year - 1, m.month);
+          const priorQty = priorYearQtyLookup(prior?.salesByQuantity ?? null);
+          const newSq = computeSalesByQuantity(master, mcuv, priorQty);
+          const newTp = computeTopProducts(master, mcuv);
+          // Preserve any manual commentary the user typed on the slide —
+          // only the rows get rebuilt from the stored master.
+          const priorSqCommentary = filled.salesByQuantity?.commentary ?? "";
+          const priorTpCommentary = filled.topProducts?.commentary ?? "";
+          const sqOld = JSON.stringify(filled.salesByQuantity?.rows ?? []);
+          const sqNew = JSON.stringify(newSq.rows);
+          const tpOld = JSON.stringify(filled.topProducts?.rows ?? []);
+          const tpNew = JSON.stringify(newTp.rows);
+          if (sqOld !== sqNew || tpOld !== tpNew) {
+            filled = {
+              ...filled,
+              salesByQuantity: { ...newSq, commentary: priorSqCommentary },
+              topProducts: { ...newTp, commentary: priorTpCommentary },
+            };
+            notes.push(`Rebuilt Slide 5 + Slide 6 from stored master "${latestMaster.originalName}" (${mcuv.length} MCUV colour PDF(s))`);
+            changed = true;
+          }
+        }
+      }
+    } catch (e) {
+      notes.push(`Re-parse step failed: ${e instanceof Error ? e.message : "unknown error"}`);
     }
 
     // Step 0c — apply every Sales Summary reference on file. Each ref's year
