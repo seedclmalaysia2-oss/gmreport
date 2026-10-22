@@ -32,6 +32,9 @@ export type Year2025Reference = {
   /** Per-canonical-product 12-month unit series — Slide 5 qty2025 (only
    *  applied when the file is a prior-year reference). */
   productQty: Partial<Record<CanonicalProduct, (number | null)[]>>;
+  /** Per-canonical-product 12-month MYR series — used to override Slide 6's
+   *  Top Products MYR for HQ-owned rows (same list as productQty). */
+  productAmount: Partial<Record<CanonicalProduct, (number | null)[]>>;
 };
 
 // The workbook's QUANTITY-section product labels → CanonicalProduct.
@@ -102,6 +105,7 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
   const monthlySales: (number | null)[] = Array(12).fill(null);
   const monthlyTarget: (number | null)[] = Array(12).fill(null);
   const productQty: Year2025Reference["productQty"] = {};
+  const productAmount: Year2025Reference["productAmount"] = {};
 
   // ----- Detect the year from the title row -----
   // The file's title looks like:
@@ -167,9 +171,15 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
       const canonical = NAME_MAP[norm(first)];
       if (canonical) productQty[canonical] = monthly;
     }
+    // Per-product MYR row (same product labels as the QUANTITY block, just
+    // with the MYR amounts rather than units).
+    if (section === "amount") {
+      const canonical = NAME_MAP[norm(first)];
+      if (canonical) productAmount[canonical] = monthly;
+    }
   }
 
-  return { year: detectedYear, monthlySales, monthlyQty, monthlyTarget, productQty };
+  return { year: detectedYear, monthlySales, monthlyQty, monthlyTarget, productQty, productAmount };
 }
 
 /**
@@ -198,15 +208,25 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
  * Returns { changed } so callers can skip a no-op DB write.
  */
 /**
- * Slide 5 qty2026 override for HQ-authoritative rows. Some Slide 5 rows are
- * split by CUSTOMER (not by SKU code), so the master POS export cannot
- * produce the correct qty on its own — HQ's Sales Summary workbook is the
- * source of truth for these lines. Only listed rows are overridden; every
- * other qty2026 stays master-derived.
+ * Slide 5 qty2026 override for HQ-authoritative rows. Some Slide 5 rows
+ * cannot be computed correctly from the POS master alone — either because
+ * they are split by CUSTOMER (not visible to the SKU-level export) or
+ * because the master export uses an AGGREGATED code that collapses several
+ * canonical rows into one — so HQ's Sales Summary workbook is the source
+ * of truth for these lines. Only listed rows are overridden; every other
+ * qty2026 stays master-derived.
  *
- * Current members (see memory/boc-overseas-glodisa.md):
- *   • Breath O Correct              — non-GLODISA customers
+ * Current members:
+ *   • Breath O Correct              — non-GLODISA customers (customer split;
+ *     see memory/boc-overseas-glodisa.md)
  *   • Breath O Correct (Overseas)   — GLODISA (Indonesia)
+ *   • MonthlyColour UV - Pegavision — colour-box split; the group-level
+ *     master export (e.g. Sep 2026) emits one aggregated `MCUV` row which
+ *     the SKU_MAP catch-all funnels into Pegavision, zeroing Blue/Orange.
+ *     The SKU-level export (e.g. Aug 2026) splits correctly by shade;
+ *     either way the Summary workbook's per-colour rows match reality.
+ *   • MonthlyColour UV - Blue       — same reason
+ *   • MonthlyColour UV - Orange     — same reason
  *
  * NOT included: Wohlk KE RGP. HQ's Summary workbook has only one Wohlk row
  * ("Wohlk KE RGP") that absorbs every Wohlk product's sales, while the
@@ -216,6 +236,10 @@ export function parse2025Summary(buf: ArrayBuffer | Uint8Array): Year2025Referen
  * the three Wohlk lines coherent; the master's qty2026 and the Summary's
  * total agree row-by-row (e.g. Aug 2026: master WHCLS 7 → Sph 7, Summary
  * "Wohlk KE RGP" 7 — same 7 units, just under a different HQ label).
+ *
+ * MonthlyColour UV II is also NOT included: `MCUV2` is always its own group
+ * code in the master and the SKU-level MCDB/MCDY shades roll into it
+ * cleanly, so master and Summary already agree.
  *
  * Callable independently so that after a master-only re-import (which
  * rebuilds salesByQuantity from scratch), the import route's summary
@@ -229,21 +253,78 @@ export function applyHqCustomerSplitRows(
   const HQ_OWNED_ROWS: CanonicalProduct[] = [
     "Breath O Correct",
     "Breath O Correct (Overseas)",
+    "MonthlyColour UV - Pegavision",
+    "MonthlyColour UV - Blue",
+    "MonthlyColour UV - Orange",
   ];
   const monthIdx = report.month - 1;
   const sq = report.salesByQuantity;
-  if (!sq || !sq.rows.length) return { changed: false, next: report };
-  let rowsChanged = false;
-  const nextRows = sq.rows.map(r => {
-    if (!HQ_OWNED_ROWS.includes(r.product as CanonicalProduct)) return r;
-    const series = ref.productQty[r.product as CanonicalProduct];
-    if (!series) return r;
-    const q = series[monthIdx] ?? 0;
-    if (q !== r.qty2026) rowsChanged = true;
-    return { ...r, qty2026: q };
-  });
-  if (!rowsChanged) return { changed: false, next: report };
-  return { changed: true, next: { ...report, salesByQuantity: { ...sq, rows: nextRows } } };
+  const tp = report.topProducts;
+  let changed = false;
+
+  // ----- Slide 5 qty override -----
+  let nextSq = sq;
+  if (sq && sq.rows.length) {
+    let sqChanged = false;
+    const nextRows = sq.rows.map(r => {
+      if (!HQ_OWNED_ROWS.includes(r.product as CanonicalProduct)) return r;
+      const series = ref.productQty[r.product as CanonicalProduct];
+      if (!series) return r;
+      const q = series[monthIdx] ?? 0;
+      if (q !== r.qty2026) sqChanged = true;
+      return { ...r, qty2026: q };
+    });
+    if (sqChanged) { nextSq = { ...sq, rows: nextRows }; changed = true; }
+  }
+
+  // ----- Slide 6 MYR override: rebuild the HQ_OWNED_ROWS entries from the
+  // Summary's AMOUNT section, drop any already-ranked copy of them that was
+  // computed from the master, then recompute pct from the new total. This
+  // fixes the group-level MCUV case where every colour's MYR landed on
+  // Pegavision because the master emits one aggregated `MCUV` row.
+  let nextTp = tp;
+  if (tp && tp.rows.length) {
+    const overrides: { product: CanonicalProduct; myr: number }[] = [];
+    for (const p of HQ_OWNED_ROWS) {
+      const series = ref.productAmount[p];
+      if (!series) continue;
+      const v = series[monthIdx];
+      if (v == null) continue; // skip null — don't zero out master value
+      overrides.push({ product: p, myr: v });
+    }
+    if (overrides.length) {
+      const overrideNames = new Set(overrides.map(o => o.product));
+      const retained = tp.rows.filter(r => !overrideNames.has(r.product as CanonicalProduct));
+      const merged = [
+        ...retained,
+        ...overrides.filter(o => o.myr > 0).map(o => ({ product: o.product, myr: o.myr, pct: 0 })),
+      ];
+      const sameAsBefore =
+        merged.length === tp.rows.length &&
+        merged.every(r => {
+          const prior = tp.rows.find(p => p.product === r.product);
+          return prior && Math.abs(prior.myr - r.myr) < 0.005;
+        });
+      if (!sameAsBefore) {
+        const totalMyr = merged.reduce((s, r) => s + r.myr, 0);
+        const withPct = merged
+          .map(r => ({ ...r, pct: totalMyr ? r.myr / totalMyr : 0 }))
+          .sort((a, b) => b.myr - a.myr);
+        nextTp = { rows: withPct, totalMyr, commentary: tp.commentary };
+        changed = true;
+      }
+    }
+  }
+
+  if (!changed) return { changed: false, next: report };
+  return {
+    changed: true,
+    next: {
+      ...report,
+      ...(nextSq !== sq ? { salesByQuantity: nextSq! } : {}),
+      ...(nextTp !== tp ? { topProducts: nextTp! } : {}),
+    },
+  };
 }
 
 export function applyYear2025ToReport(

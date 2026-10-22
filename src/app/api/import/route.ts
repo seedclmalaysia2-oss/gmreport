@@ -42,7 +42,7 @@ const KIND_TO_SECTIONS: Record<FileKind, SectionKey[]> = {
   pos_inventory:  ["inventory"],
   pos_collection: ["financial"],
   pos_daily:      ["dailySales"],
-  ref_2025:       ["salesAchievement", "salesByQuantity"],
+  ref_2025:       ["salesAchievement", "salesByQuantity", "topProducts"],
   unknown:        [],
 };
 
@@ -438,11 +438,13 @@ export async function POST(req: Request): Promise<Response> {
     sectionsTouched.add("salesAchievement");
   }
 
-  // Sales Summary references feed Slide 1 (target/actual) + Slide 5 (qty).
-  // Mark those touched so the file shows in "Slides refreshed".
+  // Sales Summary references feed Slide 1 (target/actual) + Slide 5 (qty)
+  // + Slide 6 (MYR via HQ-owned-row override). Mark those touched so the
+  // file shows in "Slides refreshed".
   if (summaryRefs.length) {
     sectionsTouched.add("salesAchievement");
     sectionsTouched.add("salesByQuantity");
+    sectionsTouched.add("topProducts");
   }
 
   // Build the sourceFiles map: for every FileKind we recognised, attach its
@@ -549,7 +551,7 @@ export async function POST(req: Request): Promise<Response> {
   // of its own, pull the stored reference(s) and re-apply them to the current
   // month. Idempotent — a re-run with nothing to change writes nothing. Only
   // the current month is touched; other months already hold their own values.
-  if (!summaryRefs.length && (sectionsTouched.has("salesByQuantity") || sectionsTouched.has("salesAchievement"))) {
+  if (!summaryRefs.length && (sectionsTouched.has("salesByQuantity") || sectionsTouched.has("salesAchievement") || sectionsTouched.has("topProducts"))) {
     try {
       const storedRefRows = await prisma.rawFile.findMany({
         where: { kind: "ref_2025", deletedAt: null },
@@ -577,10 +579,11 @@ export async function POST(req: Request): Promise<Response> {
         if (changed) { current = next; monthChanged = true; }
       }
       // Current-year refs are handled selectively: we ONLY re-overlay the
-      // HQ customer-split rows (BoC pair) so a master-only reimport keeps
-      // Slide 5 correct. target2026 is deliberately NOT re-applied here so
-      // manual target edits survive a POS re-run — the full workbook re-
-      // upload path still updates target2026 as before.
+      // HQ-owned rows (BoC pair + MCUV colour split) so a master-only
+      // reimport keeps Slide 5 and Slide 6 correct. target2026 is
+      // deliberately NOT re-applied here so manual target edits survive a
+      // POS re-run — the full workbook re-upload path still updates
+      // target2026 as before.
       const currYearRefs = storedRefs.filter(ref => ref.year === year);
       for (const ref of currYearRefs) {
         const { changed, next } = applyHqCustomerSplitRows(current, ref);
