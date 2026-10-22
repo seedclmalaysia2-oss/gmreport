@@ -526,3 +526,108 @@ export function formatDriftWarnings(drifts: SummaryDrift[]): string[] {
     return `Slide 5/6 drift — ${d.product}: ${parts.join(", ")}. ${d.likelyCause}.`;
   });
 }
+
+// ----------------------------------------------------------------------------
+// Auto-correct drifts from Summary
+//
+// For every product the Summary workbook has a value for, if the dashboard
+// figure drifts beyond tolerance, replace it with the Summary value. This is
+// the automatic companion to compareWithSummary: run compareWithSummary first
+// to see what's wrong, then run autoFixDriftFromSummary to actually fix it.
+// Returns the number of corrections applied and a human-readable note per
+// correction, so the Repair UI can show exactly what changed.
+//
+// Products already handled by applyHqCustomerSplitRows (HQ_OWNED_ROWS) will
+// typically be in agreement with Summary by the time autoFix runs, so they're
+// no-ops here. autoFix is a safety net for all OTHER products — the moment
+// a POS code change pushes any Slide 5/6 figure out of sync with HQ, this
+// snaps it back. Does not touch rows where Summary is null for the month.
+// ----------------------------------------------------------------------------
+// Products the auto-fixer must NEVER touch, even when drift is detected.
+// Reason to add a product here: HQ's Summary label aggregates sales that the
+// dashboard already splits across SEPARATE canonical rows, so auto-correcting
+// from Summary would double-count. These rows stay master-driven and the
+// owner edits them manually if ever needed.
+const AUTOFIX_SKIP: ReadonlySet<string> = new Set([
+  // HQ writes every Wohlk sale (Sph / Toric / KE) under their single
+  // "Wohlk KE RGP" Summary row, while the dashboard splits them into three
+  // canonical lines. Auto-correcting Wohlk KE from Summary would add the
+  // Sph/Toric qty on top of the master's Sph/Toric rows.
+  "Wohlk KE RGP",
+]);
+
+export function autoFixDriftFromSummary(
+  report: MonthReport,
+  ref: Year2025Reference,
+  opts: { qtyAbsTolerance?: number; qtyRelTolerance?: number; myrRelTolerance?: number } = {},
+): { changed: boolean; next: MonthReport; corrections: string[] } {
+  const allDrifts = compareWithSummary(report, ref, opts);
+  const drifts = allDrifts.filter(d => !AUTOFIX_SKIP.has(d.product));
+  if (!drifts.length) return { changed: false, next: report, corrections: [] };
+
+  const monthIdx = report.month - 1;
+  const corrections: string[] = [];
+  let nextReport = report;
+
+  // Patch Slide 5 (qty) wherever drift crossed tolerance and Summary had a value.
+  const driftByProduct = new Map(drifts.map(d => [d.product, d]));
+  const sq = report.salesByQuantity;
+  if (sq && sq.rows.length) {
+    let sqChanged = false;
+    const nextRows = sq.rows.map(r => {
+      const d = driftByProduct.get(r.product);
+      if (!d || d.summaryQty == null) return r;
+      const next = d.summaryQty;
+      if (next === r.qty2026) return r;
+      sqChanged = true;
+      return { ...r, qty2026: next };
+    });
+    if (sqChanged) nextReport = { ...nextReport, salesByQuantity: { ...sq, rows: nextRows } };
+  }
+
+  // Patch Slide 6 (MYR) likewise; rebuild pct from the new total.
+  const tp = report.topProducts;
+  if (tp && tp.rows.length) {
+    const myrOverrides = new Map(
+      drifts.filter(d => d.summaryMyr != null).map(d => [d.product, d.summaryMyr as number]),
+    );
+    if (myrOverrides.size) {
+      const overrideNames = new Set(myrOverrides.keys());
+      const retained = tp.rows.filter(r => !overrideNames.has(r.product));
+      const merged = [
+        ...retained,
+        ...[...myrOverrides.entries()]
+          .filter(([, v]) => v > 0)
+          .map(([product, myr]) => ({ product, myr, pct: 0 })),
+      ];
+      const sameAsBefore =
+        merged.length === tp.rows.length &&
+        merged.every(r => {
+          const prior = tp.rows.find(p => p.product === r.product);
+          return prior && Math.abs(prior.myr - r.myr) < 0.005;
+        });
+      if (!sameAsBefore) {
+        const totalMyr = merged.reduce((s, r) => s + r.myr, 0);
+        const withPct = merged
+          .map(r => ({ ...r, pct: totalMyr ? r.myr / totalMyr : 0 }))
+          .sort((a, b) => b.myr - a.myr);
+        nextReport = { ...nextReport, topProducts: { rows: withPct, totalMyr, commentary: tp.commentary } };
+      }
+    }
+  }
+
+  for (const d of drifts) {
+    const parts: string[] = [];
+    if (d.summaryQty != null && d.summaryQty !== d.dashboardQty) {
+      parts.push(`qty ${d.dashboardQty.toLocaleString()}→${d.summaryQty.toLocaleString()}`);
+    }
+    if (d.summaryMyr != null && Math.abs(d.summaryMyr - d.dashboardMyr) > 0.5) {
+      parts.push(`MYR ${d.dashboardMyr.toFixed(0)}→${d.summaryMyr.toFixed(0)}`);
+    }
+    if (parts.length) corrections.push(`Auto-corrected from HQ Summary — ${d.product}: ${parts.join(", ")}`);
+  }
+
+  if (!corrections.length) return { changed: false, next: report, corrections: [] };
+  void monthIdx; // reserved for future month-aware diagnostics
+  return { changed: nextReport !== report, next: nextReport, corrections };
+}

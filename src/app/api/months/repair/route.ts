@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { listMonthReports, upsertMonthReport } from "@/lib/month-report";
 import { prisma } from "@/lib/db";
-import { applyYear2025ToReport, compareWithSummary, formatDriftWarnings, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
+import { applyYear2025ToReport, autoFixDriftFromSummary, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
 import { REGIONS } from "@/lib/catalog/mappings";
@@ -324,7 +324,7 @@ export async function POST() {
     const inv = recomputeInventoryTotals(filled.inventory);
     if (inv.changed) { notes.push("inventory totals recomputed from rows"); changed = true; }
 
-    const healed: MonthReport = {
+    let healed: MonthReport = {
       ...filled,
       salesAchievement: sa.value ?? filled.salesAchievement,
       salesByQuantity: sq.value ?? filled.salesByQuantity,
@@ -333,17 +333,21 @@ export async function POST() {
       inventory: inv.value ?? filled.inventory,
     };
 
-    if (changed) {
-      await upsertMonthReport(healed);
-    }
-
-    // Drift verifier — compare the healed Slide 5 / Slide 6 against this
-    // month's own-year Summary workbook, so Repair surfaces any new POS
-    // code or lumping issue right alongside the healing notes.
+    // Auto-fix drift — snap any Slide 5 qty / Slide 6 MYR row that drifts
+    // from the own-year Summary workbook back to the Summary value. Every
+    // correction is logged in notes so the owner knows what moved.
     const sameYearRef = summaryRefs.find(ref => ref.year === m.year);
     if (sameYearRef) {
-      const drifts = compareWithSummary(healed, sameYearRef);
-      for (const line of formatDriftWarnings(drifts)) notes.push(line);
+      const fixed = autoFixDriftFromSummary(healed, sameYearRef);
+      if (fixed.changed) {
+        healed = fixed.next;
+        changed = true;
+      }
+      for (const line of fixed.corrections) notes.push(line);
+    }
+
+    if (changed) {
+      await upsertMonthReport(healed);
     }
 
     results.push({ id: m.id, changed, notes });

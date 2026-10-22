@@ -9,7 +9,7 @@ import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month
 import { monthId } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { applyYear2025ToReport, applyHqCustomerSplitRows, compareWithSummary, formatDriftWarnings, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
+import { applyYear2025ToReport, applyHqCustomerSplitRows, autoFixDriftFromSummary, is2025SummaryFile, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
 import type { MonthReport, SectionKey, SourceFile, SourceFiles } from "@/lib/schema";
 
 import { guardDept } from "@/lib/auth";
@@ -602,25 +602,21 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
-  // ----- Drift verifier -----
+  // ----- Auto-fix drift from Summary -----
   // After everything is persisted, compare the final Slide 5 / Slide 6
-  // figures against the current-year Sales Summary workbook (either from
-  // this upload or from the on-file ref). Flag any product the Summary has
-  // a value for whose dashboard figure drifts beyond tolerance — catches
-  // new unmapped POS codes, group-level export lumping, and renamed codes
-  // the day they ship, instead of weeks later when the deck is reviewed.
-  //
-  // This is a WARNING, not a fix. The owner reads the warning and decides
-  // whether to add a mapping, upload a missing colour PDF, or confirm the
-  // discrepancy is expected.
+  // figures against the current-year Sales Summary workbook (from this
+  // upload or on-file) and AUTO-CORRECT any product whose dashboard figure
+  // drifts beyond tolerance. Catches new unmapped POS codes, group-level
+  // export lumping, and renamed codes the day they ship — and fixes them
+  // in-place without waiting for a human to notice. Each correction is
+  // reported as a warning line so the owner knows what was adjusted (and
+  // can go update the catalog if the mapping needs a permanent fix).
   try {
     const finalReport = await getMonthReport(year, month);
     if (finalReport) {
       let driftRef: Year2025Reference | undefined =
         summaryRefs.find(r => r.year === year);
       if (!driftRef) {
-        // Fall back to any on-file current-year Summary (the master-only
-        // reimport path uses this same lookup).
         const storedRefRows = await prisma.rawFile.findMany({
           where: { kind: "ref_2025", deletedAt: null },
           orderBy: { createdAt: "desc" },
@@ -635,12 +631,18 @@ export async function POST(req: Request): Promise<Response> {
         }
       }
       if (driftRef) {
-        const drifts = compareWithSummary(finalReport, driftRef);
-        for (const line of formatDriftWarnings(drifts)) warnings.push(line);
+        const fixed = autoFixDriftFromSummary(finalReport, driftRef);
+        if (fixed.changed) {
+          await upsertMonthReport(fixed.next);
+          revalidatePath(`/report/${saved.id}`);
+          revalidatePath("/");
+          revalidatePath("/export");
+        }
+        for (const line of fixed.corrections) warnings.push(line);
       }
     }
   } catch (e) {
-    console.error("[import] drift verifier failed:", e);
+    console.error("[import] auto-fix drift failed:", e);
   }
 
   const result: ImportResult = {

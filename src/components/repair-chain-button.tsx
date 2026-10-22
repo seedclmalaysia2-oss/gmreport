@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, Link2, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Copy, Link2, Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -17,6 +17,31 @@ export function RepairChainButton() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RepairResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function monthsWithNotes(r: RepairResult): RepairResult["results"] {
+    return r.results.filter(m => m.notes.length > 0);
+  }
+  function buildClipboardText(r: RepairResult): string {
+    const lines: string[] = [];
+    lines.push(`Repair chain — checked ${r.monthsChecked} month${r.monthsChecked === 1 ? "" : "s"}, repaired ${r.monthsChanged}.`);
+    if (r.filesDeduped) lines.push(`Deduped ${r.filesDeduped} file${r.filesDeduped === 1 ? "" : "s"}.`);
+    for (const m of monthsWithNotes(r)) {
+      lines.push(``, m.id + (m.changed ? "" : "  (no state change)"));
+      for (const n of m.notes) lines.push(`  • ${n}`);
+    }
+    return lines.join("\n");
+  }
+  async function copyReport() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(buildClipboardText(result));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setErr("Clipboard copy failed — select and copy the text manually.");
+    }
+  }
 
   async function run() {
     setBusy(true); setErr(null);
@@ -93,17 +118,30 @@ export function RepairChainButton() {
                     )}
                   </div>
                 )}
-                {result.results.some(r => r.changed) && (
-                  <ul className="text-xs max-h-64 overflow-y-auto border border-[var(--color-ice-200)] rounded-lg divide-y divide-[var(--color-ice-100)]">
-                    {result.results.filter(r => r.changed).map(r => (
-                      <li key={r.id} className="px-3 py-2">
-                        <div className="font-semibold text-[var(--color-ink-900)]">{r.id}</div>
-                        <ul className="mt-1 text-[var(--color-ink-600)] list-disc pl-4 space-y-0.5">
-                          {r.notes.map((n, i) => <li key={i}>{n}</li>)}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
+                {monthsWithNotes(result).length > 0 && (
+                  <>
+                    <ul className="text-xs max-h-64 overflow-y-auto border border-[var(--color-ice-200)] rounded-lg divide-y divide-[var(--color-ice-100)]">
+                      {monthsWithNotes(result).map(r => (
+                        <li key={r.id} className="px-3 py-2">
+                          <div className="font-semibold text-[var(--color-ink-900)]">
+                            {r.id}
+                            {!r.changed && <span className="ml-2 text-[10px] font-normal uppercase tracking-wide text-[var(--color-ink-500)]">(no state change)</span>}
+                          </div>
+                          <ul className="mt-1 text-[var(--color-ink-600)] list-disc pl-4 space-y-0.5">
+                            {r.notes.map((n, i) => <li key={i}>{n}</li>)}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={copyReport}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-ice-200)] px-3 py-1.5 text-xs hover:bg-[var(--color-ice-50)]"
+                    >
+                      {copied ? <ClipboardCheck size={13} className="text-[var(--color-ok)]" /> : <Copy size={13} />}
+                      {copied ? "Copied!" : "Copy full report to clipboard"}
+                    </button>
+                  </>
                 )}
               </>
             ) : null}
