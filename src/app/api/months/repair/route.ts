@@ -246,6 +246,7 @@ export async function POST() {
   // qty2025 from whichever workbooks are on file. If two refs exist for the
   // same year, the most-recent one (sorted last) wins.
   const summaryRefs: Year2025Reference[] = [];
+  const summaryRefDiagnostics: Array<Record<string, unknown>> = [];
   try {
     const refRows = await prisma.rawFile.findMany({
       where: { kind: "ref_2025", deletedAt: null },
@@ -255,9 +256,19 @@ export async function POST() {
     for (const r of refRows) {
       if (!r.bytes) continue;
       try {
-        summaryRefs.push(parse2025Summary(new Uint8Array(r.bytes)));
+        const parsed = parse2025Summary(new Uint8Array(r.bytes));
+        summaryRefs.push(parsed);
+        summaryRefDiagnostics.push({
+          file: r.originalName,
+          year: parsed.year,
+          pegavisionQty: parsed.productQty["MonthlyColour UV - Pegavision"] ?? null,
+          blueQty:       parsed.productQty["MonthlyColour UV - Blue"] ?? null,
+          orangeQty:     parsed.productQty["MonthlyColour UV - Orange"] ?? null,
+          bocQty:        parsed.productQty["Breath O Correct"] ?? null,
+        });
       } catch (e) {
         console.error(`[repair] failed to parse "${r.originalName}":`, e);
+        summaryRefDiagnostics.push({ file: r.originalName, error: e instanceof Error ? e.message : String(e) });
       }
     }
   } catch (e) {
@@ -374,6 +385,7 @@ export async function POST() {
     monthsChanged: results.filter(r => r.changed).length,
     filesDeduped: dedup.trashed,
     dedupDetails: dedup.details,
+    summaryRefs: summaryRefDiagnostics,
     results,
   });
 }
