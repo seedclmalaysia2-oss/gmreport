@@ -184,7 +184,7 @@ export async function listMonthSummaries(): Promise<MonthSummary[]> {
         (CASE WHEN "financial"           IS NOT NULL THEN 1 ELSE 0 END) +
         (CASE WHEN "otherMarket"         IS NOT NULL THEN 1 ELSE 0 END)
       )::int AS "filledSections"
-    FROM "MonthReport"
+    FROM "gm"."MonthReport"
     ORDER BY "year" DESC, "month" DESC
   `;
   // $queryRaw can hand back BigInt for integer expressions on some drivers —
@@ -298,8 +298,8 @@ async function queryRawFiles(opts: { deleted: boolean }): Promise<RawFileEntry[]
           r."byteSize", r."sectionKeys", r."createdAt", r."deletedAt",
           (r."bytes" IS NOT NULL) AS "hasBytes",
           m."year", m."month"
-        FROM "RawFile" r
-        JOIN "MonthReport" m ON m."id" = r."monthReportId"
+        FROM "gm"."RawFile" r
+        JOIN "gm"."MonthReport" m ON m."id" = r."monthReportId"
         WHERE r."deletedAt" IS NOT NULL
         ORDER BY r."deletedAt" DESC
       `
@@ -309,8 +309,8 @@ async function queryRawFiles(opts: { deleted: boolean }): Promise<RawFileEntry[]
           r."byteSize", r."sectionKeys", r."createdAt", r."deletedAt",
           (r."bytes" IS NOT NULL) AS "hasBytes",
           m."year", m."month"
-        FROM "RawFile" r
-        JOIN "MonthReport" m ON m."id" = r."monthReportId"
+        FROM "gm"."RawFile" r
+        JOIN "gm"."MonthReport" m ON m."id" = r."monthReportId"
         WHERE r."deletedAt" IS NULL
         ORDER BY r."createdAt" DESC
       `;
@@ -351,8 +351,8 @@ export async function listRawFilesForMonth(monthReportId: string): Promise<RawFi
       r."byteSize", r."sectionKeys", r."createdAt", r."deletedAt",
       (r."bytes" IS NOT NULL) AS "hasBytes",
       m."year", m."month"
-    FROM "RawFile" r
-    JOIN "MonthReport" m ON m."id" = r."monthReportId"
+    FROM "gm"."RawFile" r
+    JOIN "gm"."MonthReport" m ON m."id" = r."monthReportId"
     WHERE r."monthReportId" = ${monthReportId} AND r."deletedAt" IS NULL
     ORDER BY r."createdAt" ASC
   `;
