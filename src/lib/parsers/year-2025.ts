@@ -279,19 +279,28 @@ export function applyHqCustomerSplitRows(
     }
     const baseRows = missingHqRows.length ? [...sq.rows, ...missingHqRows] : sq.rows;
 
-    let sqChanged = missingHqRows.length > 0;
+    let sqChanged = false;
     const nextRows = baseRows.map(r => {
       if (!HQ_OWNED_ROWS.includes(r.product as CanonicalProduct)) return r;
       const series = ref.productQty[r.product as CanonicalProduct];
       if (!series) return r;
-      const q = series[monthIdx] ?? 0;
+      const q = series[monthIdx];
+      // CRITICAL: if the Summary workbook has a NULL cell for this product
+      // in this month, LEAVE the master-derived value alone. Previously we
+      // defaulted null→0 and overrode, which zeroed out correct master
+      // values (e.g. Aug 2026 master gave Pegavision=23 from SKU-level
+      // export, then the stale Jan_2026 Summary with Feb-Dec null forced
+      // it back to 0). Only override when Summary has a real number.
+      if (q == null) return r;
       if (q !== r.qty2026) {
         sqChanged = true;
         corrections.push(`HQ Summary override — ${r.product}: qty ${r.qty2026.toLocaleString()}→${q.toLocaleString()}`);
       }
       return { ...r, qty2026: q };
     });
-    if (sqChanged) { nextSq = { ...sq, rows: nextRows }; changed = true; }
+    // Also mark changed if we had to add missing rows, even if their final
+    // qty2026 ended up at 0 (because Summary had null for every HQ row).
+    if (sqChanged || missingHqRows.length > 0) { nextSq = { ...sq, rows: nextRows }; changed = true; }
   }
 
   // ----- Slide 6 MYR override: rebuild the HQ_OWNED_ROWS entries from the
