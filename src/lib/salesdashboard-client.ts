@@ -118,7 +118,7 @@ export async function fetchHqSummaryFromSalesDashboard(year: number): Promise<{
     const canonical = API_NAME_MAP[apiName];
     if (!canonical) continue; // unknown product on the API side — ignore
     productQty[canonical] = padTo12(series.qty);
-    productAmount[canonical] = padTo12(series.amount);
+    productAmount[canonical] = padMyrTo12(series.amount);
   }
 
   // monthlyTarget / monthlySales / monthlyQty aren't served by the API — the
@@ -137,7 +137,26 @@ export async function fetchHqSummaryFromSalesDashboard(year: number): Promise<{
 }
 
 function padTo12(a: number[]): (number | null)[] {
+  // salesdashboard rounds qty to 2 decimals (trial-lens pack divisions
+  // produce fractional pieces like 1.17). The dashboard's Zod schema
+  // requires integer qty, so round here before handing the series on —
+  // without this, upsertMonthReport fails validation and the whole
+  // Repair-chain write is discarded with a ZodError.
   const out: (number | null)[] = [];
-  for (let i = 0; i < 12; i++) out.push(typeof a[i] === "number" ? a[i] : null);
+  for (let i = 0; i < 12; i++) {
+    const v = a[i];
+    out.push(typeof v === "number" ? Math.round(v) : null);
+  }
+  return out;
+}
+
+/** Same as padTo12 but preserves 2-decimal precision — used for MYR series
+ *  where fractional ringgit are meaningful (Slide 6 totals tie out to the sen). */
+function padMyrTo12(a: number[]): (number | null)[] {
+  const out: (number | null)[] = [];
+  for (let i = 0; i < 12; i++) {
+    const v = a[i];
+    out.push(typeof v === "number" ? Math.round(v * 100) / 100 : null);
+  }
   return out;
 }

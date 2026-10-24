@@ -284,14 +284,19 @@ export function applyHqCustomerSplitRows(
       if (!HQ_OWNED_ROWS.includes(r.product as CanonicalProduct)) return r;
       const series = ref.productQty[r.product as CanonicalProduct];
       if (!series) return r;
-      const q = series[monthIdx];
+      const raw = series[monthIdx];
       // CRITICAL: if the Summary workbook has a NULL cell for this product
       // in this month, LEAVE the master-derived value alone. Previously we
       // defaulted null→0 and overrode, which zeroed out correct master
       // values (e.g. Aug 2026 master gave Pegavision=23 from SKU-level
       // export, then the stale Jan_2026 Summary with Feb-Dec null forced
       // it back to 0). Only override when Summary has a real number.
-      if (q == null) return r;
+      if (raw == null) return r;
+      // Round to int: salesdashboard API returns 2-decimal qty (trial-lens
+      // pack divisions produce fractional pieces like 1.17). Dashboard Zod
+      // schema requires integer qty — without this round, upsertMonthReport
+      // rejects the whole Repair write with a ZodError and nothing lands.
+      const q = Math.round(raw);
       if (q !== r.qty2026) {
         sqChanged = true;
         corrections.push(`HQ Summary override — ${r.product}: qty ${r.qty2026.toLocaleString()}→${q.toLocaleString()}`);
@@ -451,7 +456,10 @@ export function applyYear2025ToReport(
     const nextRows = sq.rows.map(r => {
       const series = ref.productQty[r.product as CanonicalProduct];
       if (!series) return r; // product not in the 2025 file — leave as-is
-      const q = series[monthIdx] ?? 0;
+      // Round to int: some rows in the HQ workbook are fractional (trial-lens
+      // pack divisions) but the dashboard schema requires integer qty. Without
+      // this cast, upsertMonthReport rejects the whole write with a ZodError.
+      const q = Math.round(series[monthIdx] ?? 0);
       if (q !== r.qty2025) rowsChanged = true;
       return { ...r, qty2025: q };
     });
@@ -613,7 +621,7 @@ export function autoFixDriftFromSummary(
     const nextRows = sq.rows.map(r => {
       const d = driftByProduct.get(r.product);
       if (!d || d.summaryQty == null) return r;
-      const next = d.summaryQty;
+      const next = Math.round(d.summaryQty);
       if (next === r.qty2026) return r;
       sqChanged = true;
       return { ...r, qty2026: next };
