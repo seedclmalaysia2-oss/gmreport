@@ -449,7 +449,12 @@ export async function POST() {
     // Auto-fix drift — snap any Slide 5 qty / Slide 6 MYR row that drifts
     // from the own-year Summary workbook back to the Summary value. Every
     // correction is logged in notes so the owner knows what moved.
-    const sameYearRef = summaryRefs.find(ref => ref.year === m.year);
+    //
+    // Prefer the LAST same-year ref — refs are appended in order (older
+    // workbooks first, salesdashboard-live API last), so findLast picks the
+    // most authoritative source. This avoids auto-fix snapping values back
+    // to a stale workbook when the live API disagrees.
+    const sameYearRef = summaryRefs.findLast(ref => ref.year === m.year);
     if (sameYearRef) {
       const fixed = autoFixDriftFromSummary(healed, sameYearRef);
       if (fixed.changed) {
