@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { listMonthReports, upsertMonthReport, getMonthReport } from "@/lib/month-report";
 import { prisma } from "@/lib/db";
 import { applyYear2025ToReport, autoFixDriftFromSummary, parse2025Summary, type Year2025Reference } from "@/lib/parsers/year-2025";
+import { fetchHqSummaryFromSalesDashboard } from "@/lib/salesdashboard-client";
 import { CANONICAL_PRODUCTS } from "@/lib/catalog/products";
 import type { MonthReport, SalesByQuantity, SalesByRegion, SalesAchievement, SalesByECP, Inventory } from "@/lib/schema";
 import { REGIONS } from "@/lib/catalog/mappings";
@@ -277,6 +278,35 @@ export async function POST() {
     }
   } catch (e) {
     console.error("[repair] failed to load Sales Summary references:", e);
+  }
+
+  // Pull the LIVE HQ Summary grid from salesdashboard (sibling app) for every
+  // year represented in the month list. Treated as an extra current-year ref
+  // appended to summaryRefs — because it has monthlyTarget/Sales/Qty = null,
+  // applyYear2025ToReport will only hit the applyHqCustomerSplitRows branch
+  // (overrides MCUV / BoC rows); it will NOT touch target2026 or 2025 columns.
+  // Appended LAST so it wins over the stale on-file workbook when both are
+  // present for the same year.
+  const yearsSeen = new Set(all.map(m => m.year));
+  for (const year of yearsSeen) {
+    try {
+      const live = await fetchHqSummaryFromSalesDashboard(year);
+      if (live) {
+        summaryRefs.push(live.ref);
+        summaryRefDiagnostics.push({
+          source: "salesdashboard-api",
+          year,
+          generatedAt: live.generatedAt,
+          sourceFiles: live.sources.map(s => s.name),
+          pegavisionQty: live.ref.productQty["MonthlyColour UV - Pegavision"] ?? null,
+          blueQty:       live.ref.productQty["MonthlyColour UV - Blue"] ?? null,
+          orangeQty:     live.ref.productQty["MonthlyColour UV - Orange"] ?? null,
+          bocQty:        live.ref.productQty["Breath O Correct"] ?? null,
+        });
+      }
+    } catch (e) {
+      console.error(`[repair] salesdashboard fetch for ${year} failed:`, e);
+    }
   }
 
   for (const m of ordered) {
