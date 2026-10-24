@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SectionProps } from "../report-editor";
 import { SectionShell, CommentEditor } from "./shared";
 import { Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from "recharts";
@@ -226,6 +226,18 @@ export function SectionSalesTrend({ report, update }: SectionProps) {
         </ResponsiveContainer>
       </div>
 
+      {/* Auto-computed current-month KPI panel — recomputes every render from
+          the saved Sales Achievement, so once that slide's numbers are right
+          the panel is right. Lives above the commentary editor so the writer
+          can glance at the numbers while drafting the narrative. */}
+      <AutoCommentaryStrip
+        month={report.month}
+        actual2026={SA.actual2026[report.month - 1] ?? null}
+        target2026={SA.target2026[report.month - 1] ?? null}
+        actual2025={SA.actual2025[report.month - 1] ?? null}
+        priorMonthActual={report.month > 1 ? (SA.actual2026[report.month - 2] ?? null) : null}
+      />
+
       {/* Commentary — explicit Save / Edit workflow (no auto-save). */}
       <CommentEditor
         variant="plain"
@@ -238,5 +250,90 @@ export function SectionSalesTrend({ report, update }: SectionProps) {
         placeholder="Add commentary on the sales trend — drivers, anomalies, outlook…"
       />
     </SectionShell>
+  );
+}
+
+// ---------- Auto-commentary helpers ----------
+
+function fmtMYR(v: number | null): string {
+  if (v == null) return "—";
+  return "RM " + Math.round(v).toLocaleString("en-MY");
+}
+
+function fmtDeltaPct(curr: number | null, base: number | null): { text: string; good: boolean | null } {
+  if (curr == null || base == null || base === 0) return { text: "—", good: null };
+  const pct = (curr - base) / base;
+  const sign = pct >= 0 ? "+" : "";
+  const good = pct >= 0;
+  return { text: `${sign}${(pct * 100).toFixed(1)}%`, good };
+}
+
+function fmtAchievement(actual: number | null, target: number | null): { text: string; good: boolean | null } {
+  if (actual == null || target == null || target === 0) return { text: "—", good: null };
+  const pct = actual / target;
+  const good = pct >= 1;
+  return { text: `${(pct * 100).toFixed(1)}%`, good };
+}
+
+interface AutoCommentaryStripProps {
+  month: number;
+  actual2026: number | null;
+  target2026: number | null;
+  actual2025: number | null;
+  priorMonthActual: number | null;
+}
+
+function AutoCommentaryStrip({ month, actual2026, target2026, actual2025, priorMonthActual }: AutoCommentaryStripProps) {
+  const monthName = MONTH_NAMES[month - 1];
+  const achievement = fmtAchievement(actual2026, target2026);
+  const vsPrior = fmtDeltaPct(actual2026, priorMonthActual);
+  const vsYoY = fmtDeltaPct(actual2026, actual2025);
+
+  const Chip = ({ good }: { good: boolean | null }) => {
+    if (good == null) return null;
+    const cls = good
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-900"
+      : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-900";
+    return <span className={cn("ml-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border", cls)}>{good ? "ON TRACK" : "BELOW"}</span>;
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-[var(--color-ice-200)] bg-[var(--color-ice-50)] dark:bg-[var(--surface-1)] p-4">
+      <div className="flex items-baseline justify-between mb-3">
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ink-600)]">
+          {monthName} 2026 at a glance
+        </h4>
+        <span className="text-[10px] italic text-[var(--color-ink-600)]">auto-computed from Slide 1 figures</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Stat label="Actual" primary={fmtMYR(actual2026)} />
+        <Stat
+          label={`vs Target (${fmtMYR(target2026)})`}
+          primary={achievement.text}
+          chip={<Chip good={achievement.good} />}
+        />
+        <Stat
+          label={`vs ${MONTH_NAMES[(month + 10) % 12]} (${fmtMYR(priorMonthActual)})`}
+          primary={vsPrior.text}
+          chip={<Chip good={vsPrior.good} />}
+        />
+        <Stat
+          label={`YoY vs ${monthName} 2025 (${fmtMYR(actual2025)})`}
+          primary={vsYoY.text}
+          chip={<Chip good={vsYoY.good} />}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, primary, chip }: { label: string; primary: string; chip?: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-ink-600)] mb-1">{label}</div>
+      <div className="text-lg font-bold text-[var(--color-ink-900)] tabular-nums">
+        {primary}{chip}
+      </div>
+    </div>
   );
 }
