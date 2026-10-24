@@ -287,8 +287,14 @@ export async function POST() {
   // (overrides MCUV / BoC rows); it will NOT touch target2026 or 2025 columns.
   // Appended LAST so it wins over the stale on-file workbook when both are
   // present for the same year.
+  // Fetch each year represented in the chain, plus year-1 for every year so
+  // 2026 reports also get a 2025 ref (fills Slide 2's Actual 2025 line and
+  // Slide 5's qty2025 column from the live salesdashboard data instead of
+  // depending on an uploaded prior-year Summary workbook).
   const yearsSeen = new Set(all.map(m => m.year));
-  for (const year of yearsSeen) {
+  const yearsToFetch = new Set<number>();
+  for (const y of yearsSeen) { yearsToFetch.add(y); yearsToFetch.add(y - 1); }
+  for (const year of yearsToFetch) {
     try {
       const live = await fetchHqSummaryFromSalesDashboard(year);
       if (live) {
@@ -298,6 +304,7 @@ export async function POST() {
           year,
           generatedAt: live.generatedAt,
           sourceFiles: live.sources.map(s => s.name),
+          monthlySales: live.ref.monthlySales,
           pegavisionQty: live.ref.productQty["MonthlyColour UV - Pegavision"] ?? null,
           blueQty:       live.ref.productQty["MonthlyColour UV - Blue"] ?? null,
           orangeQty:     live.ref.productQty["MonthlyColour UV - Orange"] ?? null,

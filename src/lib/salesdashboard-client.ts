@@ -146,13 +146,31 @@ export async function fetchHqSummaryFromSalesDashboard(year: number): Promise<{
     productAmount["Wohlk Contact Life Toric"] = toricMyr;
   }
 
-  // monthlyTarget / monthlySales / monthlyQty aren't served by the API — the
-  // Summary workbook workflow still owns Slide 1 target/actual. Set them to
-  // all-nulls so applyYear2025ToReport doesn't accidentally wipe target2026.
+  // monthlyTarget isn't served by the API — the current-year Summary workbook
+  // owns Slide 1's HQ target row. monthlyQty isn't a dashboard-driven field
+  // either. monthlySales IS computed: sum of all per-product per-month MYR
+  // amounts, so when this ref is applied to a NEXT-year report (prior-year
+  // branch of applyYear2025ToReport) actual2025 gets the correct history
+  // without needing an uploaded Summary workbook.
+  const monthlySales: (number | null)[] = Array(12).fill(0);
+  for (const series of Object.values(productAmount)) {
+    if (!series) continue;
+    for (let i = 0; i < 12; i++) {
+      const v = series[i];
+      if (typeof v === "number") (monthlySales[i] as number) += v;
+    }
+  }
+  // Round each month and promote all-zero months back to null so Slide 1 /
+  // Slide 2 don't show a flat "0k" line in months with no data yet.
+  for (let i = 0; i < 12; i++) {
+    const v = monthlySales[i];
+    monthlySales[i] = typeof v === "number" && v > 0 ? Math.round(v) : null;
+  }
+
   const nulls: (number | null)[] = Array(12).fill(null);
   const ref: Year2025Reference = {
     year: json.year,
-    monthlySales: nulls,
+    monthlySales,
     monthlyQty: nulls,
     monthlyTarget: nulls,
     productQty,
