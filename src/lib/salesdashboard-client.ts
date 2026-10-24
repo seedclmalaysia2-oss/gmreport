@@ -121,6 +121,31 @@ export async function fetchHqSummaryFromSalesDashboard(year: number): Promise<{
     productAmount[canonical] = padMyrTo12(series.amount);
   }
 
+  // --- Wohlk collapse ---
+  // salesdashboard rolls every Wohlk sale (Sph / Toric / KE) into a single
+  // "Wohlk KE RGP" row. gmdashboard has three canonical rows for Wohlk, so
+  // without collapsing them the dashboard total would double-count by the
+  // Sph+Toric amount that's ALREADY inside the API's KE RGP figure. For every
+  // month the API reports Wohlk KE RGP data, zero out the sibling Sph/Toric
+  // rows so KE RGP alone carries the Wohlk total. If the API has no Wohlk
+  // row for a month (series missing), leave Sph/Toric at their master values.
+  const wohlkKe = productQty["Wohlk KE RGP"];
+  if (wohlkKe) {
+    const sphQty: (number | null)[] = Array(12).fill(0);
+    const toricQty: (number | null)[] = Array(12).fill(0);
+    const sphMyr: (number | null)[] = Array(12).fill(0);
+    const toricMyr: (number | null)[] = Array(12).fill(0);
+    // Preserve null when the API didn't report Wohlk for a month — don't
+    // force Sph/Toric to 0 then (master-driven value stays).
+    for (let i = 0; i < 12; i++) {
+      if (wohlkKe[i] == null) { sphQty[i] = null; toricQty[i] = null; sphMyr[i] = null; toricMyr[i] = null; }
+    }
+    productQty["Wohlk Contact Life Sph"] = sphQty;
+    productQty["Wohlk Contact Life Toric"] = toricQty;
+    productAmount["Wohlk Contact Life Sph"] = sphMyr;
+    productAmount["Wohlk Contact Life Toric"] = toricMyr;
+  }
+
   // monthlyTarget / monthlySales / monthlyQty aren't served by the API — the
   // Summary workbook workflow still owns Slide 1 target/actual. Set them to
   // all-nulls so applyYear2025ToReport doesn't accidentally wipe target2026.

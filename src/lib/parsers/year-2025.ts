@@ -250,13 +250,15 @@ export function applyHqCustomerSplitRows(
   report: MonthReport,
   ref: Year2025Reference,
 ): { changed: boolean; next: MonthReport; corrections: string[] } {
-  const HQ_OWNED_ROWS: CanonicalProduct[] = [
-    "Breath O Correct",
-    "Breath O Correct (Overseas)",
-    "MonthlyColour UV - Pegavision",
-    "MonthlyColour UV - Blue",
-    "MonthlyColour UV - Orange",
-  ];
+  // Override EVERY canonical product the ref carries data for. For the
+  // salesdashboard-live API ref this is every product salesdashboard tracks,
+  // so the gmdashboard total matches salesdashboard's total exactly. For
+  // older uploaded workbook refs this still only touches whatever rows the
+  // workbook filled in — nothing it doesn't have data for gets zeroed out,
+  // because applyHqCustomerSplitRows skips rows whose ref series is missing
+  // (`if (!series) return r`) and skips rows whose ref value is null
+  // (`if (raw == null) return r`).
+  const HQ_OWNED_ROWS: CanonicalProduct[] = Object.keys(ref.productQty) as CanonicalProduct[];
   const monthIdx = report.month - 1;
   const sq = report.salesByQuantity;
   const tp = report.topProducts;
@@ -588,17 +590,11 @@ export function formatDriftWarnings(drifts: SummaryDrift[]): string[] {
 // snaps it back. Does not touch rows where Summary is null for the month.
 // ----------------------------------------------------------------------------
 // Products the auto-fixer must NEVER touch, even when drift is detected.
-// Reason to add a product here: HQ's Summary label aggregates sales that the
-// dashboard already splits across SEPARATE canonical rows, so auto-correcting
-// from Summary would double-count. These rows stay master-driven and the
-// owner edits them manually if ever needed.
-const AUTOFIX_SKIP: ReadonlySet<string> = new Set([
-  // HQ writes every Wohlk sale (Sph / Toric / KE) under their single
-  // "Wohlk KE RGP" Summary row, while the dashboard splits them into three
-  // canonical lines. Auto-correcting Wohlk KE from Summary would add the
-  // Sph/Toric qty on top of the master's Sph/Toric rows.
-  "Wohlk KE RGP",
-]);
+// Empty set now that the salesdashboard-client collapses Wohlk Sph/Toric
+// to zero whenever the API carries a Wohlk KE RGP value, so there's no
+// double-counting risk. Keep the set here so the mechanism exists if we
+// need to exclude future products that overlap another canonical row.
+const AUTOFIX_SKIP: ReadonlySet<string> = new Set([]);
 
 export function autoFixDriftFromSummary(
   report: MonthReport,
