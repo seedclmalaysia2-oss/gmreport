@@ -451,10 +451,14 @@ export async function POST() {
     // correction is logged in notes so the owner knows what moved.
     //
     // Prefer the LAST same-year ref — refs are appended in order (older
-    // workbooks first, salesdashboard-live API last), so findLast picks the
-    // most authoritative source. This avoids auto-fix snapping values back
-    // to a stale workbook when the live API disagrees.
-    const sameYearRef = summaryRefs.findLast(ref => ref.year === m.year);
+    // workbooks first, salesdashboard-live API last), so the final match
+    // picks the most authoritative source. This avoids auto-fix snapping
+    // values back to a stale workbook when the live API disagrees.
+    // Manual reverse loop since findLast requires ES2023 target.
+    let sameYearRef: Year2025Reference | undefined;
+    for (let i = summaryRefs.length - 1; i >= 0; i--) {
+      if (summaryRefs[i].year === m.year) { sameYearRef = summaryRefs[i]; break; }
+    }
     if (sameYearRef) {
       const fixed = autoFixDriftFromSummary(healed, sameYearRef);
       if (fixed.changed) {
