@@ -63,11 +63,35 @@ export function parseWriteOffXlsx(buf: ArrayBuffer): PosWriteOffParseResult {
     // Document header — "WOFF00449" etc. — starts a new write-off event.
     if (/^WOFF\s*\d+/i.test(cDocNo)) {
       if (current) events.push(current);
-      const dm = cell(row, docDateCol).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      const date = dm
-        ? `${dm[3]}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`
-        : null;
-      const monthKey = dm ? `${dm[3]}-${dm[2].padStart(2, "0")}` : null;
+      // Doc Date arrives in one of two shapes depending on the export vintage:
+      //   • old wide form:  "31/01/2026"      (DD/MM/YYYY)
+      //   • newer compact:  "31-Jan-26"       (DD-Mmm-YY, 2-digit year)
+      // The newer form silently killed Slide 11 (every event's monthKey was
+      // null, so expireByMonth dropped them all).
+      const raw = cell(row, docDateCol);
+      let yyyy: string | null = null, mm: string | null = null, dd: string | null = null;
+      const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (slash) {
+        dd = slash[1].padStart(2, "0");
+        mm = slash[2].padStart(2, "0");
+        yyyy = slash[3];
+      } else {
+        const dash = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/);
+        if (dash) {
+          const monthMap: Record<string, string> = {
+            jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+            jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+          };
+          const m = monthMap[dash[2].toLowerCase()];
+          if (m) {
+            dd = dash[1].padStart(2, "0");
+            mm = m;
+            yyyy = dash[3].length === 2 ? `20${dash[3]}` : dash[3];
+          }
+        }
+      }
+      const date = yyyy && mm && dd ? `${yyyy}-${mm}-${dd}` : null;
+      const monthKey = yyyy && mm ? `${yyyy}-${mm}` : null;
       current = {
         writeOffNo: cDocNo.replace(/\s+/g, ""),
         date, monthKey,
