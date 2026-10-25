@@ -8,6 +8,7 @@ import { AlertTriangle, FileUp, Pencil, Save } from "lucide-react";
 import type { RawFileEntry } from "@/lib/month-report";
 import { SectionSourceFiles } from "../section-source-files";
 import { RichTextEditor } from "../rich-text-editor";
+import { RepairChainButton } from "../repair-chain-button";
 
 // Per-section hint about which raw POS file feeds it. Drives the missing-data banner.
 const FILE_HINT: Partial<Record<SectionKey, string>> = {
@@ -72,12 +73,20 @@ export function SectionShell({
 
   return (
     <div className="space-y-5 animate-fadein">
-      <header>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-600)]">
-          Slide {m.no}
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-600)]">
+            Slide {m.no}
+          </div>
+          <h2 className="font-[var(--font-display)] text-3xl font-semibold mt-1">{m.title}</h2>
+          {subtitle && <p className="text-[var(--color-ink-600)] mt-1 text-sm">{subtitle}</p>}
         </div>
-        <h2 className="font-[var(--font-display)] text-3xl font-semibold mt-1">{m.title}</h2>
-        {subtitle && <p className="text-[var(--color-ink-600)] mt-1 text-sm">{subtitle}</p>}
+        {/* Repair chain button — on every slide so you don't have to navigate
+            back to the home page to pull the latest numbers in. Same button
+            component the home page uses; opens its own modal with results. */}
+        <div className="shrink-0 pt-1">
+          <RepairChainButton />
+        </div>
       </header>
 
       {/* Source-file strip — wired directly to the RawFile table so it always
