@@ -826,10 +826,22 @@ function slideExpireWriteOff(pptx: PptxGenJS, input: PptxInput) {
   totalRow.push({ text: String(grandQ), options: { align: "center", bold: true, fill: headerFill(), color: C.headerText } });
   totalRow.push({ text: fmtMYR(grandA, 0), options: { align: "center", bold: true, fill: headerFill(), color: C.headerText } });
 
+  // Explicit column widths — without this, pptxgenjs auto-divides columns
+  // equally so the Product column gets the same ~0.6" slice as every QTY
+  // cell and long labels like "1dayPure Astigmatism" wrap to 4+ lines.
+  const totalW = 12.73;
+  const productColW = 1.7;
+  const dataCols = months.length * 2 + 2; // 2 per month + 2 total
+  const dataColW = (totalW - productColW) / dataCols;
+  const colW = [productColW, ...Array(dataCols).fill(dataColW)];
+  // Font size shrinks with month count so wide tables (9+ months) still fit.
+  const fontSize = dataCols >= 18 ? 8 : dataCols >= 14 ? 9 : 11;
+
   s.addTable([headers, subHead, ...productRows, totalRow], {
-    x: 0.30, y: 1.10, w: 12.73, h: 6.00, fontFace: FONT, fontSize: 11,
+    x: 0.30, y: 1.10, w: totalW, h: 6.00, colW, fontFace: FONT, fontSize,
     border: { type: "solid", pt: 0.5, color: C.tableBorder },
     valign: "middle",
+    autoPage: false,
   });
 }
 

@@ -652,10 +652,24 @@ function expireWriteOff(pptx: PptxGenJS, input: PptxInput) {
   total.push({ text: String(grandQ), options: { bold: true, align: "center", color: P.white, fill: { color: P.ink2 } } });
   total.push({ text: fmtMYR(grandA, 0), options: { bold: true, align: "center", color: P.white, fill: { color: P.ink2 } } });
 
+  // Explicit column widths — without this pptxgenjs auto-divides columns
+  // equally, so the Product column gets the same width as every QTY cell and
+  // long names like "1dayPure Astigmatism" wrap to many lines. Give the
+  // product column ~1.7" and split the rest across data columns.
+  const totalW = 12.15;
+  const productColW = 1.7;
+  const dataCols = months.length * 2 + 2; // 2 per month + 2 total
+  const dataColW = (totalW - productColW) / dataCols;
+  const colW = [productColW, ...Array(dataCols).fill(dataColW)];
+
+  // Font size shrinks with month count so wide tables (9+ months) still fit.
+  const fontSize = dataCols >= 18 ? 8 : dataCols >= 14 ? 9 : 10;
+
   s.addTable([headers, subHead, ...body, total], {
-    x: 0.6, y: 1.5, w: 12.15, h: 5.6,
-    fontFace: BODY_FONT, fontSize: 10, valign: "middle",
+    x: 0.6, y: 1.5, w: totalW, h: 5.6, colW,
+    fontFace: BODY_FONT, fontSize, valign: "middle",
     border: { type: "solid", pt: 0.5, color: P.ice },
+    autoPage: false,
   });
 }
 
