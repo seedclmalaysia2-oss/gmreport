@@ -14,6 +14,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { PalettePicker } from "./palette-picker";
 import { LogoutButton } from "./logout-button";
 import { MonthsMenu, MonthsDrawerSection } from "./months-menu";
+import { RefreshButton } from "./refresh-button";
 
 /**
  * Top-level navigation. Layout:
@@ -22,8 +23,11 @@ import { MonthsMenu, MonthsDrawerSection } from "./months-menu";
  *
  * The hamburger collapses the auxiliary chrome (palette / theme / "Simon" label)
  * into the same drawer so they remain reachable even on a 360-px screen.
+ *
+ * `build` is the running build label ("202611 build 00142", or "test build"), worked out on the
+ * server by `buildNumber()` in the root layout and shown under the app name, with a refresh button.
  */
-export function SiteHeader() {
+export function SiteHeader({ build }: { build: string }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -53,14 +57,20 @@ export function SiteHeader() {
           SEED CL HUB
         </a>
 
+        <div className="flex items-center gap-1 min-w-0">
         <Link href="/" className="flex items-center gap-2 font-semibold min-w-0">
           <span className="inline-block h-8 w-8 rounded-md bg-[var(--color-ink-800)] text-white grid place-items-center shrink-0">
             <span className="text-[11px] tracking-widest font-bold">GM</span>
           </span>
-          <span className="text-[var(--color-ink-900)] font-[var(--font-display)] text-base sm:text-lg truncate">
-            Malaysia Review
+          <span className="flex flex-col min-w-0 leading-tight">
+            <span className="text-[var(--color-ink-900)] font-[var(--font-display)] text-base sm:text-lg truncate">
+              Malaysia Review
+            </span>
+            <span className="text-[11px] font-normal font-mono text-[var(--color-ink-600)] truncate">{build}</span>
           </span>
         </Link>
+        <RefreshButton />
+        </div>
 
         {/* Desktop nav (hidden on phones) */}
         <nav className="hidden md:flex items-center gap-1 text-sm ml-4">

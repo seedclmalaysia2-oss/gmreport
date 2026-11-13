@@ -6,6 +6,7 @@ import { ZoomControls } from "@/components/zoom-controls";
 import { paletteBootstrapScript } from "@/lib/themes";
 import { DEPARTMENT, getStaff } from "@/lib/auth";
 import { NoAccess } from "@/components/no-access";
+import { buildLabel, buildNumber } from "@/lib/build-number";
 
 export const metadata: Metadata = {
   title: "Malaysia GM Report Dashboard",
@@ -41,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   //   signed in, no gm    -> render NoAccess instead
   // This is the page-level half of the gate; API routes call requireDept()
   // themselves, because Prisma bypasses RLS.
-  const staff = await getStaff();
+  const [staff, build] = await Promise.all([getStaff(), buildNumber()]);
   const locked = staff !== null && !(staff.is_admin || staff.departments.includes(DEPARTMENT));
 
   return (
@@ -54,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: paletteBootstrapScript() }} />
       </head>
       <body className="min-h-screen" suppressHydrationWarning>
-        <SiteHeader />
+        <SiteHeader build={buildLabel(build)} />
         {/* Mobile-first: tighter horizontal padding on small screens, expand on tablets+.
             Extra bottom padding on phones leaves room for the fixed MobileTabBar so the
             last cards aren't hidden behind it. md:pb-8 restores normal padding on tablets+. */}
