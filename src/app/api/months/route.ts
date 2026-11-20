@@ -22,60 +22,69 @@ export async function POST(req: Request) {
   if (typeof body.year !== "number" || typeof body.month !== "number") {
     return NextResponse.json({ error: "year and month required" }, { status: 400 });
   }
-  // If this month doesn't exist yet, pre-fill the "append"-style sections from
-  // recent months so the user doesn't start from a blank slate.
-  const existing = await getMonthReport(body.year, body.month);
-  const prefill: Partial<MonthReport> = {};
-  if (!existing) {
-    const all = await listMonthReports();
-    const newer = all.filter(m => (m.year < body.year) || (m.year === body.year && m.month < body.month));
-    const mostRecent = newer[0];          // listMonthReports sorts desc
-    const lastThree = newer.slice(0, 3);
+  try {
+    // If this month doesn't exist yet, pre-fill the "append"-style sections from
+    // recent months so the user doesn't start from a blank slate.
+    const existing = await getMonthReport(body.year, body.month);
+    const prefill: Partial<MonthReport> = {};
+    if (!existing) {
+      const all = await listMonthReports();
+      const newer = all.filter(m => (m.year < body.year) || (m.year === body.year && m.month < body.month));
+      const mostRecent = newer[0];          // listMonthReports sorts desc
+      const lastThree = newer.slice(0, 3);
 
-    if (mostRecent?.salesAchievement) {
-      // Carry forward year-wide budgets + prior-year actuals + KPI notes from earlier months.
-      prefill.salesAchievement = {
-        target2026: mostRecent.salesAchievement.target2026,
-        actual2026: Array(12).fill(null),
-        target2025: mostRecent.salesAchievement.target2025 ?? Array(12).fill(null),
-        actual2025: mostRecent.salesAchievement.actual2025,
-        netIncome2026: Array(12).fill(null),
-        netIncome2025: mostRecent.salesAchievement.netIncome2025,
-        kpi: lastThree.flatMap(m => m.salesAchievement?.kpi ?? [])
-          .filter((k, i, arr) => arr.findIndex(x => x.month === k.month) === i),
-      };
+      if (mostRecent?.salesAchievement) {
+        // Carry forward year-wide budgets + prior-year actuals + KPI notes from earlier months.
+        prefill.salesAchievement = {
+          target2026: mostRecent.salesAchievement.target2026,
+          actual2026: Array(12).fill(null),
+          target2025: mostRecent.salesAchievement.target2025 ?? Array(12).fill(null),
+          actual2025: mostRecent.salesAchievement.actual2025,
+          netIncome2026: Array(12).fill(null),
+          netIncome2025: mostRecent.salesAchievement.netIncome2025,
+          kpi: lastThree.flatMap(m => m.salesAchievement?.kpi ?? [])
+            .filter((k, i, arr) => arr.findIndex(x => x.month === k.month) === i),
+        };
+      }
+      if (mostRecent?.productRegistration) prefill.productRegistration = mostRecent.productRegistration;
+      if (mostRecent?.inventory) {
+        // Keep group structure, but clear values so user sees empty cells to fill.
+        prefill.inventory = {
+          groups: mostRecent.inventory.groups.map(g => ({
+            name: g.name,
+            rows: g.rows.map(r => ({ product: r.product, warehouse: null, consignment: null })),
+          })),
+          totalWarehouse: null,
+          totalConsignment: null,
+          commentary: "",
+        };
+      }
+      if (mostRecent?.financial) {
+        prefill.financial = {
+          arMyr: 0, arLongTermMyr: 0, apMyr: 0, collectionMyr: 0, cashFlowMyr: 0,
+        };
+      }
+      prefill.fxRate = mostRecent?.fxRate ?? 30.73;
     }
-    if (mostRecent?.productRegistration) prefill.productRegistration = mostRecent.productRegistration;
-    if (mostRecent?.inventory) {
-      // Keep group structure, but clear values so user sees empty cells to fill.
-      prefill.inventory = {
-        groups: mostRecent.inventory.groups.map(g => ({
-          name: g.name,
-          rows: g.rows.map(r => ({ product: r.product, warehouse: null, consignment: null })),
-        })),
-        totalWarehouse: null,
-        totalConsignment: null,
-        commentary: "",
-      };
-    }
-    if (mostRecent?.financial) {
-      prefill.financial = {
-        arMyr: 0, arLongTermMyr: 0, apMyr: 0, collectionMyr: 0, cashFlowMyr: 0,
-      };
-    }
-    prefill.fxRate = mostRecent?.fxRate ?? 30.73;
+    const report = await upsertMonthReport({ ...prefill, ...body });
+
+    // Invalidate every page that renders a list of months so the new card
+    // shows up the next time the user lands there. Without this, Next's
+    // router cache happily serves the stale RSC payload from before the
+    // mutation and the dashboard looks unchanged.
+    revalidatePath("/");
+    revalidatePath("/files");
+    revalidatePath("/export");
+
+    return NextResponse.json({ ...report, isNew: !existing });
+  } catch (e) {
+    // Any throw here reaches the browser as a 500 with no body, which the
+    // New month dialog can't explain. Surface it so the user sees the real
+    // reason (usually a Zod parse on a prior month's malformed section).
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("POST /api/months failed:", e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-  const report = await upsertMonthReport({ ...prefill, ...body });
-
-  // Invalidate every page that renders a list of months so the new card
-  // shows up the next time the user lands there. Without this, Next's
-  // router cache happily serves the stale RSC payload from before the
-  // mutation and the dashboard looks unchanged.
-  revalidatePath("/");
-  revalidatePath("/files");
-  revalidatePath("/export");
-
-  return NextResponse.json({ ...report, isNew: !existing });
 }
 
 export async function DELETE(req: Request) {

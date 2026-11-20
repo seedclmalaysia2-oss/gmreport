@@ -11,21 +11,40 @@ export function NewMonthButton() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function create() {
     setBusy(true);
-    const res = await fetch("/api/months", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ year, month }),
-    });
-    setBusy(false);
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setOpen(false);
-      const suffix = data.isNew ? "?new=1" : "";
-      router.push(`/report/${monthId(year, month)}${suffix}`);
-      router.refresh();
+    setErr(null);
+    try {
+      const res = await fetch("/api/months", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, month }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBusy(false);
+        setOpen(false);
+        const suffix = data.isNew ? "?new=1" : "";
+        router.push(`/report/${monthId(year, month)}${suffix}`);
+        router.refresh();
+        return;
+      }
+      // Non-OK: surface the server's reason so the dialog doesn't silently
+      // go back to idle. 403 = no gm department, 400 = bad payload,
+      // 500 = upsert blew up (usually Zod on a bad prior-month blob).
+      const body = await res.text().catch(() => "");
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const j = JSON.parse(body);
+        if (j?.error) msg = `${res.status}: ${j.error}`;
+      } catch { if (body) msg = `${res.status}: ${body.slice(0, 200)}`; }
+      setErr(msg);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -59,6 +78,11 @@ export function NewMonthButton() {
                 </select>
               </label>
             </div>
+            {err && (
+              <div className="rounded-md bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2">
+                {err}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-sm">Cancel</button>
               <button
