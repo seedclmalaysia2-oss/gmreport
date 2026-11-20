@@ -93,9 +93,18 @@ export function authErrorResponse(err: unknown): Response | null {
  * try/catch, and the early return reads clearly.
  */
 export async function guardDept(dept: string = DEPARTMENT): Promise<Response | null> {
-  if (await hasDepartment(dept)) return null;
-  return Response.json(
-    { error: "You don't have access to the GM dashboard." },
-    { status: 403 },
-  );
+  const staff = await getStaff();
+  if (allowed(staff, dept)) return null;
+  // Report WHY the gate closed so a UX surface (New-month dialog, etc.) can
+  // tell a stale cookie from a real permission problem — otherwise every
+  // failure looks identical and the user hunts for the wrong fix.
+  let reason: string;
+  if (!staff) {
+    reason = "Not signed in (session expired or cookie missing). Sign in again.";
+  } else if (!staff.active) {
+    reason = `Your staff account (${staff.email}) is inactive.`;
+  } else {
+    reason = `Your account (${staff.email}) doesn't have the "${dept}" department. departments=${JSON.stringify(staff.departments)}`;
+  }
+  return Response.json({ error: reason }, { status: 403 });
 }
