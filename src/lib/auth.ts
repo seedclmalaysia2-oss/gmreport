@@ -93,8 +93,11 @@ export function authErrorResponse(err: unknown): Response | null {
  * try/catch, and the early return reads clearly.
  */
 export async function guardDept(dept: string = DEPARTMENT): Promise<Response | null> {
-  const staff = await getStaff();
-  if (allowed(staff, dept)) return null;
+  const found = await getStaff();
+  if (allowed(found, dept)) return null;
+  // The type guard narrows `found` to never here (Staff | null minus Staff,
+  // with null folded in); re-widen it so the reasons below type-check.
+  const staff = found as Staff | null;
   // Report WHY the gate closed so a UX surface (New-month dialog, etc.) can
   // tell a stale cookie from a real permission problem — otherwise every
   // failure looks identical and the user hunts for the wrong fix.
