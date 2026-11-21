@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./topbar.css";
 import { SiteHeader } from "@/components/site-header";
 import { MobileTabBar } from "@/components/mobile-tabbar";
 import { ZoomControls } from "@/components/zoom-controls";
@@ -55,7 +56,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: paletteBootstrapScript() }} />
       </head>
       <body className="min-h-screen" suppressHydrationWarning>
-        <SiteHeader build={buildLabel(build)} />
+        <SiteHeader
+          build={buildLabel(build)}
+          who={staff ? { name: staff.full_name?.trim() || staff.email, role: staff.departments.includes(DEPARTMENT) ? "Malaysia GM" : staff.is_admin ? "Hub admin" : "No access" } : null}
+        />
         {/* Mobile-first: tighter horizontal padding on small screens, expand on tablets+.
             Extra bottom padding on phones leaves room for the fixed MobileTabBar so the
             last cards aren't hidden behind it. md:pb-8 restores normal padding on tablets+. */}

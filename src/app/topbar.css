@@ -1,0 +1,91 @@
+/* SEED top navigation (house standard, 2026-11-21; first built for SEED MY HR, see the HR repo's
+   seed-app-icon skill). One full-width sticky row: brand, build, refresh and theme on the left, the
+   pages in the middle, who is signed in and the exit at the right end. Colours come from this app's
+   own tokens (globals.css + the palette picker), so light, dark and every palette follow; the app
+   pill is SEED navy in all of them. Unlayered on purpose, so it wins over Tailwind's utilities. */
+.tb {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 14px;
+  min-height: 60px; padding: 8px 20px;
+  background: var(--surface-1); color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(20, 26, 61, .04);
+}
+.tb-left { display: flex; align-items: center; gap: 10px; flex: none; }
+.tb-brand { display: inline-flex; }
+/* The logo file is square with wide white margins: the box shows the whole logo and trims only margin. */
+.tb-logo { width: 64px; height: 36px; object-fit: cover; border-radius: 6px; background: #fff; }
+.tb-pill {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px;
+  background: #0b0f2b; color: #f4f7ff; font-weight: 700; font-size: .8125rem; white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+}
+.tb-build {
+  padding: 4px 9px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-subtle);
+  color: var(--text-secondary); font-family: var(--font-mono); font-size: .6875rem; font-weight: 600; white-space: nowrap;
+}
+.tb-icon {
+  min-height: 0;
+  display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.tb-icon:hover { background: var(--surface-2); color: var(--text-primary); }
+.tb-icon svg { width: 16px; height: 16px; }
+
+.tb-nav { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 2px; }
+/* Every item in the middle is a flat link with an icon; the page you are on is the one filled pill. */
+.tb-link {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 12px;
+  border: 0; border-radius: 999px; background: transparent; box-shadow: none;
+  color: var(--text-secondary); font: inherit; font-weight: 600; font-size: .875rem;
+  white-space: nowrap; text-decoration: none; cursor: pointer;
+}
+.tb-link:hover { background: var(--surface-2); color: var(--text-primary); }
+.tb-link[aria-current="page"] { background: #4353a6; color: #fff; }
+.tb-link svg { width: 16px; height: 16px; flex: none; }
+.tb-end { margin-left: 6px; flex: none; }
+
+.tb-right { display: flex; align-items: center; gap: 12px; flex: none; padding-left: 14px; border-left: 1px solid var(--border-subtle); }
+.tb-who { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.tb-avatar {
+  flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--color-ice-100); color: var(--color-ink-700); font-weight: 700; font-size: .8125rem;
+}
+html.dark .tb-avatar { color: var(--text-primary); }
+.tb-who-text { display: grid; line-height: 1.2; min-width: 0; }
+.tb-name { font-weight: 700; font-size: .875rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 18ch; }
+.tb-role { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
+.tb-exit {
+  min-height: 0;
+  display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.tb-exit:hover { background: var(--surface-2); color: var(--color-accent); }
+.tb-exit:disabled { opacity: .6; }
+.tb a:focus-visible, .tb button:focus-visible { outline: 2px solid #4353a6; outline-offset: 2px; }
+
+/* Narrower screens: the middle row drops under and scrolls sideways inside itself, never the page. */
+@media (max-width: 1280px) {
+  .tb { flex-wrap: wrap; row-gap: 6px; }
+  .tb-nav { order: 3; flex: 1 1 100%; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+  .tb-nav::-webkit-scrollbar { display: none; }
+  .tb-right { margin-left: auto; }
+  /* The Months and palette drop-downs hang from the bar (sticky, so it holds them), not from the
+     scrolling row, which would clip them. */
+  .tb-nav .relative { position: static; }
+  .tb-nav [data-months-popover], .tb-nav [data-palette-popover] { left: auto; right: 12px; top: 100%; }
+}
+@media (max-width: 820px) {
+  .tb { padding: calc(8px + env(safe-area-inset-top)) 12px 8px; gap: 8px; }
+  .tb-logo { width: 52px; height: 30px; }
+  .tb-build { display: none; }
+  .tb-right { padding-left: 8px; gap: 6px; }
+  .tb-who-text { display: none; }
+  /* The global 44px touch minimum would make the middle row tall; these stay compact. */
+  .tb-link { min-height: 36px; }
+}
+@media (max-width: 420px) {
+  .tb-pill { padding: 5px 10px; font-size: .75rem; }
+  .tb-pill svg { display: none; }
+}
+@media print { .tb { display: none !important; } }

@@ -5,7 +5,7 @@ import { reapplyActivePalette } from "@/lib/themes";
 
 type Theme = "light" | "dark";
 
-export function ThemeToggle() {
+export function ThemeToggle({ className = "rounded-md p-2 hover:bg-[var(--color-ice-100)] text-[var(--color-ink-800)] transition-colors" }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
@@ -38,7 +38,7 @@ export function ThemeToggle() {
       onClick={toggle}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       aria-label="Toggle theme"
-      className="rounded-md p-2 hover:bg-[var(--color-ice-100)] text-[var(--color-ink-800)] transition-colors"
+      className={className}
     >
       {/* Render both icons; inline script toggles `html.dark` before hydration so this matches. */}
       {!mounted ? <Moon size={16} /> : theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}

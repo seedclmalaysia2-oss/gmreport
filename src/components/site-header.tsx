@@ -1,165 +1,89 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { FileDown, Files, Home, Menu, X } from "lucide-react";
-
-/**
- * External URL of the parent SEED CL Malaysia hub. The header renders a
- * "Back to SEED CL Hub" link so this dashboard feels like a sub-app of
- * the main store, not a standalone destination.
- */
-const HUB_URL = "https://seedclmalaysiastore.com";
+import { FileDown, Files } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { PalettePicker } from "./palette-picker";
 import { LogoutButton } from "./logout-button";
-import { MonthsMenu, MonthsDrawerSection } from "./months-menu";
+import { MonthsMenu } from "./months-menu";
 import { RefreshButton } from "./refresh-button";
 
+/** The parent SEED CL Malaysia hub, so this dashboard reads as a sub-app of the store. */
+const HUB_URL = "https://seedclmalaysiastore.com";
+
+/** Who is signed in, worked out on the server in the root layout. Null when signed out (/login). */
+export type Who = { name: string; role: string } | null;
+
+function initials(name: string) {
+  const w = name.trim().split(/\s+/).filter(Boolean);
+  return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+/** "LOW KHUN KEONG" -> "Low Khun Keong"; a name already in mixed case is left as typed. */
+function nameCase(name: string) {
+  if (name !== name.toUpperCase() && name !== name.toLowerCase()) return name;
+  return name.toLowerCase().replace(/\b\p{L}/gu, c => c.toUpperCase());
+}
+
 /**
- * Top-level navigation. Layout:
- *  - phones: brand + hamburger; tap-out drawer reveals nav links + utilities
- *  - tablets and up: inline horizontal nav, palette + theme toggle on the right
+ * The SEED top navigation (house standard, first built for SEED MY HR on 2026-11-21; see the HR
+ * repo's seed-app-icon skill). One full-width sticky row: logo, app pill, build badge, refresh and
+ * theme on the left; the app's pages and the hub link in the middle (the page you are on is the
+ * filled pill); who is signed in and the exit icon at the right end. Styles: `.tb-*` in topbar.css.
  *
- * The hamburger collapses the auxiliary chrome (palette / theme / "Simon" label)
- * into the same drawer so they remain reachable even on a 360-px screen.
- *
- * `build` is the running build label ("202611 build 00142", or "test build"), worked out on the
- * server by `buildNumber()` in the root layout and shown under the app name, with a refresh button.
+ * `build` is the running build label ("202611 build 00142", or "test build" off live), worked out
+ * on the server by `buildNumber()` in the root layout.
  */
-export function SiteHeader({ build }: { build: string }) {
-  const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-
-  // Close the drawer on every route change so it doesn't stay over the new page.
-  useEffect(() => setOpen(false), [pathname]);
-
-  // Lock body scroll while the drawer is open — keeps it feeling like a sheet.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [open]);
+export function SiteHeader({ build, who }: { build: string; who: Who }) {
+  const pathname = usePathname() || "/";
+  const here = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <header className="border-b border-[var(--color-ice-200)] bg-[var(--surface-1)]/95 backdrop-blur sticky top-0 z-40">
-      <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6">
-        {/* Back-to-parent link — desktop only. Pill matches the SEED CL
-            Malaysia Sales Performance Dashboard's own hub button (rounded
-            border, house icon), so users see the same chip in the same
-            visual language across both apps. */}
-        <a
-          href={HUB_URL}
-          className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[var(--color-ice-200)] bg-white px-3 py-1.5 text-[13px] font-medium text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)] hover:border-[var(--color-ice-300)] transition whitespace-nowrap shadow-sm"
-          title="Back to SEED CL Hub"
-        >
-          <Home size={14} />
-          SEED CL HUB
-        </a>
-
-        <div className="flex items-center gap-1 min-w-0">
-        <Link href="/" className="flex items-center gap-2 font-semibold min-w-0">
-          <span className="inline-block h-8 w-8 rounded-md bg-[var(--color-ink-800)] text-white grid place-items-center shrink-0">
-            <span className="text-[11px] tracking-widest font-bold">GM</span>
-          </span>
-          <span className="flex flex-col min-w-0 leading-tight">
-            <span className="text-[var(--color-ink-900)] font-[var(--font-display)] text-base sm:text-lg truncate">
-              Malaysia Review
-            </span>
-            <span className="text-[11px] font-normal font-mono text-[var(--color-ink-600)] truncate">{build}</span>
-          </span>
+    <header className="tb">
+      <div className="tb-left">
+        <Link className="tb-brand" href="/" aria-label="GM Report, all months">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="tb-logo" src="/brand/logo.jpg" alt="" width={64} height={36} />
         </Link>
-        <RefreshButton />
-        </div>
-
-        {/* Desktop nav (hidden on phones) */}
-        <nav className="hidden md:flex items-center gap-1 text-sm ml-4">
-          <MonthsMenu />
-          <NavLink href="/files" icon={<Files size={15} />}>Files</NavLink>
-          <NavLink href="/export" icon={<FileDown size={15} />}>Export PPTX</NavLink>
-        </nav>
-
-        {/* Right-side utilities */}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-[var(--color-ink-600)] hidden lg:inline mr-1">Simon · Malaysia GM</span>
-          <div className="hidden md:flex items-center gap-2">
-            <PalettePicker />
-            <ThemeToggle />
-            <LogoutButton />
-          </div>
-
-          {/* Hamburger — phones only */}
-          <button
-            type="button"
-            onClick={() => setOpen(v => !v)}
-            aria-label={open ? "Close menu" : "Open menu"}
-            aria-expanded={open}
-            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-[var(--color-ice-100)] text-[var(--color-ink-900)] active:scale-95 transition"
-          >
-            {open ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
+        <span className="tb-pill">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /><path d="M8 17v-3M12 17v-6M16 17v-2" /></svg>
+          GM Report
+        </span>
+        <span className="tb-build">{build}</span>
+        <RefreshButton className="tb-icon" />
+        <ThemeToggle className="tb-icon" />
       </div>
 
-      {/* Mobile drawer */}
-      {open && (
-        <div className="md:hidden absolute inset-x-0 top-full bg-[var(--surface-1)] border-t border-b border-[var(--color-ice-200)] shadow-lg animate-fadein z-40">
-          <nav className="px-3 py-2 flex flex-col">
-            {/* Back-to-parent — pinned at the very top of the drawer so
-                phone users can leave the app without hunting for it. */}
-            <a
-              href={HUB_URL}
-              className="flex items-center gap-3 rounded-lg px-3 h-11 text-[15px] font-medium text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)] active:bg-[var(--color-ice-100)]"
-            >
-              <span className="text-[var(--color-ink-700)]"><Home size={18} /></span>
-              SEED CL HUB
-            </a>
-            <div className="border-t border-[var(--color-ice-200)] mt-1 pt-1" />
-            <DrawerLink href="/" icon={<Home size={18} />}>Months</DrawerLink>
-            <MonthsDrawerSection />
-            <div className="border-t border-[var(--color-ice-200)] mt-1 pt-1" />
-            <DrawerLink href="/files" icon={<Files size={18} />}>Files</DrawerLink>
-            <DrawerLink href="/export" icon={<FileDown size={18} />}>Export PPTX</DrawerLink>
-          </nav>
-          <div className="px-3 py-3 border-t border-[var(--color-ice-200)] flex items-center justify-between">
-            <span className="text-xs text-[var(--color-ink-600)]">Simon · Malaysia GM</span>
-            <div className="flex items-center gap-2">
-              <PalettePicker />
-              <ThemeToggle />
-            </div>
+      <nav className="tb-nav" aria-label="Top bar">
+        <MonthsMenu buttonClassName="tb-link" />
+        <Link className="tb-link" href="/files" aria-current={here("/files") ? "page" : undefined}>
+          <Files size={16} aria-hidden="true" /> Files
+        </Link>
+        <Link className="tb-link" href="/export" aria-current={here("/export") ? "page" : undefined}>
+          <FileDown size={16} aria-hidden="true" /> Export PPTX
+        </Link>
+        <a className="tb-link" href={HUB_URL} title="Back to the SEED CL Malaysia hub">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+          </svg>
+          SEED CL HUB
+        </a>
+        {/* App-wide control at the end of the row: the dashboard's colour palette. */}
+        <span className="tb-end"><PalettePicker /></span>
+      </nav>
+
+      {who && (
+        <div className="tb-right">
+          <div className="tb-who" aria-label="Signed in as">
+            <span className="tb-avatar" aria-hidden="true">{initials(who.name)}</span>
+            <span className="tb-who-text">
+              <span className="tb-name" title={who.name}>{nameCase(who.name)}</span>
+              <span className="tb-role">{who.role}</span>
+            </span>
           </div>
-          {/* Sign out gets its own row — it's destructive enough that we don't
-              want it crammed next to the palette swatches. */}
-          <div className="px-3 py-2 border-t border-[var(--color-ice-200)]">
-            <LogoutButton variant="drawer" />
-          </div>
+          <LogoutButton variant="exit" />
         </div>
       )}
     </header>
-  );
-}
-
-function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
-    >
-      {icon}
-      <span>{children}</span>
-    </Link>
-  );
-}
-
-function DrawerLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
-  // Bigger tap target than NavLink — 44px height satisfies WCAG 2.5.5 / Android touch guidelines.
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-lg px-3 h-11 text-[15px] font-medium text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)] active:bg-[var(--color-ice-100)]"
-    >
-      <span className="text-[var(--color-ink-700)]">{icon}</span>
-      {children}
-    </Link>
   );
 }

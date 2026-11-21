@@ -60,7 +60,7 @@ function groupByYear(months: MonthReport[]): { year: number; months: MonthReport
  * Desktop "Months" nav item — a click-to-open dropdown listing every month
  * report. Built on the same popover pattern as `palette-picker.tsx`.
  */
-export function MonthsMenu() {
+export function MonthsMenu({ buttonClassName }: { buttonClassName?: string } = {}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -92,9 +92,11 @@ export function MonthsMenu() {
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"
+        // In the top bar the Months button is the "page you are on" pill on the month list and every month report.
+        aria-current={buttonClassName && (pathname === "/" || activeId) ? "page" : undefined}
+        className={buttonClassName ?? "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--color-ink-800)] hover:bg-[var(--color-ice-100)]"}
       >
-        <Home size={15} />
+        <Home size={15} aria-hidden="true" />
         <span>Months</span>
         <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
