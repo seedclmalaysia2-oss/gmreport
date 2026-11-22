@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { WelcomeSplash, rememberedName, rememberName } from "@/components/welcome-splash";
 
 // Three phases, matching the sales dashboard so the two feel like one product:
 //   "signin" – work email + password
@@ -20,6 +21,8 @@ function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
+  // Set once signed in: the welcome screen covers the page while the dashboard loads.
+  const [welcome, setWelcome] = useState<string | null>(null);
 
   // Supabase sends people back here with type=recovery in the URL fragment and
   // a short-lived session already established — enough for one updateUser call.
@@ -42,6 +45,14 @@ function LoginForm() {
         : error.message);
       return;
     }
+    // The welcome screen goes up at once and the name follows; nothing waits for it.
+    setWelcome(rememberedName(email));
+    fetch("/api/welcome-name", { cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { name?: string | null } | null) => {
+        if (d?.name) { setWelcome(d.name); rememberName(email, d.name); }
+      })
+      .catch(() => {});
     // Hard navigation so the browser re-issues a full GET with the fresh
     // session cookie attached, giving the middleware a clean shot at it.
     window.location.assign(sp.get("next") || "/");
@@ -73,8 +84,12 @@ function LoginForm() {
   const field = "w-full rounded-md border border-[var(--color-ice-200)] px-3 py-2";
   const submit = mode === "signin" ? signIn : mode === "forgot" ? sendReset : applyReset;
 
+  if (welcome !== null) return <WelcomeSplash name={welcome} />;
+
   return (
     <div className="min-h-[70vh] grid place-items-center">
+      {/* Fetched now so the welcome screen's logo is ready the moment it shows. */}
+      <link rel="preload" as="image" href="/brand/seed-logo.png" />
       <form onSubmit={submit} className="w-[360px] rounded-2xl bg-white border border-[var(--color-ice-200)] p-6 space-y-4">
         <h1 className="font-[var(--font-display)] text-2xl font-semibold">
           {mode === "reset" ? "Set a new password" : "GM report dashboard"}
