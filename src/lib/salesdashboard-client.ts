@@ -109,9 +109,9 @@ export async function fetchHqSummaryFromSalesDashboard(year: number): Promise<{
   }
 
   // Translate salesdashboard product labels → CanonicalProduct and pad series
-  // to a stable 12-slot (number | null)[] shape. Zeros are preserved; the API
-  // returns 0 when a product has no activity in that month, which is a
-  // positive "zero sales" signal (not a null "we don't know").
+  // to a stable 12-slot (number | null)[] shape. Zeros are preserved per-product
+  // (a product that genuinely had no sales that month should stay 0) — but
+  // see the "empty-month" pass below for the "no Stock-Detail uploaded" case.
   const productQty: Year2025Reference["productQty"] = {};
   const productAmount: Year2025Reference["productAmount"] = {};
   for (const [apiName, series] of Object.entries(json.products)) {
@@ -119,6 +119,36 @@ export async function fetchHqSummaryFromSalesDashboard(year: number): Promise<{
     if (!canonical) continue; // unknown product on the API side — ignore
     productQty[canonical] = padTo12(series.qty);
     productAmount[canonical] = padMyrTo12(series.amount);
+  }
+
+  // --- Empty-month pass ---
+  // salesdashboard returns 0 for every product in months where no Stock-Detail
+  // file has been uploaded yet (e.g. mid-month before the current month's file
+  // lands). Treated as real zeros those would override the gmdashboard's
+  // locally-parsed master values down to 0, wiping Slide 5 + Slide 6 for the
+  // in-flight month. A genuine sales month never has every tracked product
+  // sitting at exactly 0 qty AND 0 MYR — so detect that signature and promote
+  // the whole month back to null for every product, which makes
+  // applyHqCustomerSplitRows leave the master value alone for that month.
+  for (let i = 0; i < 12; i++) {
+    let anyNonZero = false;
+    for (const series of Object.values(productQty)) {
+      const v = series?.[i];
+      if (typeof v === "number" && v !== 0) { anyNonZero = true; break; }
+    }
+    if (!anyNonZero) {
+      for (const series of Object.values(productAmount)) {
+        const v = series?.[i];
+        if (typeof v === "number" && v !== 0) { anyNonZero = true; break; }
+      }
+    }
+    if (anyNonZero) continue;
+    for (const series of Object.values(productQty)) {
+      if (series) series[i] = null;
+    }
+    for (const series of Object.values(productAmount)) {
+      if (series) series[i] = null;
+    }
   }
 
   // --- Wohlk collapse ---
