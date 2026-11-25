@@ -104,7 +104,7 @@ Already implemented. Same pattern would apply if any other slide's table gets cr
 Something is handing `salesByQuantity.rows[i].qty2026` or `qty2025` as a float. salesdashboard API rounds to 2 decimals (trial-lens divisions). Every ref-qty assignment MUST `Math.round()` before writing. If you add a new place that writes qty, round it.
 
 Spots that currently round correctly:
-- `salesdashboard-client.ts` `padTo12`
+- `salesdashboard-client.ts` `padTo12` (also hosts the **empty-month pass** — nulls out months where every product is 0/0, so Repair doesn't wipe the in-flight month; see symptom below)
 - `applyYear2025ToReport` prior-year branch
 - `applyHqCustomerSplitRows`
 - `autoFixDriftFromSummary`
@@ -112,6 +112,18 @@ Spots that currently round correctly:
 ### Symptom: HQ Summary override zeroes out a correct master value
 
 Check `applyHqCustomerSplitRows` in `src/lib/parsers/year-2025.ts`. The rule: if `series[monthIdx] == null`, LEAVE the master value alone. Never default null→0 (that silently blanks out correct master values when Summary cells are empty for a month).
+
+### Symptom: Repair wipes Slide 5 + Slide 6 to zero for the in-flight month
+
+This is the killer scenario. The owner uploads the October POS master on gmdashboard (slide 5/6 fill correctly from `parseMasterXlsx`), clicks Repair chain, and **every row drops to 0** — repair notes show a wall of `HQ Summary override — <product>: qty X→0`.
+
+Cause: salesdashboard returns `qty: 0, amount: 0` for every product in months where no Stock-Detail file has been uploaded there yet. Preserving those as real zeros makes `applyHqCustomerSplitRows` override the master values down to 0.
+
+Fix lives in `src/lib/salesdashboard-client.ts`'s **empty-month pass** (added 2026-11-25, commit `fe87cf6`). After building `productQty` / `productAmount`, it scans each month slot; if **every** tracked product has `0` qty AND `0` MYR for that slot, it promotes the whole month to `null` for every product. The override then skips it and the master value stands.
+
+Do not weaken or remove that pass. The heuristic is safe because a genuine sales month never has literally every product at 0 qty AND 0 MYR — a few always sell. If you add a new product category to the API, this pass keeps working automatically.
+
+Verification: re-run Repair; `octNotes` should no longer include any `HQ Summary override — … → 0` lines, and the only remaining notes are "Rebuilt Slide 5 + Slide 6 from stored master" and "2025 comparison columns filled from Sales Summary reference".
 
 ### Symptom: Wohlk double-counts
 
@@ -134,6 +146,7 @@ Durable project memory in `.claude/projects/C--Users-Expert-GM-report-dashboard/
 - `boc-overseas-glodisa.md` — BoC domestic/overseas customer split (GLODISA only)
 - `wohlk-single-lens-trials.md` — WHCLST/WHCLAT count full qty, not ÷pack
 - `mcuv-colour-split-from-summary.md` — Summary overrides MC colours on group-level master
+- `hq-api-empty-month-null.md` — API returns 0 for every product in unseeded months; client null-promotes
 
 Read these before touching catalog code — they capture owner decisions that aren't obvious from the data.
 
