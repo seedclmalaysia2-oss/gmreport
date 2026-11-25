@@ -52,6 +52,8 @@ const API_NAME_MAP: Record<string, CanonicalProduct> = {
   "BREATH O CORRECT": "Breath O Correct",
   "BREATH O CORRECT (OVERSEAS)": "Breath O Correct (Overseas)",
   "WOHLK KE RGP": "Wohlk KE RGP",
+  "WOHLK CONTACT LIFE SPH": "Wohlk Contact Life Sph",
+  "WOHLK CONTACT LIFE TORIC": "Wohlk Contact Life Toric",
   "DISOP H2O2 SOLUTION": "DISOP H2O2 Solution",
   "DISOP ULTRA EYEDROP": "DISOP Ultra Eyedrop",
   "DISOP ACUAISS DUAL GEL EYEDROP": "DISOP Acuaiss Dual Gel Eyedrop",
