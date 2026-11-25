@@ -113,6 +113,23 @@ Spots that currently round correctly:
 
 Check `applyHqCustomerSplitRows` in `src/lib/parsers/year-2025.ts`. The rule: if `series[monthIdx] == null`, LEAVE the master value alone. Never default null→0 (that silently blanks out correct master values when Summary cells are empty for a month).
 
+### Symptom: Owner provides a per-row HQ-vs-GM-Dashboard comparison showing small drifts (±1 to ±10) on several rows for the current month, no HQ Summary workbook for this year is on file
+
+This is the expected steady state until the owner uploads the month's `SEED(M) Sales Summary <Month>_<Year>.xlsx` to gmdashboard. Without a current-year Summary workbook (`gm."RawFile"` row with `kind='ref_2025'` whose title parses as year=N), the HQ override has no data to apply for N's months — the live salesdashboard API covers earlier months but returns all-zero for the in-flight month (empty-month pass null-promotes it), so Slide 5 / Slide 6 for that month shows raw master values, which drift from HQ by SKU-splitting rounding (trial lens packs, MC colour splits, BoC customer split, Wohlk collapse).
+
+Check with SQL:
+
+```sql
+SELECT id, "originalName", "monthReportId", "createdAt"
+FROM gm."RawFile"
+WHERE kind='ref_2025' AND "deletedAt" IS NULL
+ORDER BY "createdAt" DESC;
+```
+
+If the newest row is still last year's Dec file, that's the cause. Fix: have the owner upload `SEED(M) Sales Summary <Month>_<Year>.xlsx` via the POS files UI (year+month+file) — or do it programmatically from a known-good source via `POST /api/import` with `year`, `month`, and the xlsx `files` field — and then click Repair chain. applyHqCustomerSplitRows will then override every HQ-owned row for every month the Summary has data for.
+
+If the owner only gave you a HQ-vs-GM comparison file (with an extra "GM Dashboard" column stuffed into the NOV position next to HQ Oct), do NOT upload it as-is: the parser reads columns B..M, so the NOV column's comparison annotations would get planted as fake NOV values. Rebuild the sheet first — keep A (product), B..K (Jan..Oct), clear L..M (Nov..Dec).
+
 ### Symptom: Repair wipes Slide 5 + Slide 6 to zero for the in-flight month
 
 This is the killer scenario. The owner uploads the October POS master on gmdashboard (slide 5/6 fill correctly from `parseMasterXlsx`), clicks Repair chain, and **every row drops to 0** — repair notes show a wall of `HQ Summary override — <product>: qty X→0`.
@@ -124,6 +141,12 @@ Fix lives in `src/lib/salesdashboard-client.ts`'s **empty-month pass** (added 20
 Do not weaken or remove that pass. The heuristic is safe because a genuine sales month never has literally every product at 0 qty AND 0 MYR — a few always sell. If you add a new product category to the API, this pass keeps working automatically.
 
 Verification: re-run Repair; `octNotes` should no longer include any `HQ Summary override — … → 0` lines, and the only remaining notes are "Rebuilt Slide 5 + Slide 6 from stored master" and "2025 comparison columns filled from Sales Summary reference".
+
+### Symptom: Wohlk Contact Life Sph / Toric still drifts after a Summary upload
+
+HQ's Summary workbook now splits Wohlk into three rows (`WOHLK KE RGP`, `WOHLK CONTACT LIFE SPH`, `WOHLK CONTACT LIFE TORIC`), but the parser's `NAME_MAP` and the live API's `API_NAME_MAP` only knew about KE RGP historically — the Sph / Toric rows parsed off the sheet dropped on the floor because no CanonicalProduct mapping existed. Both maps now include all three Wohlk variants (commit `56aac91`).
+
+If HQ ever adds a NEW product row that the dashboard already has a canonical row for (e.g. a split of an existing combined row), add it to **both** `NAME_MAP` in `src/lib/parsers/year-2025.ts` AND `API_NAME_MAP` in `src/lib/salesdashboard-client.ts`. The canonical name on the right must match an entry in `CANONICAL_PRODUCTS` exactly. Then click Repair.
 
 ### Symptom: Wohlk double-counts
 
