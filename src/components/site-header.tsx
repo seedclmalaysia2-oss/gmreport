@@ -1,9 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileDown, Files } from "lucide-react";
+import { FileDown, Files, Settings } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
-import { PalettePicker } from "./palette-picker";
 import { LogoutButton } from "./logout-button";
 import { MonthsMenu } from "./months-menu";
 import { RefreshButton } from "./refresh-button";
@@ -68,8 +67,12 @@ export function SiteHeader({ build, who }: { build: string; who: Who }) {
           </svg>
           SEED CL HUB
         </a>
-        {/* App-wide control at the end of the row: the dashboard's colour palette. */}
-        <span className="tb-end"><PalettePicker /></span>
+        {/* Preferences live on /settings now; the palette picker that used to sit
+            here was a daily control for a decision Simon makes once. */}
+        <Link className="tb-link tb-end" href="/settings" aria-current={here("/settings") ? "page" : undefined} title="Dashboard preferences">
+          <Settings size={15} aria-hidden="true" />
+          <span className="sr-only sm:not-sr-only">Settings</span>
+        </Link>
       </nav>
 
       {who && (
