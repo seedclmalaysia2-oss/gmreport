@@ -89,9 +89,13 @@ series. If three series share x-positions (every month on Slide 2), every
 label stacks at the same place and they collide.
 
 **Pattern:** switch to the combo-chart signature so each series gets its own
-`dataLabelPosition`. Positional-arg order is `addChart(type_or_combo_array,
-data, options)` — when passing a combo array as the first arg, pass `[]` for
-the unused `data` arg.
+`dataLabelPosition`. **Critical:** the runtime signature is
+`addChart(comboArray, options)` — TWO args, not three — even though the
+TypeScript types declare `(type, data, options)`. Internally pptxgenjs does
+`tmpOpt = data || opt` for the multi-chart branch, so passing `[]` as `data`
+(truthy array) silently clobbers every option (x, y, w, h fall back to
+`1, 1, "50%", "50%"`) and the generated OOXML crashes the export with a 500.
+Pass options in the second slot and cast past the typed overload.
 
 ```ts
 // Slide 2 (classic.ts): three single-series sub-charts, each with its own
@@ -103,33 +107,42 @@ const labelOpts = {
   dataLabelFormatCode: "#,##0",
   lineSize: 3, lineDataSymbol: "circle" as const, lineDataSymbolSize: 8,
 };
-s.addChart(
-  [
-    { type: pptx.ChartType.line, data: [{ name: "Actual 2026", labels, values: actual26 }],
-      options: { ...labelOpts, chartColors: ["0B1F5C"], dataLabelPosition: "t" } },
-    { type: pptx.ChartType.line, data: [{ name: "Target 2026", labels, values: target26 }],
-      options: { ...labelOpts, chartColors: ["DC2626"], dataLabelPosition: "r" } },
-    { type: pptx.ChartType.line, data: [{ name: "Actual 2025", labels, values: actual25 }],
-      options: { ...labelOpts, chartColors: ["22C55E"], dataLabelPosition: "b" } },
-  ],
-  [],   // required positional slot; the combo array above already carries every series
-  {
-    x: 0.5, y: 0.95, w: 12.3, h: chartH,
-    showLegend: true, legendPos: "b", ...
-  },
+const comboSeries = [
+  { type: pptx.ChartType.line, data: [{ name: "Actual 2026", labels, values: actual26 }],
+    options: { ...labelOpts, chartColors: ["0B1F5C"], dataLabelPosition: "t" } },
+  { type: pptx.ChartType.line, data: [{ name: "Target 2026", labels, values: target26 }],
+    options: { ...labelOpts, chartColors: ["DC2626"], dataLabelPosition: "r" } },
+  { type: pptx.ChartType.line, data: [{ name: "Actual 2025", labels, values: actual25 }],
+    options: { ...labelOpts, chartColors: ["22C55E"], dataLabelPosition: "b" } },
+];
+const comboOptions = {
+  x: 0.5, y: 0.95, w: 12.3, h: chartH,
+  chartArea: { fill: { color: "FFFFFF" } },
+  showLegend: true, legendPos: "b" as const, ...
+};
+// 2-arg runtime call; cast past the 3-arg TS types.
+(s.addChart as unknown as (t: typeof comboSeries, o: typeof comboOptions) => void)(
+  comboSeries,
+  comboOptions,
 );
 ```
 
 Keep the label font small (11pt, not 16pt) — even with t/r/b offsets, 16pt
 labels bump into each other when the three lines run within ~40k of one
-another.
+another. **Sanity-check before shipping** any combo-chart change: write a
+scratch `tsx` script that imports `pptxgenjs` and calls `pptx.write(...)` with
+the same chart shape; if the buffer comes back ≥10KB with no throw, the
+XML will survive the real export. Dev-server preview doesn't exercise the
+PPTX generator, so you can't catch this in the browser.
 
-### 3. The `data` positional in the combo signature is unused but still required
+### 3. Do NOT pass `[]` as `data` in a combo-chart call
 
-TypeScript's overload picker complains if you call `s.addChart([combo], opts)`
-with two args — the type inference falls back to `addChart(type, data: any[])`
-and the options slot becomes `any[]`. Pass the empty `[]` explicitly for
-`data`; see the Slide 2 snippet.
+The TypeScript types declare `addChart(type, data: any[], options?)`, so it
+looks like you should pass `[]` for `data` when the combo array already
+carries every series. **Don't.** The runtime reads `data || opt` for the
+multi-chart branch; `[]` is truthy, so pptxgenjs reads `[]` as the options
+object, every chart option is lost, and the export 500s. Always use the
+2-arg form shown above and cast past the typed overload.
 
 ## Alignment conventions we've settled on
 
