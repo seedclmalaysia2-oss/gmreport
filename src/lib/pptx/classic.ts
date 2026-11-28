@@ -662,24 +662,41 @@ function slideProductRegistration(pptx: PptxGenJS, input: PptxInput) {
   titleBar(s, "9. Product Registration in Progress", 0.20, 0.28, 11.5, 0.68, 22);
 
   const last = input.months[input.months.length - 1];
-  const headers = ["Product", "Class", "Start Date", "Doc Overseas", "CAB Assessment", "MDA Submission", "MDA Process", "Completion", "MDA Approval No"];
-  const rows: PptxGenJS.TableCell[][] = [headers.map(h => ({ text: h, options: { bold: true, fill: headerFill(), color: C.headerText, fontSize: 12 } }))];
+  // Short labels (mirrors the inline preview) so headers fit on one line at
+  // the equal 1.24" column width below. The long "Start Date" / "CAB
+  // Assessment" / "MDA Submission" strings used to wrap into 2-3 lines in
+  // the auto-divided 1.40" columns and inflate the header row's height.
+  const headers = ["Product", "Class", "Start", "Doc OS", "CAB", "MDA Sub", "MDA Proc", "Completion", "Approval No"];
+  const headerOpts = { bold: true, fill: headerFill(), color: C.headerText, fontSize: 12, align: "center" as const };
+  const rows: PptxGenJS.TableCell[][] = [
+    // Product header stays left-aligned to match its body column; the other
+    // eight are status columns that center better under short labels.
+    headers.map((h, i) => ({ text: h, options: { ...headerOpts, align: (i === 0 ? "left" : "center") as "left" | "center" } })),
+  ];
   const data = last.productRegistration?.rows ?? [];
   data.forEach((r, i) => {
     const zebra = i % 2 === 0 ? { fill: { color: C.rowAlt } } : {};
+    const centerCell = (text: string): PptxGenJS.TableCell => ({ text, options: { ...zebra, align: "center" } });
     rows.push([
       { text: r.product, options: { ...zebra } },
-      { text: r.class, options: { ...zebra } },
-      { text: r.startDate, options: { ...zebra } },
-      { text: r.docOverseas, options: { ...zebra } },
-      { text: r.cabAssessment, options: { ...zebra } },
-      { text: r.mdaSubmission, options: { ...zebra } },
-      { text: r.mdaProcess, options: { ...zebra } },
-      { text: r.completionDate, options: { ...zebra } },
-      { text: r.mdaApprovalNo, options: { ...zebra } },
+      centerCell(r.class),
+      centerCell(r.startDate),
+      centerCell(r.docOverseas),
+      centerCell(r.cabAssessment),
+      centerCell(r.mdaSubmission),
+      centerCell(r.mdaProcess),
+      centerCell(r.completionDate),
+      centerCell(r.mdaApprovalNo),
     ]);
   });
-  s.addTable(rows, { x: 0.36, y: 1.20, w: 12.62, h: 5.2, fontFace: FONT, fontSize: 13, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
+  // Product gets ~2.7" for the long product names; the eight status columns
+  // split the rest evenly (9.92 / 8 = 1.24") so no column wraps.
+  s.addTable(rows, {
+    x: 0.36, y: 1.20, w: 12.62, h: 5.2,
+    colW: [2.70, 1.24, 1.24, 1.24, 1.24, 1.24, 1.24, 1.24, 1.24],
+    fontFace: FONT, fontSize: 13,
+    border: { type: "solid", pt: 0.5, color: C.tableBorder },
+  });
 
   // Commentary line below the table — only when the user has written one.
   const cmt = (last.productRegistration?.commentary ?? "").replace(/<[^>]*>/g, "").trim();

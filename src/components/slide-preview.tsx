@@ -745,23 +745,32 @@ function SlideProductRegistration({ report, P, scale }: { report: MonthReport; P
     <>
       <SlideTitle palette={P} scale={scale} text="9. Product Registration in Progress" />
       <div style={{ position: "absolute", left: px(0.4, scale), top: px(1.1, scale), width: px(12.6, scale), fontSize: fs(8.5, scale) }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri", tableLayout: "fixed" }}>
+          {/* Product takes ~2.7"; the eight status columns split the rest evenly
+              (same proportions as the Classic PPTX: colW [2.70, 1.24 x 8]). */}
+          <colgroup>
+            <col style={{ width: `${(2.70 / 12.6) * 100}%` }} />
+            {[0,1,2,3,4,5,6,7].map(i => <col key={i} style={{ width: `${(1.24 / 12.6) * 100}%` }} />)}
+          </colgroup>
           <thead>
-            <tr>{headers.map(h => <th key={h} style={thStyle(P, scale)}>{h}</th>)}</tr>
+            <tr>
+              <th style={thStyle(P, scale, "left")}>{headers[0]}</th>
+              {headers.slice(1).map(h => <th key={h} style={thStyle(P, scale, "center")}>{h}</th>)}
+            </tr>
           </thead>
           <tbody>
             {rows.length === 0 && <tr><td colSpan={headers.length} style={{ padding: 12, textAlign: "center", color: P.muted }}>No registrations tracked yet</td></tr>}
             {rows.map((r, i) => (
               <tr key={i} style={{ background: i % 2 === 0 ? P.rowAlt : "transparent" }}>
                 <td style={tdStyle(P, scale)}>{r.product}</td>
-                <td style={tdStyle(P, scale)}>{r.class}</td>
-                <td style={tdStyle(P, scale)}>{r.startDate}</td>
-                <td style={tdStyle(P, scale)}>{r.docOverseas}</td>
-                <td style={tdStyle(P, scale)}>{r.cabAssessment}</td>
-                <td style={tdStyle(P, scale)}>{r.mdaSubmission}</td>
-                <td style={tdStyle(P, scale)}>{r.mdaProcess}</td>
-                <td style={tdStyle(P, scale)}>{r.completionDate}</td>
-                <td style={tdStyle(P, scale)}>{r.mdaApprovalNo}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.class}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.startDate}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.docOverseas}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.cabAssessment}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.mdaSubmission}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.mdaProcess}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.completionDate}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.mdaApprovalNo}</td>
               </tr>
             ))}
           </tbody>
