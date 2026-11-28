@@ -131,7 +131,7 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
     .sort((a, b) => a.year - b.year || a.month - b.month);
 
   return (
-    <div className="space-y-5 md:pb-28">
+    <div className="space-y-5">
       <section className="rounded-2xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] p-5">
         <div className="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
           <h3 className="font-semibold">Months</h3>
@@ -330,14 +330,13 @@ export function ExportForm({ allReports }: { allReports: MonthReport[] }) {
         )}
       </section>
 
-      {/* Generate bar — pinned floating on desktop so the download actions
-          follow Simon down the scroll; inline on mobile (the MobileTabBar
-          already owns the bottom edge there, and the user scrolls to the end
-          to tap anyway). */}
+      {/* Generate bar — sits inline at the end of the form on every width.
+          The earlier floating variant kept colliding with the month grid and
+          the preview on 1280-ish widths; a sticky variant pinned it in a
+          different overlap. The scroll-to-generate flow is simple, honest,
+          and has zero collision risk. */}
       <div
-        className="rounded-2xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)]
-                   md:fixed md:bottom-4 md:right-4 md:z-30 md:bg-[var(--surface-1)]/95
-                   md:backdrop-blur md:shadow-lg"
+        className="rounded-2xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)]"
         role="region"
         aria-label="Export actions"
       >

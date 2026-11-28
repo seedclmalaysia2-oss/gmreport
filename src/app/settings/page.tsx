@@ -15,10 +15,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-8">
       <header>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-ink-600)] font-semibold">
-          Settings
-        </p>
-        <h1 className="mt-1 font-[var(--font-display)] text-2xl font-semibold text-[var(--color-ink-900)] leading-none">
+        <h1 className="font-[var(--font-display)] text-2xl font-semibold text-[var(--color-ink-900)]">
           Dashboard preferences
         </h1>
         <p className="mt-2 text-sm text-[var(--color-ink-600)]">
