@@ -567,20 +567,20 @@ function slideSalesByECP(pptx: PptxGenJS, input: PptxInput) {
   const placeTable = (month: typeof input.months[number], y: number) => {
     const rows: PptxGenJS.TableCell[][] = [[
       { text: `ECP (${monthShort(month.month)})`, options: { bold: true, fill: headerFill(), color: C.headerText } },
-      { text: "Outlets", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
-      { text: "%", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
-      { text: "Sales (JPY)", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
-      { text: "Sales (MYR)", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
+      { text: "Outlets", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
+      { text: "%", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
+      { text: "Sales (JPY)", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
+      { text: "Sales (MYR)", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
     ]];
     const data = month.salesByECP?.rows ?? ECP_CATEGORIES.map(category => ({ category, outlets: 0, pct: 0, salesMyr: 0 }));
     data.forEach((r, i) => {
       const zebra = i % 2 === 0 ? { fill: { color: C.rowAlt } } : {};
       rows.push([
         { text: r.category, options: { ...zebra } },
-        { text: String(r.outlets), options: { ...zebra, align: "right" } },
-        { text: fmtPct(r.pct, 0), options: { ...zebra, align: "right" } },
-        { text: fmtJPY(r.salesMyr * month.fxRate), options: { ...zebra, align: "right" } },
-        { text: `MYR ${fmtMYR(r.salesMyr, 0)}`, options: { ...zebra, align: "right" } },
+        { text: String(r.outlets), options: { ...zebra, align: "center" } },
+        { text: fmtPct(r.pct, 0), options: { ...zebra, align: "center" } },
+        { text: fmtJPY(r.salesMyr * month.fxRate), options: { ...zebra, align: "center" } },
+        { text: `MYR ${fmtMYR(r.salesMyr, 0)}`, options: { ...zebra, align: "center" } },
       ]);
     });
     // Total row — matches the editor's Slide 7 footer. Percent reads 100%
@@ -592,12 +592,19 @@ function slideSalesByECP(pptx: PptxGenJS, input: PptxInput) {
     const totalCell = { bold: true, fill: headerFill(), color: C.headerText };
     rows.push([
       { text: "Total",                                       options: { ...totalCell } },
-      { text: String(totalOutlets),                          options: { ...totalCell, align: "right" } },
-      { text: fmtPct(1, 0),                                  options: { ...totalCell, align: "right" } },
-      { text: fmtJPY(totalSalesMyr * month.fxRate),          options: { ...totalCell, align: "right" } },
-      { text: `MYR ${fmtMYR(totalSalesMyr, 0)}`,             options: { ...totalCell, align: "right" } },
+      { text: String(totalOutlets),                          options: { ...totalCell, align: "center" } },
+      { text: fmtPct(1, 0),                                  options: { ...totalCell, align: "center" } },
+      { text: fmtJPY(totalSalesMyr * month.fxRate),          options: { ...totalCell, align: "center" } },
+      { text: `MYR ${fmtMYR(totalSalesMyr, 0)}`,             options: { ...totalCell, align: "center" } },
     ]);
-    s.addTable(rows, { x: 0.96, y, w: 11.11, h: 2.9, fontFace: FONT, fontSize: 16, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
+    // Explicit colW: ECP label gets room for "Overseas / Cash Sales" on one
+    // line at 16pt; the four numeric columns split the rest evenly.
+    s.addTable(rows, {
+      x: 0.96, y, w: 11.11, h: 2.9,
+      colW: [2.80, 2.08, 2.08, 2.08, 2.07],
+      fontFace: FONT, fontSize: 16,
+      border: { type: "solid", pt: 0.5, color: C.tableBorder },
+    });
   };
   if (input.months.length === 2) {
     placeTable(input.months[0], 1.15);
@@ -910,19 +917,19 @@ function slideFinancial(pptx: PptxGenJS, input: PptxInput) {
   const months = input.months;
   const headers: PptxGenJS.TableCell[] = [{ text: "Item", options: { bold: true, fill: headerFill(), color: C.headerText } }];
   for (const m of months) {
-    headers.push({ text: `${monthShort(m.month)} (JPY)`, options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } });
-    headers.push({ text: `${monthShort(m.month)} (MYR)`, options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } });
+    headers.push({ text: `${monthShort(m.month)} (JPY)`, options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } });
+    headers.push({ text: `${monthShort(m.month)} (MYR)`, options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } });
   }
 
   const rowFor = (label: string, pick: (f: NonNullable<typeof months[0]["financial"]>) => number, negative = false): PptxGenJS.TableCell[] => {
     const r: PptxGenJS.TableCell[] = [{ text: label, options: { bold: true } }];
     for (const m of months) {
       const f = m.financial;
-      if (!f) { r.push({ text: "—" }); r.push({ text: "—" }); continue; }
+      if (!f) { r.push({ text: "—", options: { align: "center" } }); r.push({ text: "—", options: { align: "center" } }); continue; }
       const myr = safeNum(pick(f));
       const jpy = myr * m.fxRate;
-      r.push({ text: fmtJPY(jpy), options: { align: "right", color: negative && myr < 0 ? C.negative : C.text } });
-      r.push({ text: fmtMYR(myr, 0), options: { align: "right", color: negative && myr < 0 ? C.negative : C.text } });
+      r.push({ text: fmtJPY(jpy), options: { align: "center", color: negative && myr < 0 ? C.negative : C.text } });
+      r.push({ text: fmtMYR(myr, 0), options: { align: "center", color: negative && myr < 0 ? C.negative : C.text } });
     }
     return r;
   };
@@ -935,7 +942,19 @@ function slideFinancial(pptx: PptxGenJS, input: PptxInput) {
     rowFor("Collection",                f => f.collectionMyr),
     rowFor("Cash Flow",                 f => f.cashFlowMyr),
   ];
-  s.addTable(rows, { x: 0.92, y: 1.20, w: 11.50, h: 4.8, fontFace: FONT, fontSize: 16, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
+  // Explicit colW: Item gets room for "180-365 days long-term"; each numeric
+  // column splits the rest evenly. Supports 1 or 2 months.
+  const totalW = 11.50;
+  const itemColW = months.length === 2 ? 3.00 : 3.50;
+  const numCols = months.length * 2;
+  const numColW = (totalW - itemColW) / numCols;
+  const colW = [itemColW, ...Array(numCols).fill(numColW)];
+  s.addTable(rows, {
+    x: 0.92, y: 1.20, w: totalW, h: 4.8,
+    colW,
+    fontFace: FONT, fontSize: 16,
+    border: { type: "solid", pt: 0.5, color: C.tableBorder },
+  });
 }
 
 function slideOtherMarket(pptx: PptxGenJS, input: PptxInput) {

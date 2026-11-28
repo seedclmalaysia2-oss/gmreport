@@ -675,24 +675,31 @@ function SlideSalesByECP({ report, P, scale }: { report: MonthReport; P: Palette
     <>
       <SlideTitle palette={P} scale={scale} text={`7. Sales by ECP – ${MONTH_NAMES[report.month - 1]} ${report.year}`} />
       <div style={{ position: "absolute", left: px(1.0, scale), top: px(1.6, scale), width: px(11.1, scale), fontSize: fs(11, scale) }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri", tableLayout: "fixed" }}>
+          {/* Category takes ~2.8" so "Overseas / Cash Sales" fits on one
+              line; the four numeric columns split the rest evenly
+              (matches the Classic PPTX colW). */}
+          <colgroup>
+            <col style={{ width: `${(2.80 / 11.1) * 100}%` }} />
+            {[0,1,2,3].map(i => <col key={i} style={{ width: `${(2.08 / 11.1) * 100}%` }} />)}
+          </colgroup>
           <thead>
             <tr>
               <th style={thStyle(P, scale)}>Category</th>
-              <th style={thStyle(P, scale, "right")}>Outlets</th>
-              <th style={thStyle(P, scale, "right")}>%</th>
-              <th style={thStyle(P, scale, "right")}>Sales (JPY)</th>
-              <th style={thStyle(P, scale, "right")}>Sales (MYR)</th>
+              <th style={thStyle(P, scale, "center")}>Outlets</th>
+              <th style={thStyle(P, scale, "center")}>%</th>
+              <th style={thStyle(P, scale, "center")}>Sales (JPY)</th>
+              <th style={thStyle(P, scale, "center")}>Sales (MYR)</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.category} style={{ background: i % 2 === 0 ? P.rowAlt : "transparent" }}>
                 <td style={tdStyle(P, scale)}>{r.category}</td>
-                <td style={tdStyle(P, scale, "right")}>{r.outlets}</td>
-                <td style={tdStyle(P, scale, "right")}>{fmtPct(r.pct, 0)}</td>
-                <td style={tdStyle(P, scale, "right")}>{fmtJPY(r.salesMyr * report.fxRate)}</td>
-                <td style={tdStyle(P, scale, "right")}>MYR {fmtMYR(r.salesMyr, 0)}</td>
+                <td style={tdStyle(P, scale, "center")}>{r.outlets}</td>
+                <td style={tdStyle(P, scale, "center")}>{fmtPct(r.pct, 0)}</td>
+                <td style={tdStyle(P, scale, "center")}>{fmtJPY(r.salesMyr * report.fxRate)}</td>
+                <td style={tdStyle(P, scale, "center")}>MYR {fmtMYR(r.salesMyr, 0)}</td>
               </tr>
             ))}
           </tbody>
@@ -1076,12 +1083,20 @@ function SlideFinancial({ report, P, scale }: { report: MonthReport; P: Palette;
     <>
       <SlideTitle palette={P} scale={scale} text="12. Financial Relationship" />
       <div style={{ position: "absolute", left: px(0.9, scale), top: px(1.3, scale), width: px(11.5, scale), fontSize: fs(12, scale) }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri", tableLayout: "fixed" }}>
+          {/* Item gets ~3.5" for "180-365 days long-term"; the two numeric
+              columns split the rest (matches the Classic PPTX colW for
+              the single-month case). */}
+          <colgroup>
+            <col style={{ width: `${(3.50 / 11.5) * 100}%` }} />
+            <col style={{ width: `${(4.00 / 11.5) * 100}%` }} />
+            <col style={{ width: `${(4.00 / 11.5) * 100}%` }} />
+          </colgroup>
           <thead>
             <tr>
               <th style={thStyle(P, scale)}>Item</th>
-              <th style={thStyle(P, scale, "right")}>{MONTH_NAMES[report.month - 1]} (JPY)</th>
-              <th style={thStyle(P, scale, "right")}>{MONTH_NAMES[report.month - 1]} (MYR)</th>
+              <th style={thStyle(P, scale, "center")}>{MONTH_NAMES[report.month - 1]} (JPY)</th>
+              <th style={thStyle(P, scale, "center")}>{MONTH_NAMES[report.month - 1]} (MYR)</th>
             </tr>
           </thead>
           <tbody>
@@ -1090,8 +1105,8 @@ function SlideFinancial({ report, P, scale }: { report: MonthReport; P: Palette;
               return (
                 <tr key={key} style={{ background: i % 2 === 0 ? P.rowAlt : "transparent" }}>
                   <td style={{ ...tdStyle(P, scale), fontWeight: 600 }}>{label}</td>
-                  <td style={tdStyle(P, scale, "right")}>{fmtJPY(myr * fx)}</td>
-                  <td style={tdStyle(P, scale, "right")}>{fmtMYR(myr, 0)}</td>
+                  <td style={tdStyle(P, scale, "center")}>{fmtJPY(myr * fx)}</td>
+                  <td style={tdStyle(P, scale, "center")}>{fmtMYR(myr, 0)}</td>
                 </tr>
               );
             })}
