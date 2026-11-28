@@ -133,7 +133,7 @@ export function MonthsMenu({ buttonClassName }: { buttonClassName?: string } = {
 
           {groups.map(group => (
             <div key={group.year} className="mb-1 last:mb-0">
-              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--color-ink-600)]">
+              <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--color-ink-600)]">
                 {group.year}
               </p>
               {group.months.map(m => {
@@ -153,7 +153,7 @@ export function MonthsMenu({ buttonClassName }: { buttonClassName?: string } = {
                     <span>{monthNameFull(m.month)} {m.year}</span>
                     <span
                       className={[
-                        "shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                        "shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full tabular-nums",
                         isActive
                           ? "bg-white/20 text-white"
                           : "bg-[var(--color-ice-100)] text-[var(--color-ink-700)]",
@@ -189,7 +189,7 @@ export function MonthsDrawerSection() {
         type="button"
         onClick={() => setExpanded(v => !v)}
         aria-expanded={expanded}
-        className="flex w-full items-center justify-between rounded-lg px-3 h-11 text-[15px] font-medium text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)]"
+        className="flex w-full items-center justify-between rounded-lg px-3 h-11 text-base font-medium text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)]"
       >
         <span>Jump to month</span>
         <ChevronDown size={18} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -205,7 +205,7 @@ export function MonthsDrawerSection() {
           )}
           {groups.map(group => (
             <div key={group.year}>
-              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--color-ink-600)]">
+              <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--color-ink-600)]">
                 {group.year}
               </p>
               {group.months.map(m => {

@@ -107,13 +107,14 @@ html, body {
 
 h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 
-/* Scrollbar polish */
+/* Scrollbar polish — use the ink-and-ice semantic tokens so the thumb follows
+   every palette instead of pinning two literals from the Midnight set. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c9d0e0; border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: #a6afc4; }
-html.dark ::-webkit-scrollbar-thumb { background: #2b3883; }
-html.dark ::-webkit-scrollbar-thumb:hover { background: #4353a6; }
+::-webkit-scrollbar-thumb { background: var(--color-ice-200); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-600); }
+html.dark ::-webkit-scrollbar-thumb { background: var(--color-ink-700); }
+html.dark ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-600); }
 
 /* Editable grid cells */
 [contenteditable="true"]:focus { outline: 2px solid var(--color-ink-700); outline-offset: -2px; background: var(--color-ice-50); }
@@ -216,7 +217,10 @@ body {
   place-items: center;
 }
 .welcome-disc img { width: 72%; height: auto; display: block; }
-.welcome-hi { margin-top: 36px !important; font-size: 1.25rem; color: #cadcfc; }
+/* Welcome-splash type: display (headline) for the greeting, headline size for
+   the operator name, caption for the role line and the by-line. All on the
+   documented type ramp; see DESIGN.md typography.caption. */
+.welcome-hi { margin-top: 36px !important; font-size: 1.5rem; color: #cadcfc; }
 .welcome-name {
   max-width: 100%;
   font-family: var(--font-display);
@@ -227,7 +231,7 @@ body {
   overflow-wrap: anywhere;
   min-height: 1.3em;
 }
-.welcome-co { margin-top: 30px !important; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.03em; color: #a8bbe8; }
+.welcome-co { margin-top: 30px !important; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; color: #a8bbe8; }
 .welcome-by {
   position: absolute;
   left: 0;

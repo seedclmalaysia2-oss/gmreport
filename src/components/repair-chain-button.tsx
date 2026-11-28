@@ -125,7 +125,7 @@ export function RepairChainButton() {
                         <li key={r.id} className="px-3 py-2">
                           <div className="font-semibold text-[var(--color-ink-900)]">
                             {r.id}
-                            {!r.changed && <span className="ml-2 text-[10px] font-normal uppercase tracking-wide text-[var(--color-ink-500)]">(no state change)</span>}
+                            {!r.changed && <span className="ml-2 text-[11px] font-normal uppercase tracking-[0.15em] text-[var(--color-ink-600)]">(no state change)</span>}
                           </div>
                           <ul className="mt-1 text-[var(--color-ink-600)] list-disc pl-4 space-y-0.5">
                             {r.notes.map((n, i) => <li key={i}>{n}</li>)}

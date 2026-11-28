@@ -17,11 +17,11 @@
 .tb-logo { width: 64px; height: 36px; object-fit: cover; border-radius: 6px; background: #fff; }
 .tb-pill {
   display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px;
-  background: #0b0f2b; color: #f4f7ff; font-weight: 700; font-size: .8125rem; white-space: nowrap;
+  background: #0b0f2b; color: #f4f7ff; font-weight: 700; font-size: .875rem; white-space: nowrap;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
 }
 .tb-build {
-  padding: 4px 9px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border-subtle);
+  padding: 4px 9px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border-subtle);
   color: var(--text-secondary); font-family: var(--font-mono); font-size: .6875rem; font-weight: 600; white-space: nowrap;
 }
 .tb-icon {
@@ -49,7 +49,7 @@
 .tb-who { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .tb-avatar {
   flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
-  background: var(--color-ice-100); color: var(--color-ink-700); font-weight: 700; font-size: .8125rem;
+  background: var(--color-ice-100); color: var(--color-ink-700); font-weight: 700; font-size: .875rem;
 }
 html.dark .tb-avatar { color: var(--text-primary); }
 .tb-who-text { display: grid; line-height: 1.2; min-width: 0; }

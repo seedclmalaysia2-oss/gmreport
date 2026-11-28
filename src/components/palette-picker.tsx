@@ -62,7 +62,7 @@ export function PalettePicker() {
         >
           <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--color-ink-600)] mb-2 flex items-center justify-between">
             <span>Pick a theme</span>
-            <span className="text-[10px] font-normal tracking-normal normal-case opacity-80">PPTX exports stay Midnight.</span>
+            <span className="text-[11px] font-normal tracking-normal normal-case opacity-80">PPTX exports stay Midnight.</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {PALETTES.map(p => {
@@ -86,7 +86,7 @@ export function PalettePicker() {
                   </div>
                   <div className="mt-1.5">
                     <div className="text-[11px] font-semibold leading-tight truncate">{p.name}</div>
-                    <div className="text-[9px] uppercase tracking-[0.12em] text-[var(--color-ink-600)] truncate">{p.mood}</div>
+                    <div className="text-[11px] uppercase tracking-[0.15em] text-[var(--color-ink-600)] truncate">{p.mood}</div>
                   </div>
                   {isActive && (
                     <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-ink-800)] text-white grid place-items-center">

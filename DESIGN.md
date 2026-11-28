@@ -22,6 +22,13 @@ colors:
   text-muted: "#6b7280"
   border-subtle: "#e4ecff"
   border-strong: "#cadcfc"
+  # Welcome splash — the SEED-standard sign-in moment, shared with SEED MY HR.
+  # Pinned deeper than ink-950 so the brand screen reads unmistakably SEED in
+  # both light and dark mode. Only used in .welcome / .welcome-ring / welcome
+  # text in globals.css; never anywhere else.
+  welcome-bg:     "#13245a"
+  welcome-ring:   "#1a8ae0"
+  welcome-text:   "#a8bbe8"
 typography:
   display:
     fontFamily: "Cambria, Georgia, serif"
@@ -50,6 +57,15 @@ typography:
     fontSize: "0.6875rem"
     fontWeight: 600
     letterSpacing: "0.2em"
+  # Caption — the small-print step for hint text, chip metadata, build badge,
+  # role labels, and the welcome splash footnotes. Sits between label (11px)
+  # and body (14px). Not for primary content; a caption that becomes a
+  # heading was the wrong element, not the wrong size.
+  caption:
+    fontFamily: "Calibri, Inter, system-ui, sans-serif"
+    fontSize: "0.75rem"
+    fontWeight: 500
+    lineHeight: "1.4"
   mono:
     fontFamily: "ui-monospace, Cascadia Code, Menlo, monospace"
     fontSize: "0.875rem"

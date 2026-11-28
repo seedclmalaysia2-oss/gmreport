@@ -49,7 +49,7 @@ export function LogoutButton({ variant = "icon" }: { variant?: "icon" | "drawer"
         type="button"
         onClick={logout}
         disabled={busy}
-        className="flex items-center gap-3 rounded-lg px-3 h-11 text-[15px] font-medium
+        className="flex items-center gap-3 rounded-lg px-3 h-11 text-base font-medium
                    text-red-700 hover:bg-red-50 active:bg-red-50 disabled:opacity-60
                    w-full text-left"
       >
