@@ -241,35 +241,40 @@ function slideSalesTrend(pptx: PptxGenJS, input: PptxInput) {
     lineDataSymbol: "circle" as const,
     lineDataSymbolSize: 8,
   };
-  s.addChart(
-    [
-      {
-        type: pptx.ChartType.line,
-        data: [{ name: "Actual 2026", labels: [...categories], values: actual2026Trimmed as number[] }],
-        options: { ...labelOpts, chartColors: ["0B1F5C"], dataLabelPosition: "t" },
-      },
-      {
-        type: pptx.ChartType.line,
-        data: [{ name: "Target 2026", labels: [...categories], values: safe(SA.target2026) }],
-        options: { ...labelOpts, chartColors: ["DC2626"], dataLabelPosition: "r" },
-      },
-      {
-        type: pptx.ChartType.line,
-        data: [{ name: "Actual 2025", labels: [...categories], values: safe(SA.actual2025) }],
-        options: { ...labelOpts, chartColors: ["22C55E"], dataLabelPosition: "b" },
-      },
-    ],
-    // pptxgenjs's combo-chart signature still requires the `data` positional
-    // argument; each sub-chart's own data lives inside the array above, so this
-    // outer slot is an empty array.
-    [],
+  // pptxgenjs multi-chart: the runtime signature is addChart(comboArray,
+  // options) -- a 2-arg call. The TypeScript types declare 3 args
+  // (type, data, options?) and the runtime reads `data || opt` for the
+  // combo case, so passing [] as data silently clobbers every option
+  // (x, y, w, h fall back to defaults 1, 1, "50%", "50%") and the chart's
+  // generated XML blows up at export time with a 500. Pass options in the
+  // data slot and cast past the TS overload.
+  const comboSeries = [
     {
-      x: 0.5, y: 0.95, w: 12.3, h: chartH,
-      chartArea: { fill: { color: "FFFFFF" } },
-      showLegend: true, legendPos: "b", legendFontFace: FONT, legendFontSize: 15,
-      catAxisLabelFontFace: FONT, catAxisLabelFontSize: 14, catAxisLabelFontBold: true,
-      valAxisLabelFontFace: FONT, valAxisLabelFontSize: 14,
+      type: pptx.ChartType.line,
+      data: [{ name: "Actual 2026", labels: [...categories], values: actual2026Trimmed as number[] }],
+      options: { ...labelOpts, chartColors: ["0B1F5C"], dataLabelPosition: "t" },
     },
+    {
+      type: pptx.ChartType.line,
+      data: [{ name: "Target 2026", labels: [...categories], values: safe(SA.target2026) }],
+      options: { ...labelOpts, chartColors: ["DC2626"], dataLabelPosition: "r" },
+    },
+    {
+      type: pptx.ChartType.line,
+      data: [{ name: "Actual 2025", labels: [...categories], values: safe(SA.actual2025) }],
+      options: { ...labelOpts, chartColors: ["22C55E"], dataLabelPosition: "b" },
+    },
+  ];
+  const comboOptions = {
+    x: 0.5, y: 0.95, w: 12.3, h: chartH,
+    chartArea: { fill: { color: "FFFFFF" } },
+    showLegend: true, legendPos: "b" as const, legendFontFace: FONT, legendFontSize: 15,
+    catAxisLabelFontFace: FONT, catAxisLabelFontSize: 14, catAxisLabelFontBold: true,
+    valAxisLabelFontFace: FONT, valAxisLabelFontSize: 14,
+  };
+  (s.addChart as unknown as (type: typeof comboSeries, options: typeof comboOptions) => void)(
+    comboSeries,
+    comboOptions,
   );
 
   // ---- Commentary card ----
