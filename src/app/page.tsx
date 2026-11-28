@@ -25,32 +25,73 @@ function missingCount(m: MonthSummary): number {
 
 export default async function Home() {
   // Lightweight summary query — no section JSON blobs, fast initial load.
+  // listMonthSummaries() already returns year DESC, month DESC — so the
+  // first row is the current cycle Simon is working on.
   const months = await listMonthSummaries();
+  const current = months[0] ?? null;
+  const missing = current ? missingCount(current) : 0;
+
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl bg-[var(--color-ink-800)] text-white p-8 flex items-center gap-8 shadow-sm">
-        <div className="flex-1">
-          <p className="uppercase tracking-[0.25em] text-[var(--color-ice-200)] text-xs font-semibold">Dashboard</p>
-          <h1 className="text-4xl font-semibold mt-2">Malaysia GM Monthly Review</h1>
-          <p className="text-[var(--color-ice-100)] mt-3 max-w-2xl text-[15px]">
-            Drop your POS PDFs, review the auto-built summaries, then export the HQ deck in one click — Classic layout to match the current HQ format, or a Modern redesign when you want to stand out.
+      {/* Briefing band — the current reporting cycle at a glance, primary action
+          to jump into it, and the two monthly rituals (upload, export). The old
+          hero carried trivia ("Default FX", "Templates: 2") that is not status;
+          this one carries only real status for the month Simon is in. */}
+      <section
+        className="rounded-2xl border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        aria-label="Current reporting cycle"
+      >
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-ink-600)] font-semibold">
+            Current cycle
           </p>
-          <div className="mt-5 flex gap-3">
-            <Link href="/files" className="inline-flex items-center gap-2 rounded-lg bg-white text-[var(--color-ink-900)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-ice-100)]">
-              <FileUp size={15} /> Upload POS files
-            </Link>
-            <Link href="/export" className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold hover:bg-white/10">
-              <FileDown size={15} /> Export PPTX
-            </Link>
-          </div>
+          {current ? (
+            <div className="mt-1 flex items-baseline gap-x-3 gap-y-1 flex-wrap">
+              <h1 className="font-[var(--font-display)] text-2xl font-semibold text-[var(--color-ink-900)] leading-none">
+                {monthNameFull(current.month)} {current.year}
+              </h1>
+              <p className="text-sm text-[var(--color-ink-600)] tabular-nums">
+                <span>{current.filledSections} of {SECTION_COUNT} sections filled</span>
+                {missing > 0 && (
+                  <>
+                    {" · "}
+                    <span className="inline-flex items-center gap-1 font-semibold text-[var(--color-warn)]">
+                      <AlertTriangle size={12} aria-hidden="true" />
+                      {missing} need data
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          ) : (
+            <h1 className="mt-1 font-[var(--font-display)] text-2xl font-semibold text-[var(--color-ink-900)] leading-none">
+              No months yet
+            </h1>
+          )}
         </div>
-        <div className="hidden md:block h-32 w-px bg-white/20" />
-        <dl className="hidden md:grid grid-cols-2 gap-6 min-w-[260px]">
-          <Stat label="Months on file" value={months.length.toString()} />
-          <Stat label="Sections per month" value={SECTION_COUNT.toString()} />
-          <Stat label="Default FX" value="30.73" />
-          <Stat label="Templates" value="2" />
-        </dl>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {current && (
+            <Link
+              href={`/report/${current.id}`}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-ink-800)] text-white px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ink-700)]"
+            >
+              Open {MONTH_NAMES[current.month - 1]}
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          )}
+          <Link
+            href="/files"
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] text-[var(--color-ink-800)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ice-100)]"
+          >
+            <FileUp size={14} aria-hidden="true" /> Upload POS
+          </Link>
+          <Link
+            href="/export"
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-ice-200)] bg-white dark:bg-[var(--surface-1)] text-[var(--color-ink-800)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-ice-100)]"
+          >
+            <FileDown size={14} aria-hidden="true" /> Export
+          </Link>
+        </div>
       </section>
 
       <section className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -78,15 +119,6 @@ export default async function Home() {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-[11px] uppercase tracking-wider text-[var(--color-ice-200)]">{label}</dt>
-      <dd className="mt-0.5 font-[var(--font-display)] text-2xl font-semibold">{value}</dd>
     </div>
   );
 }
