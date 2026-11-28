@@ -223,13 +223,13 @@ export function SectionExpireWriteOff({ report, update, siblings = [] }: Section
                   : "bg-[var(--color-ink-700)] text-white";
                 return (
                   <Fragment key={m.id}>
-                    <th className={cn("text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]", bg)}>Quantity</th>
-                    <th className={cn("text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]", bg)}>Amount</th>
+                    <th className={cn("text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]", bg)}>Qty</th>
+                    <th className={cn("text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]", bg)}>Amt</th>
                   </Fragment>
                 );
               })}
-              <th className="bg-[var(--color-ink-700)] text-white text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]">Quantity</th>
-              <th className="bg-[var(--color-ink-700)] text-white text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]">Amount</th>
+              <th className="bg-[var(--color-ink-700)] text-white text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]">Qty</th>
+              <th className="bg-[var(--color-ink-700)] text-white text-center px-2 py-1 text-[10px] font-semibold uppercase tracking-wider border-l border-[var(--color-ink-600)]">Amt</th>
             </tr>
           </thead>
           <tbody>

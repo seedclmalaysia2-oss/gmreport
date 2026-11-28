@@ -976,13 +976,13 @@ function SlideExpireWriteOff({ report, P, scale, siblings = [] }: { report: Mont
                 const fg = curr ? CURR_INK : "#fff";
                 return (
                   <Fragment key={m.id}>
-                    <th style={{ ...thStyle(P, scale, "center"), background: bg, color: fg, fontSize: fs(8.5, scale) }}>QUANTITY</th>
-                    <th style={{ ...thStyle(P, scale, "center"), background: bg, color: fg, fontSize: fs(8.5, scale) }}>AMOUNT</th>
+                    <th style={{ ...thStyle(P, scale, "center"), background: bg, color: fg, fontSize: fs(8.5, scale) }}>QTY</th>
+                    <th style={{ ...thStyle(P, scale, "center"), background: bg, color: fg, fontSize: fs(8.5, scale) }}>AMT</th>
                   </Fragment>
                 );
               })}
-              <th style={{ ...thStyle(P, scale, "center"), fontSize: fs(8.5, scale) }}>QUANTITY</th>
-              <th style={{ ...thStyle(P, scale, "center"), fontSize: fs(8.5, scale) }}>AMOUNT</th>
+              <th style={{ ...thStyle(P, scale, "center"), fontSize: fs(8.5, scale) }}>QTY</th>
+              <th style={{ ...thStyle(P, scale, "center"), fontSize: fs(8.5, scale) }}>AMT</th>
             </tr>
           </thead>
           <tbody>

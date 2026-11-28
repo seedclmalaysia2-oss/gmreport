@@ -611,11 +611,11 @@ function expireWriteOff(pptx: PptxGenJS, input: PptxInput) {
     const curr = currentIds.has(m.id);
     const fill = { color: curr ? HL : P.ink3 };
     const color = curr ? P.ink : P.white;
-    subHead.push({ text: "QUANTITY", options: { bold: true, align: "center", fill, color, fontSize: 9 } });
-    subHead.push({ text: "AMOUNT",   options: { bold: true, align: "center", fill, color, fontSize: 9 } });
+    subHead.push({ text: "QTY", options: { bold: true, align: "center", fill, color, fontSize: 9 } });
+    subHead.push({ text: "AMT", options: { bold: true, align: "center", fill, color, fontSize: 9 } });
   }
-  subHead.push({ text: "QUANTITY", options: { bold: true, align: "center", color: P.white, fill: { color: P.ink3 }, fontSize: 9 } });
-  subHead.push({ text: "AMOUNT",   options: { bold: true, align: "center", color: P.white, fill: { color: P.ink3 }, fontSize: 9 } });
+  subHead.push({ text: "QTY", options: { bold: true, align: "center", color: P.white, fill: { color: P.ink3 }, fontSize: 9 } });
+  subHead.push({ text: "AMT", options: { bold: true, align: "center", color: P.white, fill: { color: P.ink3 }, fontSize: 9 } });
 
   const all = new Set<string>();
   for (const m of months) for (const r of m.expireWriteOff?.rows ?? []) all.add(r.product);
