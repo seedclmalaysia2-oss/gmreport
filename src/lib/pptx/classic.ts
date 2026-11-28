@@ -424,7 +424,7 @@ function slideSalesByQuantity(pptx: PptxGenJS, input: PptxInput) {
     { text: `${prevShort}\n2025`, options: { ...headerText, align: "center", fill: headerFill2026 } },
     { text: `${currShort}\n2026`, options: { ...headerTextDark, align: "center", fill: headerFillCurr } },
     { text: `${currShort}\n2025`, options: { ...headerText, align: "center", fill: headerFill2026 } },
-    { text: `Total 2026\nJan~${currShort}`, options: { ...headerText, valign: "middle", align: "right", fill: headerFill2026 } },
+    { text: `Total 2026\nJan~${currShort}`, options: { ...headerText, valign: "middle", align: "center", fill: headerFill2026 } },
   ];
 
   const rows: PptxGenJS.TableCell[][] = [header];
@@ -448,21 +448,21 @@ function slideSalesByQuantity(pptx: PptxGenJS, input: PptxInput) {
 
     rows.push([
       { text: r.product, options: { fontFace: FONT, color: labelColor, bold: labelBold } },
-      { text: fmt(prev26), options: { fontFace: FONT, align: "right", color: C.text } },
-      { text: fmt(prev25), options: { fontFace: FONT, align: "right", color: C.muted } },
-      { text: fmt(r.qty2026), options: { fontFace: FONT, align: "right", color: labelColor, bold: labelBold, fill: highlightFill } },
-      { text: fmt(r.qty2025), options: { fontFace: FONT, align: "right", color: C.muted } },
-      { text: fmt(ytd), options: { fontFace: FONT, align: "right", color: labelColor, bold: true } },
+      { text: fmt(prev26), options: { fontFace: FONT, align: "center", color: C.text } },
+      { text: fmt(prev25), options: { fontFace: FONT, align: "center", color: C.muted } },
+      { text: fmt(r.qty2026), options: { fontFace: FONT, align: "center", color: labelColor, bold: labelBold, fill: highlightFill } },
+      { text: fmt(r.qty2025), options: { fontFace: FONT, align: "center", color: C.muted } },
+      { text: fmt(ytd), options: { fontFace: FONT, align: "center", color: labelColor, bold: true } },
     ]);
   }
 
   rows.push([
     { text: "Total", options: { fontFace: FONT, bold: true, fill: headerFill2026, color: "FFFFFF" } },
-    { text: fmt(totPrev26), options: { fontFace: FONT, align: "right", bold: true, fill: headerFill2026, color: "FFFFFF" } },
-    { text: fmt(totPrev25), options: { fontFace: FONT, align: "right", bold: true, fill: headerFill2026, color: "FFFFFF" } },
-    { text: fmt(totCurr26), options: { fontFace: FONT, align: "right", bold: true, fill: headerFillCurr, color: "1F3864" } },
-    { text: fmt(totCurr25), options: { fontFace: FONT, align: "right", bold: true, fill: headerFill2026, color: "FFFFFF" } },
-    { text: fmt(totYtd), options: { fontFace: FONT, align: "right", bold: true, fill: headerFill2026, color: "FFFFFF" } },
+    { text: fmt(totPrev26), options: { fontFace: FONT, align: "center", bold: true, fill: headerFill2026, color: "FFFFFF" } },
+    { text: fmt(totPrev25), options: { fontFace: FONT, align: "center", bold: true, fill: headerFill2026, color: "FFFFFF" } },
+    { text: fmt(totCurr26), options: { fontFace: FONT, align: "center", bold: true, fill: headerFillCurr, color: "1F3864" } },
+    { text: fmt(totCurr25), options: { fontFace: FONT, align: "center", bold: true, fill: headerFill2026, color: "FFFFFF" } },
+    { text: fmt(totYtd), options: { fontFace: FONT, align: "center", bold: true, fill: headerFill2026, color: "FFFFFF" } },
   ]);
 
   // 29 products + 1 header + 1 total = 31 rows. Slide h 7.5 - title 0.75 ≈ 6.7in available.
@@ -471,7 +471,9 @@ function slideSalesByQuantity(pptx: PptxGenJS, input: PptxInput) {
   s.addTable(rows, {
     x: 0.25, y: 0.82, w: 12.85, h: hasCommentary ? 5.8 : 6.48,
     fontFace: FONT, fontSize: 9.5,
-    colW: [4.35, 1.45, 1.45, 1.75, 1.45, 2.40],
+    // Five numeric columns identical width; Product fills the rest.
+    // (12.85 - 4.35) / 5 = 1.70in per numeric column.
+    colW: [4.35, 1.70, 1.70, 1.70, 1.70, 1.70],
     border: { type: "solid", pt: 0.5, color: C.tableBorder },
     autoPage: false,
   });

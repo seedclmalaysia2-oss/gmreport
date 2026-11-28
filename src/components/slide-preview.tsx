@@ -574,11 +574,11 @@ function SlideSalesByQuantity({ report, P, scale, siblings }: { report: MonthRep
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Calibri", fontSize: bodyFont, tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: `${(4.35 / 12.85) * 100}%` }} />
-            <col style={{ width: `${(1.45 / 12.85) * 100}%` }} />
-            <col style={{ width: `${(1.45 / 12.85) * 100}%` }} />
-            <col style={{ width: `${(1.75 / 12.85) * 100}%` }} />
-            <col style={{ width: `${(1.45 / 12.85) * 100}%` }} />
-            <col style={{ width: `${(2.40 / 12.85) * 100}%` }} />
+            <col style={{ width: `${(1.70 / 12.85) * 100}%` }} />
+            <col style={{ width: `${(1.70 / 12.85) * 100}%` }} />
+            <col style={{ width: `${(1.70 / 12.85) * 100}%` }} />
+            <col style={{ width: `${(1.70 / 12.85) * 100}%` }} />
+            <col style={{ width: `${(1.70 / 12.85) * 100}%` }} />
           </colgroup>
           <thead>
             <tr>
