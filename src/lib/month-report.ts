@@ -111,10 +111,13 @@ async function loadMonthReport(
     ? await prisma.monthReport.findUnique({ where: { id: where.id } })
     : await prisma.monthReport.findUnique({ where: { year_month: where } });
   if (!row) return null;
+  // Soft-deleted months are hidden from every ordinary load path — they live
+  // only in `listDeletedMonthSummaries()` until Restored or Purged.
+  if (row.deletedAt) return null;
   if (mode === "raw") return rowToReport(row);
 
   const priorRows = await prisma.monthReport.findMany({
-    where: { year: row.year, month: { lt: row.month } },
+    where: { year: row.year, month: { lt: row.month }, deletedAt: null },
     orderBy: { month: "asc" },
   });
   const chain = [...priorRows.map(rowToReport), rowToReport(row)];
@@ -138,7 +141,10 @@ export async function getMonthReportById(
 }
 
 export async function listMonthReports(mode: "chain" | "raw" = "chain"): Promise<MonthReport[]> {
-  const rows = await prisma.monthReport.findMany({ orderBy: [{ year: "desc" }, { month: "desc" }] });
+  const rows = await prisma.monthReport.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+  });
   const reports = rows.map(rowToReport);
   if (mode === "chain") applyChainMergeAcrossYear(reports);
   return reports;
@@ -185,6 +191,7 @@ export async function listMonthSummaries(): Promise<MonthSummary[]> {
         (CASE WHEN "otherMarket"         IS NOT NULL THEN 1 ELSE 0 END)
       )::int AS "filledSections"
     FROM "gm"."MonthReport"
+    WHERE "deletedAt" IS NULL
     ORDER BY "year" DESC, "month" DESC
   `;
   // $queryRaw can hand back BigInt for integer expressions on some drivers —
@@ -205,6 +212,53 @@ export async function listMonthSummaries(): Promise<MonthSummary[]> {
   });
 }
 
+/**
+ * Trash-bin equivalent of listMonthSummaries — only months whose deletedAt is
+ * set. Powers the "Recently deleted months" section on the dashboard home, so
+ * Simon can Restore an accidental delete or Purge the row for good. Sorted by
+ * deletedAt desc, newest-trashed first.
+ */
+export type DeletedMonthSummary = MonthSummary & { deletedAt: string };
+
+export async function listDeletedMonthSummaries(): Promise<DeletedMonthSummary[]> {
+  const rows = await prisma.$queryRaw<(MonthSummary & { inventory: string | null; deletedAt: Date })[]>`
+    SELECT
+      "id", "year", "month", "fxRate", "inventory", "deletedAt",
+      (
+        (CASE WHEN "salesAchievement"    IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesTrend"          IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "marketOutlook"       IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "dailySales"          IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesByQuantity"     IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "topProducts"         IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesByECP"          IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "salesByRegion"       IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "productRegistration" IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "expireWriteOff"      IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "financial"           IS NOT NULL THEN 1 ELSE 0 END) +
+        (CASE WHEN "otherMarket"         IS NOT NULL THEN 1 ELSE 0 END)
+      )::int AS "filledSections"
+    FROM "gm"."MonthReport"
+    WHERE "deletedAt" IS NOT NULL
+    ORDER BY "deletedAt" DESC
+  `;
+  return rows.map(r => {
+    let inventory: unknown = null;
+    if (r.inventory) {
+      try { inventory = JSON.parse(r.inventory); }
+      catch { inventory = null; }
+    }
+    return {
+      id: r.id,
+      year: Number(r.year),
+      month: Number(r.month),
+      fxRate: Number(r.fxRate),
+      filledSections: Number(r.filledSections) + (sectionIsComplete("inventory", inventory) ? 1 : 0),
+      deletedAt: r.deletedAt.toISOString(),
+    };
+  });
+}
+
 export async function upsertMonthReport(input: Partial<MonthReport> & { year: number; month: number }): Promise<MonthReport> {
   const id = monthId(input.year, input.month);
   const existing = await getMonthReport(input.year, input.month);
@@ -218,6 +272,11 @@ export async function upsertMonthReport(input: Partial<MonthReport> & { year: nu
     sourceFiles: parsed.sourceFiles && Object.keys(parsed.sourceFiles).length
       ? JSON.stringify(parsed.sourceFiles)
       : null,
+    // If the row is currently soft-deleted and the user is writing new data
+    // to it, that's an implicit restore — otherwise the upsert silently
+    // succeeds against a hidden row and the user wonders where the month
+    // went. Clearing the tombstone is the least-surprising behavior.
+    deletedAt: null,
   };
   for (const k of SECTION_KEYS) {
     data[k] = parsed[k] ? JSON.stringify(parsed[k]) : null;
@@ -231,8 +290,38 @@ export async function upsertMonthReport(input: Partial<MonthReport> & { year: nu
   return parsed;
 }
 
+/**
+ * Soft-delete a month: set the tombstone, let it sit in "Recently deleted
+ * months" until the user restores or purges it. Idempotent — calling it on
+ * an already-trashed row leaves the original deletedAt in place.
+ */
+export async function softDeleteMonthReport(id: string) {
+  await prisma.monthReport
+    .updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } })
+    .catch(() => { /* ignore missing row */ });
+}
+
+/**
+ * Clear the tombstone on a month, bringing it back into the live list. Does
+ * nothing if the month is already active or missing.
+ */
+export async function restoreMonthReport(id: string) {
+  await prisma.monthReport
+    .updateMany({ where: { id, deletedAt: { not: null } }, data: { deletedAt: null } })
+    .catch(() => { /* ignore missing row */ });
+}
+
+/**
+ * Hard-delete a month row and every RawFile under it (Cascade handles the
+ * children). Only called after an explicit "Delete forever" in the UI.
+ */
+export async function purgeMonthReport(id: string) {
+  await prisma.monthReport.delete({ where: { id } }).catch(() => { /* ignore missing */ });
+}
+
+/** Back-compat alias for older callers — now goes through soft-delete. */
 export async function deleteMonthReport(id: string) {
-  await prisma.monthReport.delete({ where: { id } });
+  await softDeleteMonthReport(id);
 }
 
 // ----- Raw upload log (Files page) -----

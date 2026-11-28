@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getMonthReport, listMonthReports, upsertMonthReport } from "@/lib/month-report";
+import { getMonthReport, listMonthReports, softDeleteMonthReport, upsertMonthReport } from "@/lib/month-report";
 import { monthId } from "@/lib/utils";
-import { prisma } from "@/lib/db";
 import type { MonthReport } from "@/lib/schema";
 
 import { guardDept } from "@/lib/auth";
@@ -93,7 +92,11 @@ export async function DELETE(req: Request) {
 
   const { id } = await req.json().catch(() => ({}));
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  await prisma.monthReport.delete({ where: { id } }).catch(() => {});
+  // Soft-delete: the row lives in "Recently deleted months" on the home page
+  // until the user Restores or clicks Delete forever. A month represents
+  // weeks of keyed data; hard-deleting it on first click was the P1 the
+  // 2026-11-28 critique flagged.
+  await softDeleteMonthReport(id);
 
   // Same reasoning as POST — bust any cached month listings.
   revalidatePath("/");

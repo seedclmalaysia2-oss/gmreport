@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getMonthReportById, upsertMonthReport } from "@/lib/month-report";
+import { revalidatePath } from "next/cache";
+import { getMonthReportById, softDeleteMonthReport, upsertMonthReport } from "@/lib/month-report";
 import { parseMonthId } from "@/lib/utils";
-import { prisma } from "@/lib/db";
 
 import { guardDept } from "@/lib/auth";
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +30,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   if (denied) return denied;
 
   const { id } = await params;
-  await prisma.monthReport.delete({ where: { id } }).catch(() => {});
+  // Soft-delete — see /api/months (plural) for the reasoning. The month
+  // reappears in "Recently deleted months" until Restored or Purged.
+  await softDeleteMonthReport(id);
+  revalidatePath("/");
+  revalidatePath("/files");
+  revalidatePath("/export");
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { listMonthSummaries, type MonthSummary } from "@/lib/month-report";
+import { listDeletedMonthSummaries, listMonthSummaries, type MonthSummary } from "@/lib/month-report";
+import { DeletedMonthsSection } from "@/components/deleted-months-section";
 
 // Always re-fetch the months list. Without this, Next's router cache can
 // hand out a stale snapshot when the user navigates back from the editor
@@ -26,8 +27,12 @@ function missingCount(m: MonthSummary): number {
 export default async function Home() {
   // Lightweight summary query — no section JSON blobs, fast initial load.
   // listMonthSummaries() already returns year DESC, month DESC — so the
-  // first row is the current cycle Simon is working on.
-  const months = await listMonthSummaries();
+  // first row is the current cycle Simon is working on. Trashed months come
+  // in parallel for the Recently-deleted section below the grid.
+  const [months, deletedMonths] = await Promise.all([
+    listMonthSummaries(),
+    listDeletedMonthSummaries(),
+  ]);
   const current = months[0] ?? null;
   const missing = current ? missingCount(current) : 0;
 
@@ -119,6 +124,8 @@ export default async function Home() {
           ))}
         </div>
       )}
+
+      <DeletedMonthsSection initial={deletedMonths} />
     </div>
   );
 }
@@ -132,6 +139,8 @@ function MonthCard({ report, completion, missing }: { report: MonthSummary; comp
       <DeleteMonthButton
         monthId={report.id}
         label={`${monthNameFull(report.month)} ${report.year}`}
+        filledSections={report.filledSections}
+        totalSections={SECTION_COUNT}
       />
       <MonthCardLink report={report} completion={completion} missing={missing} />
     </div>
