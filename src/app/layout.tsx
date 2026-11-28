@@ -61,9 +61,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           who={staff ? { name: staff.full_name?.trim() || staff.email, role: staff.departments.includes(DEPARTMENT) ? "Malaysia GM" : staff.is_admin ? "Hub admin" : "No access" } : null}
         />
         {/* Mobile-first: tighter horizontal padding on small screens, expand on tablets+.
-            Extra bottom padding on phones leaves room for the fixed MobileTabBar so the
-            last cards aren't hidden behind it. md:pb-8 restores normal padding on tablets+. */}
-        <main className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
+            On phones the fixed MobileTabBar (~56px) and iOS home-indicator safe-area both live
+            at the bottom; main clears both plus a 24px breathing gap so the last card never
+            sits under chrome. md:pb-8 restores normal padding on tablets+. */}
+        <main className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8">
           {locked ? <NoAccess email={staff!.email} /> : children}
         </main>
         {/* Phone-only bottom navigation — thumb-reach friendly. */}

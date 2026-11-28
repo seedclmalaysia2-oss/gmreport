@@ -15,6 +15,12 @@ import { useEffect, useState } from "react";
  *
  *   We persist the level to localStorage so the choice survives reloads, and
  *   re-apply it on mount.
+ *
+ * Placement:
+ *   A horizontal pill, centered above the MobileTabBar — out of the card
+ *   right-edge where Delete / chip / Open-arrow all live. Idle opacity 70%
+ *   so it reads as chrome rather than a competing primary action; full
+ *   opacity on hover / focus.
  */
 
 const STEPS = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5] as const;
@@ -67,30 +73,34 @@ export function ZoomControls() {
   return (
     <div
       // md:hidden — desktop users have OS zoom + browser zoom, no need.
-      // bottom-20 sits above the mobile tab bar (which is bottom-0 + safe-area).
-      className="md:hidden fixed right-3 bottom-20 z-40 flex flex-col items-stretch
-                 rounded-2xl border border-[var(--color-ice-200)]
-                 bg-[var(--surface-1)]/95 backdrop-blur shadow-lg
-                 pb-[env(safe-area-inset-bottom)] select-none"
+      // Sits just above the MobileTabBar (which is ~56px tall + safe-area)
+      // and is centered so it stays clear of card right-edge actions.
+      className="md:hidden fixed left-1/2 -translate-x-1/2 z-40
+                 bottom-[calc(4rem+env(safe-area-inset-bottom))]
+                 inline-flex items-stretch
+                 rounded-full border border-[var(--color-ice-200)]
+                 bg-[var(--surface-1)]/90 backdrop-blur shadow-lg
+                 opacity-70 hover:opacity-100 focus-within:opacity-100
+                 transition-opacity select-none"
       role="group"
       aria-label="Zoom controls"
     >
       <button
         type="button"
-        onClick={() => setLevel(idx + 1)}
-        disabled={atMax}
-        aria-label="Zoom in"
-        className="h-11 w-11 grid place-items-center rounded-t-2xl
+        onClick={() => setLevel(idx - 1)}
+        disabled={atMin}
+        aria-label="Zoom out"
+        className="h-11 w-11 grid place-items-center rounded-l-full
                    text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)]
                    active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed
                    transition"
       >
-        <Plus size={20} />
+        <Minus size={18} />
       </button>
 
       <div
-        className="px-1 py-1 text-center text-[10px] font-semibold tabular-nums
-                   text-[var(--color-ink-700)] border-y border-[var(--color-ice-200)]"
+        className="min-w-[3.25rem] px-2 grid place-items-center text-[11px] font-semibold tabular-nums
+                   text-[var(--color-ink-700)] border-x border-[var(--color-ice-200)]"
         aria-live="polite"
       >
         {pct}%
@@ -98,15 +108,15 @@ export function ZoomControls() {
 
       <button
         type="button"
-        onClick={() => setLevel(idx - 1)}
-        disabled={atMin}
-        aria-label="Zoom out"
+        onClick={() => setLevel(idx + 1)}
+        disabled={atMax}
+        aria-label="Zoom in"
         className="h-11 w-11 grid place-items-center
                    text-[var(--color-ink-900)] hover:bg-[var(--color-ice-100)]
                    active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed
                    transition"
       >
-        <Minus size={20} />
+        <Plus size={18} />
       </button>
 
       <button
@@ -115,10 +125,10 @@ export function ZoomControls() {
         disabled={atDefault}
         aria-label="Reset zoom"
         title="Reset zoom"
-        className="h-9 w-11 grid place-items-center rounded-b-2xl
+        className="h-11 w-11 grid place-items-center rounded-r-full
                    text-[var(--color-ink-600)] hover:bg-[var(--color-ice-100)]
                    active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed
-                   border-t border-[var(--color-ice-200)] transition"
+                   border-l border-[var(--color-ice-200)] transition"
       >
         <RotateCcw size={14} />
       </button>
