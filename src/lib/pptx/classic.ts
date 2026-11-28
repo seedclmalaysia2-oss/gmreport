@@ -219,29 +219,58 @@ function slideSalesTrend(pptx: PptxGenJS, input: PptxInput) {
   // Commentary card pushes up from the bottom; the chart shrinks to fit.
   const commentary = (last.salesTrend?.commentary ?? "").trim();
   const chartH = commentary ? 4.5 : 5.7;
-  // Order matters for overlap control: Actual 2026 sits on top (labels above),
-  // Target 2026 below (red, labels below), Actual 2025 at bottom (light orange).
-  s.addChart(pptx.ChartType.line, [
-    { name: "Actual 2026", labels: [...categories], values: actual2026Trimmed as number[] },
-    { name: "Target 2026", labels: [...categories], values: safe(SA.target2026) },
-    { name: "Actual 2025", labels: [...categories], values: safe(SA.actual2025) },
-  ], {
+  // pptxgenjs renders a multi-series line chart with one shared dataLabelPosition,
+  // which stacks every label above every point and makes Actual / Target / 2025
+  // all collide at any x-position where the lines are within one label-height
+  // of each other (every month on this chart). Simon used to drag each label by
+  // hand after export. Split the chart into three single-series line sub-charts
+  // (combo-chart signature) so each series gets its own label offset:
+  //   Actual 2026 → labels above the point     ("t")
+  //   Target 2026 → labels to the right        ("r") -- horizontal offset
+  //                                                     avoids the vertical pile
+  //   Actual 2025 → labels below the point     ("b")
+  // plus a smaller label font (11pt instead of 16pt) so the three bands clear
+  // each other even when the three lines are close together.
+  const labelOpts = {
     showValue: true,
     dataLabelFontFace: FONT,
-    dataLabelFontSize: 16,
+    dataLabelFontSize: 11,
     dataLabelFontBold: true,
-    dataLabelPosition: "t",
     dataLabelFormatCode: "#,##0",
-    x: 0.5, y: 0.95, w: 12.3, h: chartH,
-    chartArea: { fill: { color: "FFFFFF" } },
-    // Actual 2026 → navy bold, Target 2026 → red, Actual 2025 → green.
-    chartColors: ["0B1F5C", "DC2626", "22C55E"],
     lineSize: 3,
-    showLegend: true, legendPos: "b", legendFontFace: FONT, legendFontSize: 15,
-    catAxisLabelFontFace: FONT, catAxisLabelFontSize: 14, catAxisLabelFontBold: true,
-    valAxisLabelFontFace: FONT, valAxisLabelFontSize: 14,
-    lineDataSymbol: "circle", lineDataSymbolSize: 10,
-  });
+    lineDataSymbol: "circle" as const,
+    lineDataSymbolSize: 8,
+  };
+  s.addChart(
+    [
+      {
+        type: pptx.ChartType.line,
+        data: [{ name: "Actual 2026", labels: [...categories], values: actual2026Trimmed as number[] }],
+        options: { ...labelOpts, chartColors: ["0B1F5C"], dataLabelPosition: "t" },
+      },
+      {
+        type: pptx.ChartType.line,
+        data: [{ name: "Target 2026", labels: [...categories], values: safe(SA.target2026) }],
+        options: { ...labelOpts, chartColors: ["DC2626"], dataLabelPosition: "r" },
+      },
+      {
+        type: pptx.ChartType.line,
+        data: [{ name: "Actual 2025", labels: [...categories], values: safe(SA.actual2025) }],
+        options: { ...labelOpts, chartColors: ["22C55E"], dataLabelPosition: "b" },
+      },
+    ],
+    // pptxgenjs's combo-chart signature still requires the `data` positional
+    // argument; each sub-chart's own data lives inside the array above, so this
+    // outer slot is an empty array.
+    [],
+    {
+      x: 0.5, y: 0.95, w: 12.3, h: chartH,
+      chartArea: { fill: { color: "FFFFFF" } },
+      showLegend: true, legendPos: "b", legendFontFace: FONT, legendFontSize: 15,
+      catAxisLabelFontFace: FONT, catAxisLabelFontSize: 14, catAxisLabelFontBold: true,
+      valAxisLabelFontFace: FONT, valAxisLabelFontSize: 14,
+    },
+  );
 
   // ---- Commentary card ----
   if (commentary) {
