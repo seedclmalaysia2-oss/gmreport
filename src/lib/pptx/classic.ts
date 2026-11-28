@@ -491,18 +491,18 @@ function slideTopProducts(pptx: PptxGenJS, input: PptxInput) {
   const placeTable = (month: typeof input.months[number], x: number, w: number) => {
     const rows: PptxGenJS.TableCell[][] = [[
       { text: `Product (${monthShort(month.month)})`, options: { bold: true, fill: headerFill(), color: C.headerText } },
-      { text: "MYR", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
-      { text: "%", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
-      { text: "JPY", options: { bold: true, align: "right", fill: headerFill(), color: C.headerText } },
+      { text: "MYR", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
+      { text: "%", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
+      { text: "JPY", options: { bold: true, align: "center", fill: headerFill(), color: C.headerText } },
     ]];
     const top = (month.topProducts?.rows ?? []).slice(0, 16);
     top.forEach((r, i) => {
       const zebra = i % 2 === 0 ? { fill: { color: C.rowAlt } } : {};
       rows.push([
         { text: r.product, options: { ...zebra } },
-        { text: fmtMYR(r.myr, 0), options: { ...zebra, align: "right" } },
-        { text: fmtPct(r.pct, 1), options: { ...zebra, align: "right" } },
-        { text: fmtJPY(r.myr * month.fxRate), options: { ...zebra, align: "right" } },
+        { text: fmtMYR(r.myr, 0), options: { ...zebra, align: "center" } },
+        { text: fmtPct(r.pct, 1), options: { ...zebra, align: "center" } },
+        { text: fmtJPY(r.myr * month.fxRate), options: { ...zebra, align: "center" } },
       ]);
     });
     s.addTable(rows, { x, y: 1.0, w, h: 5.5, fontFace: FONT, fontSize: 14, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
@@ -609,7 +609,12 @@ function slideSalesByRegion(pptx: PptxGenJS, input: PptxInput) {
     { text: "", options: { fill: headerFill() } },
   ]);
 
-  s.addTable(rows, { x: 0.69, y: 1.35, w: 11.70, h: 3.8, fontFace: FONT, fontSize: 15, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
+  // Explicit column widths: Region needs room for "Southern Region (Johor,
+  // Melaka & Negeri Sembilan)" on one line at 15pt bold; the three numeric
+  // columns only hold formatted MYR / percentages, so they split the rest.
+  // Without colW, pptxgenjs splits width equally (2.925" each) and every
+  // region name wraps to 2-3 lines.
+  s.addTable(rows, { x: 0.69, y: 1.35, w: 11.70, h: 3.8, colW: [5.10, 2.20, 2.20, 2.20], fontFace: FONT, fontSize: 15, border: { type: "solid", pt: 0.5, color: C.tableBorder } });
 
   s.addText(last.salesByRegion?.commentary ?? "", {
     x: 0.92, y: 5.35, w: 11.22, h: 2.0, fontFace: FONT, fontSize: 14, color: C.text, valign: "top",

@@ -647,9 +647,9 @@ function SlideTopProducts({ report, P, scale, template }: { report: MonthReport;
           <thead>
             <tr>
               <th style={thStyle(P, scale)}>Product</th>
-              <th style={thStyle(P, scale, "right")}>MYR</th>
-              <th style={thStyle(P, scale, "right")}>%</th>
-              <th style={thStyle(P, scale, "right")}>JPY</th>
+              <th style={thStyle(P, scale, "center")}>MYR</th>
+              <th style={thStyle(P, scale, "center")}>%</th>
+              <th style={thStyle(P, scale, "center")}>JPY</th>
             </tr>
           </thead>
           <tbody>
@@ -657,9 +657,9 @@ function SlideTopProducts({ report, P, scale, template }: { report: MonthReport;
             {rows.slice(0, 16).map((r, i) => (
               <tr key={i} style={{ background: i % 2 === 0 ? P.rowAlt : "transparent" }}>
                 <td style={tdStyle(P, scale)}>{r.product}</td>
-                <td style={tdStyle(P, scale, "right")}>{fmtMYR(r.myr, 0)}</td>
-                <td style={tdStyle(P, scale, "right")}>{fmtPct(r.pct, 1)}</td>
-                <td style={tdStyle(P, scale, "right")}>{fmtJPY(r.myr * report.fxRate)}</td>
+                <td style={tdStyle(P, scale, "center")}>{fmtMYR(r.myr, 0)}</td>
+                <td style={tdStyle(P, scale, "center")}>{fmtPct(r.pct, 1)}</td>
+                <td style={tdStyle(P, scale, "center")}>{fmtJPY(r.myr * report.fxRate)}</td>
               </tr>
             ))}
           </tbody>
