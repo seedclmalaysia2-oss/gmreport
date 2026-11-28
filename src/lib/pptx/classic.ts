@@ -850,11 +850,11 @@ function slideExpireWriteOff(pptx: PptxGenJS, input: PptxInput) {
     const curr = currentIds.has(m.id);
     const bg = curr ? headCurrFill : { color: C.rowAlt };
     const fg = curr ? HL_TEXT : C.text;
-    subHead.push({ text: "QTY", options: { bold: true, align: "center", fill: bg, color: fg, fontSize: 11 } });
-    subHead.push({ text: "AMT", options: { bold: true, align: "center", fill: bg, color: fg, fontSize: 11 } });
+    subHead.push({ text: "QTY", options: { bold: false, align: "center", fill: bg, color: fg, fontSize: 9 } });
+    subHead.push({ text: "AMT", options: { bold: false, align: "center", fill: bg, color: fg, fontSize: 9 } });
   }
-  subHead.push({ text: "QTY", options: { bold: true, align: "center", fill: { color: C.rowAlt }, fontSize: 11 } });
-  subHead.push({ text: "AMT", options: { bold: true, align: "center", fill: { color: C.rowAlt }, fontSize: 11 } });
+  subHead.push({ text: "QTY", options: { bold: false, align: "center", fill: { color: C.rowAlt }, fontSize: 9 } });
+  subHead.push({ text: "AMT", options: { bold: false, align: "center", fill: { color: C.rowAlt }, fontSize: 9 } });
 
   const allProducts = new Set<string>();
   for (const m of months) for (const r of m.expireWriteOff?.rows ?? []) allProducts.add(r.product);
